@@ -23,7 +23,7 @@ PACKAGE = Path(__file__).parent
 class SurveyAdjustmentPlugin:
     def __init__(self,iface): self.iface,self.dialog = iface,None
     def initGui(self):
-        self.action = QAction('Survey Adjustment – GNSS og SALSA',self.iface.mainWindow())
+        self.action = QAction('Survey Adjustment – GNSS and SALSA',self.iface.mainWindow())
         self.action.triggered.connect(self.run)
         self.iface.addPluginToMenu('Survey Adjustment',self.action)
     def run(self):
@@ -44,14 +44,14 @@ class SurveyDialog(QDialog):
     def __init__(self,iface):
         super().__init__(iface.mainWindow())
         self.iface = iface
-        self.setWindowTitle('Survey Adjustment 0.2.1 – GNSS / SALSA-utkast')
+        self.setWindowTitle('Survey Adjustment 0.2.2 – GNSS / SALSA prototype')
         self.resize(1080,760)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
         self.synthetic = False
         layout = QVBoxLayout(self)
-        label = QLabel('Uavhengig prototype for QGIS 4. Gjentakskontroll og SALSA har separate resultater. '
-                       'Originalfilene beholdes. Eksempeldata er syntetiske.')
+        label = QLabel('Independent prototype for QGIS 4. Repeatability checks and SALSA produce separate results. '
+                       'Original files are preserved. Example data are synthetic.')
         label.setWordWrap(True)
         layout.addWidget(label)
         self.tabs = QTabWidget()
@@ -59,28 +59,28 @@ class SurveyDialog(QDialog):
         page = QDialog()
         form = QFormLayout(page)
         row = QHBoxLayout()
-        for title,callback in [('Last syntetisk GNSS-eksempel',self.load_demo),('Åpne måle-CSV …',self.open_csv),('Åpne referanse-CSV …',self.open_reference),('Fjern referanse',self.clear_reference)]:
+        for title,callback in [('Load synthetic GNSS example',self.load_demo),('Open measurement file …',self.open_csv),('Open reference file …',self.open_reference),('Clear reference',self.clear_reference)]:
             button = QPushButton(title)
             button.clicked.connect(callback)
             row.addWidget(button)
         form.addRow(row)
-        self.source_info = QLabel('GNSS fra ulike mottakere: velg CSV/TXT/TSV med kolonnenavn eller last eksempelet. Ingen tilkobling til antenner.')
+        self.source_info = QLabel('GNSS from different receivers: choose CSV/TXT/TSV with column headers or load the example. No connection to receivers.')
         self.source_info.setWordWrap(True)
         form.addRow(self.source_info)
         self.mapping = QTableWidget(len(ALIASES),4)
-        self.mapping.setHorizontalHeaderLabels(['Bruk','Målefil','Referansefil','Hva fylles inn?'])
+        self.mapping.setHorizontalHeaderLabels(['Use','Measurement file','Reference file','What to enter'])
         self.mapping.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         form.addRow(self.mapping)
         self.crs = QComboBox()
         for zone in range(31,37): self.crs.addItem(f'EUREF89 / UTM {zone}N',f'EPSG:258{zone}')
         self.crs.setCurrentIndex(1)
-        form.addRow('Koordinatsystem',self.crs)
+        form.addRow('Coordinate system',self.crs)
         self.height = QComboBox()
-        self.height.addItems(['Velg høydegrunnlag','NN2000','NN54','ELLIP','LOKAL'])
-        form.addRow('Høydegrunnlag for Elevation/Z',self.height)
-        self.confirm = QCheckBox('Begge filer har samme valgte koordinatsystem og høydegrunnlag; E/N/Z er meter')
+        self.height.addItems(['Select height datum','NN2000','NN54','ELLIP','LOCAL'])
+        form.addRow('Height datum for Elevation/Z',self.height)
+        self.confirm = QCheckBox('Both files use the selected coordinate system and height datum; E/N/Z are in metres')
         form.addRow(self.confirm)
-        self.only_fix = QCheckBox('Bruk bare FIX/RTK FIX i beregningen (andre målinger listes som utelatt)')
+        self.only_fix = QCheckBox('Use only FIX/RTK FIX measurements (others are listed as excluded)')
         self.only_fix.setChecked(True)
         form.addRow(self.only_fix)
         self.h_tol,self.v_tol = QDoubleSpinBox(),QDoubleSpinBox()
@@ -90,75 +90,75 @@ class SurveyDialog(QDialog):
             widget.setSingleStep(.01)
             widget.setValue(value)
             widget.setSuffix(' m')
-        form.addRow('Din grense i plan (demo: 3 cm)',self.h_tol)
-        form.addRow('Din grense i høyde (demo: 5 cm)',self.v_tol)
-        hint = QLabel('Kontrollpunkt-ID grupperer gjentatte målinger av samme fysiske punkt. '
-                      'Ikke velg Code hvis flere ulike punkter deler koden. Navnesuffiks fjernes ikke automatisk.\n'
-                      'Elevation skal være ferdig punkt-/bakkehøyde i valgt datum. Antennehøyde trekkes ikke fra igjen. '
-                      'RMS-verdier brukes ikke som vekter. Grensene er dine kontrollvalg, ikke en leveransestandard.')
+        form.addRow('Your horizontal tolerance (example: 3 cm)',self.h_tol)
+        form.addRow('Your vertical tolerance (example: 5 cm)',self.v_tol)
+        hint = QLabel('Control point ID groups repeated measurements of the same physical point. '
+                      'Do not select Code if different points share the code. Name suffixes are not removed automatically.\n'
+                      'Elevation must be the final point/ground height in the selected datum. Antenna height is not subtracted again. '
+                      'RMS values are not used as weights. Tolerances are your check settings, not a delivery standard.')
         hint.setWordWrap(True)
         form.addRow(hint)
-        button = QPushButton('Beregn gjentakskontroll →')
+        button = QPushButton('Calculate repeatability →')
         button.clicked.connect(self.calculate)
         form.addRow(button)
-        self.tabs.addTab(page,'1. GNSS / gjentak')
+        self.tabs.addTab(page,'1. GNSS / repeats')
         page = QDialog()
         result_layout = QVBoxLayout(page)
-        self.summary = QLabel('Ingen beregning kjørt.')
+        self.summary = QLabel('No calculation has been run.')
         self.summary.setWordWrap(True)
         result_layout.addWidget(self.summary)
         self.results = QTableWidget(0,9)
-        self.results.setHorizontalHeaderLabels(['Punkt','Antall','Status','Maks rest plan (m)','Maks rest Z (m)','Middel−ref E (m)','Middel−ref N (m)','Middel−ref Z (m)','Merknad'])
+        self.results.setHorizontalHeaderLabels(['Point','Count','Status','Max horizontal residual (m)','Max Z residual (m)','Mean−ref E (m)','Mean−ref N (m)','Mean−ref Z (m)','Note'])
         self.results.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.results.horizontalHeader().setSectionResizeMode(8,QHeaderView.ResizeMode.Stretch)
         result_layout.addWidget(self.results)
         self.report = QTextBrowser()
         result_layout.addWidget(self.report)
         actions = QHBoxLayout()
-        for title,callback in [('Vis resultater i kart',self.add_layers),('Lagre rapportpakke …',self.save_results)]:
+        for title,callback in [('Show results on map',self.add_layers),('Save report package …',self.save_results)]:
             button = QPushButton(title)
             button.clicked.connect(callback)
             actions.addWidget(button)
         result_layout.addLayout(actions)
-        self.tabs.addTab(page,'2. Kontrollresultat')
+        self.tabs.addTab(page,'2. Check results')
         page = QDialog()
         engine_layout = QFormLayout(page)
-        info = QLabel('SALSA kjører her et eget syntetisk 3D-målenett: seks GNSS-vektorer, ett fast punkt og to ukjente punkter. '
-                      'Resultatene sammenlignes med en uavhengig kontrollberegning.\n'
-                      'Egne GNSS-koordinater fra fane 1 blir ikke automatisk til GNSS-baselinjer. '
-                      'Egne koordinatobservasjoner med dokumentert usikkerhet kan utjevnes på fane 4. '
-                      'Rå GNSS-baselinjer/RINEX støttes ikke i denne profilen.')
+        info = QLabel('SALSA runs a separate synthetic 3D network here: six GNSS vectors, one fixed point and two unknown points. '
+                      'Results are compared with an independent calculation.\n'
+                      'Your GNSS coordinates from tab 1 are not converted automatically into GNSS baselines. '
+                      'Your coordinate observations with documented uncertainty can be adjusted on tab 4. '
+                      'Raw GNSS baselines/RINEX are not supported by this profile.')
         info.setWordWrap(True)
         engine_layout.addRow(info)
         self.solver = QLineEdit(str(QSettings().value('survey_adjustment/solver','')))
         row = QHBoxLayout()
         row.addWidget(self.solver)
-        button = QPushButton('Velg lsasolver …')
+        button = QPushButton('Select lsasolver …')
         button.clicked.connect(self.choose_solver)
         row.addWidget(button)
-        engine_layout.addRow('SALSA-motor',row)
-        self.engine_run = QPushButton('Kjør syntetisk SALSA-eksempel …')
+        engine_layout.addRow('SALSA engine',row)
+        self.engine_run = QPushButton('Run synthetic SALSA example …')
         self.engine_run.clicked.connect(self.run_engine)
         engine_layout.addRow(self.engine_run)
-        button = QPushButton('Stopp beregningen')
+        button = QPushButton('Stop calculation')
         button.clicked.connect(self.stop_engine)
         engine_layout.addRow(button)
         self.engine_log = QTextBrowser()
-        self.engine_log.setPlainText('SALSA må velges separat. Motoren følger ikke med pluginpakken. Ingen måledata sendes på nett.')
+        self.engine_log.setPlainText('Select SALSA separately. The engine is not included in the plugin package. No measurements are sent online.')
         engine_layout.addRow(self.engine_log)
-        self.tabs.addTab(page,'3. SALSA-motor')
+        self.tabs.addTab(page,'3. SALSA engine')
         self.coordinate_panel = CoordinatePanel(self)
         self.tabs.addTab(self.coordinate_panel,'4. GNSS → SALSA')
         page = QDialog()
         docs_layout = QVBoxLayout(page)
         docs = QTextBrowser()
-        docs.setPlainText((PACKAGE/'README.txt').read_text(encoding='utf-8') if (PACKAGE/'README.txt').exists() else 'Se dokumentasjonen i pluginmappen.')
+        docs.setPlainText((PACKAGE/'README.txt').read_text(encoding='utf-8') if (PACKAGE/'README.txt').exists() else 'See the documentation in the plugin folder.')
         docs_layout.addWidget(docs)
-        self.tabs.addTab(page,'5. Hjelp og rettigheter')
-        self.status = QLabel('Velg eksempeldata eller egne CSV-filer.')
+        self.tabs.addTab(page,'5. Help and licensing')
+        self.status = QLabel('Choose example data or your own CSV files.')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        close = QPushButton('Lukk')
+        close = QPushButton('Close')
         close.clicked.connect(self.close)
         layout.addWidget(close)
         for widget in (self.crs,self.height): widget.currentIndexChanged.connect(self.frame_changed)
@@ -169,7 +169,7 @@ class SurveyDialog(QDialog):
     def error(self,error): QMessageBox.warning(self,'Survey Adjustment',str(error))
     def invalidate(self,*_):
         self.result = None
-        self.summary.setText('Oppsettet er endret. Kjør gjentakskontrollen på nytt.')
+        self.summary.setText('Settings have changed. Recalculate the repeatability check.')
         self.report.clear()
         self.results.setRowCount(0)
     def frame_changed(self,*_):
@@ -177,17 +177,17 @@ class SurveyDialog(QDialog):
         self.invalidate()
 
     def rebuild_mappings(self):
-        labels = {'name':'Målingens navn','group':'Kontrollpunkt-ID','e':'Øst (E)','n':'Nord (N)','z':'Høyde (Z)','status':'Løsningsstatus','time':'Måletid'}
-        help_text = {'name':'Identifiserer hver måling.','group':'Samme ID = samme fysiske kontrollpunkt.',
-                     'e':'Projisert østkoordinat i meter.','n':'Projisert nordkoordinat i meter.',
-                     'z':'Ferdig punkt-/bakkehøyde i valgt datum.', 'status':'Tekstlig FIX/RTK FIX/FIXED, FLOAT osv. Tallkoder tolkes ikke automatisk; dokumenter og normaliser status i en arbeidskopi.',
-                     'time':'Brukes til å varsle om manglende eller like måletider.'}
+        labels = {'name':'Measurement name','group':'Control point ID','e':'Easting (E)','n':'Northing (N)','z':'Height (Z)','status':'Solution status','time':'Measurement time'}
+        help_text = {'name':'Identifies each measurement.','group':'Same ID = same physical control point.',
+                     'e':'Projected easting in metres.','n':'Projected northing in metres.',
+                     'z':'Final point/ground height in the selected datum.', 'status':'Text FIX/RTK FIX/FIXED, FLOAT, etc. Numeric codes are not interpreted automatically; document and normalise status in a working copy.',
+                     'time':'Used to flag missing or duplicate measurement times.'}
         for row,field in enumerate(ALIASES):
             self.mapping.setItem(row,0,self.item(labels[field]))
             self.mapping.setItem(row,3,self.item(help_text[field]))
             for col,table in ((1,self.table),(2,self.reference_table)):
                 combo = QComboBox()
-                combo.addItem('— ingen —','')
+                combo.addItem('— none —','')
                 for header in table['headers'] if table else []: combo.addItem(header,header)
                 mapping = default_mapping(table['headers']) if table else {}
                 combo.setCurrentIndex(max(0,combo.findData(mapping.get(field,''))))
@@ -195,8 +195,8 @@ class SurveyDialog(QDialog):
                 self.mapping.setCellWidget(row,col,combo)
         self.confirm.setChecked(False)
         self.invalidate()
-        self.source_info.setText('\n'.join(f"{'Målinger' if index==0 else 'Referanse'}: {Path(t['path']).name} – {len(t['rows'])} rader"
-                                for index,t in enumerate((self.table,self.reference_table)) if t) or 'Ingen fil valgt.')
+        self.source_info.setText('\n'.join(f"{'Measurements' if index==0 else 'Reference'}: {Path(t['path']).name} – {len(t['rows'])} rows"
+                                for index,t in enumerate((self.table,self.reference_table)) if t) or 'No file selected.')
 
     @staticmethod
     def item(value):
@@ -213,10 +213,10 @@ class SurveyDialog(QDialog):
             self.crs.setCurrentIndex(1)
             self.height.setCurrentText('NN2000')
             self.rebuild_mappings()
-            self.status.setText('Syntetisk GNSS-eksempel lastet. Bekreft UTM 32 / NN2000 før kontroll.')
+            self.status.setText('Synthetic GNSS example loaded. Confirm UTM 32 / NN2000 before checking.')
         except Exception as error: self.error(error)
     def open_csv(self):
-        path,_ = QFileDialog.getOpenFileName(self,'Åpne GNSS-målinger med kolonnenavn','','Tekstdata (*.csv *.txt *.tsv);;Alle filer (*)')
+        path,_ = QFileDialog.getOpenFileName(self,'Open GNSS measurements with column headers','','Text data (*.csv *.txt *.tsv);;All files (*)')
         if path:
             try:
                 self.table = read_table(path)
@@ -224,7 +224,7 @@ class SurveyDialog(QDialog):
                 self.rebuild_mappings()
             except Exception as error: self.error(error)
     def open_reference(self):
-        path,_ = QFileDialog.getOpenFileName(self,'Åpne referansepunkter i samme CRS/høydegrunnlag','','Tekstdata (*.csv *.txt *.tsv);;Alle filer (*)')
+        path,_ = QFileDialog.getOpenFileName(self,'Open reference points in the same CRS/height datum','','Text data (*.csv *.txt *.tsv);;All files (*)')
         if path:
             try:
                 self.reference_table = read_table(path)
@@ -239,7 +239,7 @@ class SurveyDialog(QDialog):
                        self.only_fix.isChecked(),self.h_tol.value(),self.v_tol.value())
     def calculate(self):
         try:
-            if not self.table: raise ValueError('Velg målefil eller last GNSS-eksempelet.')
+            if not self.table: raise ValueError('Select a measurement file or load the GNSS example.')
             self.invalidate()
             options = self.options()
             for table in (self.table,self.reference_table):
@@ -248,14 +248,14 @@ class SurveyDialog(QDialog):
                     declared = row.get('CS name','')
                     code = re.search(r'EPSG\s*:\s*(\d+)',declared,re.I)
                     if code and 'EPSG:'+code[1] != options.crs:
-                        raise ValueError('CSV oppgir et annet koordinatsystem enn valget: '+declared)
+                        raise ValueError('The CSV declares a different coordinate system from the selected one: '+declared)
                     datum = row.get('Height datum','')
                     if datum and datum != options.height:
-                        raise ValueError('CSV oppgir et annet høydegrunnlag enn valget: '+datum)
+                        raise ValueError('The CSV declares a different height datum from the selected one: '+datum)
             refs = references(self.reference_table,self.mappings(2)) if self.reference_table else {}
             result = analyze(observations(self.table,self.mappings(1)),refs,options)
             result['synthetic'] = self.synthetic
-            result['plugin_version'] = '0.2.1'
+            result['plugin_version'] = '0.2.2'
             result['sources'] = [{k:table[k] for k in ('path','sha256','encoding','delimiter')} for table in (self.table,self.reference_table) if table]
             result['mappings'] = {'observations':self.mappings(1),'references':self.mappings(2)}
             self.result = result
@@ -273,21 +273,21 @@ class SurveyDialog(QDialog):
             for col,value in enumerate(values):
                 item = self.item(value)
                 if col==2:
-                    item.setBackground(QColor({'INNENFOR':'#bbebcb','AVVIK':'#ffc9c9','UAVKLART':'#ffe1a2'}[g['status']]))
+                    item.setBackground(QColor({'WITHIN TOLERANCE':'#bbebcb','OUTSIDE TOLERANCE':'#ffc9c9','INCONCLUSIVE':'#ffe1a2'}[g['status']]))
                     item.setForeground(QColor('#111111'))
                 self.results.setItem(row,col,item)
-        self.summary.setText(f"{len(self.result['groups'])} kontrollpunkter • {self.result['used_count']} brukte målinger • {len(self.result['excluded'])} utelatt. "
-                             'Uvektet gjentakskontroll; SALSA er ikke brukt i denne beregningen.')
+        self.summary.setText(f"{len(self.result['groups'])} control points • {self.result['used_count']} measurements used • {len(self.result['excluded'])} excluded. "
+                             'Unweighted repeatability check; SALSA was not used in this calculation.')
         self.report.setPlainText(text_report(self.result))
-        self.status.setText('Kontroll beregnet. AVVIK/UAVKLART beholdes i rapporten; ingen uteliggere fjernes automatisk.')
+        self.status.setText('Check calculated. OUTSIDE TOLERANCE/INCONCLUSIVE results stay in the report; no outliers are removed automatically.')
     def add_layers(self):
         if not self.result:
-            self.error('Beregn på nytt før du oppretter resultatlag.')
+            self.error('Recalculate before creating result layers.')
             return
         try:
             layers = result_layers(self.result)
             project = QgsProject.instance()
-            group = project.layerTreeRoot().addGroup('Survey Adjustment – syntetisk prøve' if self.synthetic else 'Survey Adjustment – gjentak')
+            group = project.layerTreeRoot().addGroup('Survey Adjustment – synthetic example' if self.synthetic else 'Survey Adjustment – repeatability')
             # Draw aggregate quality above individual observations and references.
             for layer in (layers[1],layers[0],layers[2],layers[3]):
                 project.addMapLayer(layer,False)
@@ -299,21 +299,21 @@ class SurveyDialog(QDialog):
             extent.scale(1.25)
             canvas.setExtent(extent)
             canvas.refresh()
-            self.status.setText('Fire separate minnelag opprettet. Målelaget beholder faktisk XYZ. Lagre ønskede lag i prosjektets arbeidsformat.')
+            self.status.setText('Four separate memory layers created. The measurement layer retains actual XYZ. Save the required layers in your project working format.')
         except Exception as error: self.error(error)
     def save_results(self):
         if not self.result:
-            self.error('Beregn på nytt før rapporten lagres.')
+            self.error('Recalculate before saving the report.')
             return
-        folder = QFileDialog.getExistingDirectory(self,'Velg mappe for ny rapportpakke')
+        folder = QFileDialog.getExistingDirectory(self,'Select folder for a new report package')
         if folder:
             try:
                 path = save_bundle(folder,self.result)
-                self.status.setText('Lagret rapportpakke: '+str(path))
-                QMessageBox.information(self,'Rapportpakke lagret',str(path))
+                self.status.setText('Report package saved: '+str(path))
+                QMessageBox.information(self,'Report package saved',str(path))
             except Exception as error: self.error(error)
     def choose_solver(self):
-        path,_ = QFileDialog.getOpenFileName(self,'Velg SALSAs lsasolver-program','','SALSA (lsasolver.exe lsasolver);;Alle filer (*)')
+        path,_ = QFileDialog.getOpenFileName(self,'Select the SALSA lsasolver program','','SALSA (lsasolver.exe lsasolver);;All files (*)')
         if path:
             self.solver.setText(path)
             QSettings().setValue('survey_adjustment/solver',path)
@@ -323,7 +323,7 @@ class SurveyDialog(QDialog):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning: return
         try:
             program = solver_program(self.solver.text())
-            parent = QFileDialog.getExistingDirectory(self,'Velg mappe for nytt SALSA-resultat')
+            parent = QFileDialog.getExistingDirectory(self,'Select folder for a new SALSA result')
             if not parent: return
             folder = Path(parent)/(prefix+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
             prepare(folder)
@@ -347,8 +347,8 @@ class SurveyDialog(QDialog):
             self.engine_run.setEnabled(False)
             self.coordinate_panel.setEnabled(False)
             self.tabs.setCurrentIndex(2)
-            self.engine_log.setPlainText(('Kjører syntetisk eksempel i SALSA.' if synthetic else
-                'Kjører koordinatobservasjoner i SALSA; dette er ikke målte GNSS-baselinjer.')+'\n'+str(folder))
+            self.engine_log.setPlainText(('Running the synthetic example in SALSA.' if synthetic else
+                'Running coordinate observations in SALSA; these are not measured GNSS baselines.')+'\n'+str(folder))
             self.process.start()
         except Exception as error: self.error(error)
     def engine_error(self,error):
@@ -356,7 +356,7 @@ class SurveyDialog(QDialog):
             self.timer.stop()
             self.engine_run.setEnabled(True)
             self.coordinate_panel.setEnabled(True)
-            self.engine_log.setPlainText('SALSA kunne ikke starte. Kontroller programsti og SALSAs egne avhengigheter.')
+            self.engine_log.setPlainText('SALSA could not start. Check the program path and SALSA dependencies.')
     def engine_finished(self,exit_code,*_):
         self.timer.stop()
         self.engine_run.setEnabled(True)
@@ -364,23 +364,23 @@ class SurveyDialog(QDialog):
         console = bytes(self.process.readAllStandardOutput())+b'\n'+bytes(self.process.readAllStandardError())
         (self.engine_folder/'console.txt').write_bytes(console)
         try:
-            if self.engine_aborted: raise ValueError('Kjøringen ble stoppet; delvise resultatfiler skal ikke brukes.')
+            if self.engine_aborted: raise ValueError('The run was stopped; do not use partial result files.')
             self.engine_result = inspect_result(self.engine_folder,exit_code,self.engine_program)
             data = self.engine_result
             self.coordinate_panel.map_button.setEnabled(data.get('kind')=='coordinate_observations')
-            self.engine_log.setPlainText(f"SALSA {data['version']}: beregning fullført.\n"+
-                ('Syntetiske eksempeldata.\n' if data['synthetic'] else 'Egen kildefil; ikke verifisert mot dine feltdata.\n')+
-                f"Uavhengig modellkontroll: BESTÅTT, største XYZ-forskjell {data['maximum_difference_metres']:.9g} m.\n"
-                f"Grunnlag: {data['frame']}, ellipsoidiske høyder. Ingen NN2000-transformasjon.\n"
-                'Varsler fra SALSA må vurderes:\n'+'\n'.join(data['warnings'])+'\n\nResultatmappe: '+str(self.engine_folder)+
+            self.engine_log.setPlainText(f"SALSA {data['version']}: calculation completed.\n"+
+                ('Synthetic example data.\n' if data['synthetic'] else 'Your source file; not validated against your field measurements.\n')+
+                f"Independent model check: PASSED, maximum XYZ difference {data['maximum_difference_metres']:.9g} m.\n"
+                f"Reference frame: {data['frame']}, ellipsoidal heights. No NN2000 transformation.\n"
+                'SALSA warnings require review:\n'+'\n'.join(data['warnings'])+'\n\nResult folder: '+str(self.engine_folder)+
                 '\n\n'+(self.engine_folder/'solution.out').read_text(encoding='utf-8',errors='replace'))
-            self.status.setText('SALSA-beregningen er fullført og modellkontrollert. Se varsler og rapport i resultatmappen.')
+            self.status.setText('SALSA calculation completed and model checked. Review the warnings and report in the result folder.')
         except Exception as error:
             self.engine_result = None
-            self.engine_log.setPlainText('SALSA-resultatet ble ikke godkjent av programkoblingen: '+str(error)+'\n'+str(self.engine_folder))
+            self.engine_log.setPlainText('The plugin could not validate the SALSA result: '+str(error)+'\n'+str(self.engine_folder))
     def stop_engine(self):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning:
             self.engine_aborted = True
             self.process.kill()
             self.engine_result = None
-            self.engine_log.setPlainText('SALSA stoppet. Delvise resultatfiler skal ikke brukes.')
+            self.engine_log.setPlainText('SALSA stopped. Do not use partial result files.')

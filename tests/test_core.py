@@ -31,12 +31,12 @@ class CoreTests(unittest.TestCase):
             for name,data in (('numeric.csv','1,6701000,291000,24,KP\n2,6701001,291001,25,KP\n'),
                               ('names.txt','P1;6701000;291000;24;KP\nP2;6701001;291001;25;KP\n')):
                 path=Path(folder)/name; path.write_text(data,encoding='utf-8')
-                with self.assertRaisesRegex(ValueError,'overskriftsrad'): read_table(path)
+                with self.assertRaisesRegex(ValueError,'header row'): read_table(path)
 
     def test_numeric_solution_codes_are_not_guessed_as_fixed(self):
         for code in ('1','4','50'):
             items=[Observation(2,'A','P',100,100,1,code,'t1'),Observation(3,'B','P',100,100,1,code,'t2')]
-            with self.subTest(code=code),self.assertRaisesRegex(ValueError,'FIX-filteret'):
+            with self.subTest(code=code),self.assertRaisesRegex(ValueError,'FIX filter'):
                 analyze(items,{},Options(confirmed=True))
 
     def setup_data(self):
@@ -51,7 +51,7 @@ class CoreTests(unittest.TestCase):
         result = analyze(items,refs,Options(confirmed=True))
         self.assertEqual(result['used_count'],9)
         self.assertEqual(result['excluded'][0]['name'],'KP03_FLOAT')
-        self.assertEqual([g['status'] for g in result['groups']],['INNENFOR','AVVIK','AVVIK','UAVKLART'])
+        self.assertEqual([g['status'] for g in result['groups']],['WITHIN TOLERANCE','OUTSIDE TOLERANCE','OUTSIDE TOLERANCE','INCONCLUSIVE'])
         self.assertAlmostEqual(result['groups'][0]['mean'][0],291000.004/3+2*291000/3,places=8)
         self.assertAlmostEqual(result['groups'][0]['sd'][0],statistics.stdev([.006,-.004,.002]),places=8)
         self.assertEqual(result['groups'][3]['sd'],(None,None,None))
@@ -62,15 +62,15 @@ class CoreTests(unittest.TestCase):
         result = analyze(items,{'P':(100,100,1)},Options(confirmed=True))
         self.assertLess(result['groups'][0]['max_horizontal_residual'],.03)
         self.assertLess(result['groups'][0]['reference_delta'][0],.03)
-        self.assertEqual(result['groups'][0]['status'],'AVVIK')
+        self.assertEqual(result['groups'][0]['status'],'OUTSIDE TOLERANCE')
         self.assertTrue(result['observations'][1]['exceed'])
 
     def test_unknown_status_insufficient_and_duplicate_times_are_explicit(self):
         items = [Observation(2,'A','P',100,100,1,'','t'),Observation(3,'B','P',100,100,1,'FLOAT','t')]
         with self.assertRaises(ValueError): analyze(items,{},Options(confirmed=True))
         result = analyze(items,{},Options(confirmed=True,only_fix=False))
-        self.assertEqual(result['groups'][0]['status'],'UAVKLART')
-        self.assertTrue(any('samme måletid' in w for w in result['warnings']))
+        self.assertEqual(result['groups'][0]['status'],'INCONCLUSIVE')
+        self.assertTrue(any('same measurement time' in w for w in result['warnings']))
 
     def test_require_confirmation_crs_positive_limits_and_axis_order(self):
         items,refs = self.setup_data()
@@ -107,10 +107,14 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
             first,second = save_bundle(folder,result),save_bundle(folder,result)
             self.assertNotEqual(first,second)
-            self.assertNotIn('<script>',(first/'kontroll.html').read_text(encoding='utf-8'))
+            html=(first/'check.html').read_text(encoding='utf-8')
+            self.assertNotIn('<script>',html)
+            self.assertIn('lang="en"',html)
+            self.assertTrue((first/'means.csv').is_file())
+            self.assertTrue((first/'residuals.csv').is_file())
             hashes = json.loads((first/'sha256.json').read_text(encoding='utf-8'))
             for name,digest in hashes.items(): self.assertEqual(hashlib.sha256((first/name).read_bytes()).hexdigest(),digest)
-            self.assertIn('ikke SALSA',text_report(result))
+            self.assertIn('not SALSA',text_report(result))
 
 
 if __name__=='__main__':

@@ -21,8 +21,8 @@ def example():
     table=read_table(ROOT/'survey_adjustment/examples/emlid_salsa_llh.csv')
     options=CoordinateOptions(synthetic=True,frame='EPSG:4937',epoch='2026-10-18',
         ellipsoid_confirmed=True,independent_confirmed=True,uncertainty_confirmed=True,
-        sigma_mode='columns',uncertainty_source='Syntetisk 1 sigma ENU',
-        correction_source='Syntetisk eksempel',antenna_note='Syntetiske punkthøyder')
+        sigma_mode='columns',uncertainty_source='Synthetic 1 sigma ENU',
+        correction_source='Synthetic example',antenna_note='Synthetic point heights')
     return table,mapping_for(table['headers']),options
 
 
@@ -82,7 +82,7 @@ class CoordinateTests(unittest.TestCase):
 
     def test_required_knowledge_datum_sigma_and_independence_gates(self):
         table,mapping,options=example()
-        for changes in ({'frame':''},{'frame':'EPSG:25832'},{'epoch':'ukjent'},
+        for changes in ({'frame':''},{'frame':'EPSG:25832'},{'epoch':'unknown'},
             {'ellipsoid_confirmed':False},{'independent_confirmed':False},
             {'uncertainty_confirmed':False},{'uncertainty_source':''},
             {'correction_source':''},{'antenna_note':''},
@@ -101,7 +101,7 @@ class CoordinateTests(unittest.TestCase):
         modified=dict(table,headers=table['headers']+['Easting RMS'])
         with self.assertRaisesRegex(ValueError,'RMS'): coordinate_job(modified,dict(mapping,se='Easting RMS'),options)
         modified=dict(table,headers=table['headers']+['Elevation','Height datum'],rows=[dict(r,Elevation=r['Ellipsoidal height'],**{'Height datum':'NN2000'}) for r in table['rows']])
-        with self.assertRaisesRegex(ValueError,'ortometrisk'): coordinate_job(modified,dict(mapping,h='Elevation'),options)
+        with self.assertRaisesRegex(ValueError,'orthometric'): coordinate_job(modified,dict(mapping,h='Elevation'),options)
 
     def test_fix_filter_source_integrity_snapshot_and_unique_dat_tags(self):
         table,mapping,options=example(); data,meta=coordinate_job(table,mapping,options)
@@ -113,7 +113,7 @@ class CoordinateTests(unittest.TestCase):
             folder=prepare_coordinate(Path(tmp)/'job',table,mapping,options)
             self.assertEqual((folder/'source.csv').read_bytes(),Path(table['path']).read_bytes())
             with self.assertRaises(FileExistsError): prepare_coordinate(folder,table,mapping,options)
-            with self.assertRaisesRegex(ValueError,'endret'): prepare_coordinate(Path(tmp)/'changed',dict(table,sha256='wrong'),mapping,options)
+            with self.assertRaisesRegex(ValueError,'changed'): prepare_coordinate(Path(tmp)/'changed',dict(table,sha256='wrong'),mapping,options)
 
     @unittest.skipUnless(PROGRAM.exists(),'Local SALSA engine unavailable')
     def test_real_salsa_coordinate_adjustment_full_covariance_and_exports(self):
@@ -133,10 +133,10 @@ class CoordinateTests(unittest.TestCase):
             self.assertEqual(report['frame'],'EPSG:4937')
             original=(folder/'input.dat').read_text(encoding='ascii')
             (folder/'input.dat').write_text(original+'# changed\n',encoding='ascii')
-            with self.assertRaisesRegex(ValueError,'endret'): inspect_result(folder,process.returncode,PROGRAM)
+            with self.assertRaisesRegex(ValueError,'changed'): inspect_result(folder,process.returncode,PROGRAM)
             (folder/'input.dat').write_text(original,encoding='ascii',newline='\n')
             (folder/'source.csv').write_bytes(b'changed')
-            with self.assertRaisesRegex(ValueError,'Kildekopien'): inspect_result(folder,process.returncode,PROGRAM)
+            with self.assertRaisesRegex(ValueError,'source copy'): inspect_result(folder,process.returncode,PROGRAM)
         self.assertEqual(hashlib.sha256(Path(table['path']).read_bytes()).hexdigest(),source_hash)
 
 

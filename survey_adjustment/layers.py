@@ -17,7 +17,7 @@ def make_layer(kind,name,crs,fields,rows):
         feature.setGeometry(geometry)
         features.append(feature)
     if not layer.dataProvider().addFeatures(features)[0]:
-        raise ValueError('Kunne ikke opprette resultatlag i QGIS.')
+        raise ValueError('Could not create a result layer in QGIS.')
     layer.updateExtents()
     layer.setReadOnly(True)
     layer.setCustomProperty('survey_adjustment/derived',True)
@@ -29,26 +29,26 @@ def result_layers(report):
     point = lambda xyz: QgsGeometry(QgsPoint(*xyz))
     crs = report['options']['crs']
     group_status = {g['group']:g['status'] for g in report['groups']}
-    prefix = 'SYNTESE – ' if report.get('synthetic') else 'Gjentak – '
-    obs = make_layer('PointZ',prefix+'målinger (faktisk XYZ)',crs,
-        [('punkt',text),('kontroll_id',text),('rad',integer),('rtk',text),('tid',text),('dE_m',number),('dN_m',number),('dZ_m',number),('status',text)],
+    prefix = 'SYNTHETIC – ' if report.get('synthetic') else 'Repeatability – '
+    obs = make_layer('PointZ',prefix+'measurements (actual XYZ)',crs,
+        [('point',text),('control_id',text),('row',integer),('rtk',text),('time',text),('dE_m',number),('dN_m',number),('dZ_m',number),('status',text)],
         [([o['name'],o['group'],o['row'],o['status'],o['time'],*o['delta'],
-           'AVVIK' if o['exceed'] else ('UAVKLART' if group_status[o['group']]=='UAVKLART' else 'INNENFOR')],
+           'OUTSIDE TOLERANCE' if o['exceed'] else ('INCONCLUSIVE' if group_status[o['group']]=='INCONCLUSIVE' else 'WITHIN TOLERANCE')],
            point((o['e'],o['n'],o['z']))) for o in report['observations']])
-    means = make_layer('PointZ',prefix+'middelverdier (uvektet)',crs,
-        [('kontroll_id',text),('antall',integer),('sE_m',number),('sN_m',number),('sZ_m',number),('status',text)],
+    means = make_layer('PointZ',prefix+'means (unweighted)',crs,
+        [('control_id',text),('count',integer),('sE_m',number),('sN_m',number),('sZ_m',number),('status',text)],
         [([g['group'],g['count'],*g['sd'],g['status']],point(g['mean'])) for g in report['groups']])
-    controls = make_layer('PointZ',prefix+'referansepunkter',crs,[('kontroll_id',text)],
+    controls = make_layer('PointZ',prefix+'reference points',crs,[('control_id',text)],
         [([g['group']],point(g['reference'])) for g in report['groups'] if g['reference']])
-    vectors = make_layer('LineStringZ',prefix+'restavvik (faktisk lengde)',crs,
-        [('punkt',text),('kontroll_id',text),('dE_m',number),('dN_m',number),('dZ_m',number)],
+    vectors = make_layer('LineStringZ',prefix+'residuals (actual length)',crs,
+        [('point',text),('control_id',text),('dE_m',number),('dN_m',number),('dZ_m',number)],
         [([o['name'],o['group'],*o['delta']],QgsGeometry(QgsLineString([QgsPoint(*o['mean']),QgsPoint(o['e'],o['n'],o['z'])]))) for o in report['observations']])
     for layer in (obs,means):
         categories = [QgsRendererCategory(value,QgsMarkerSymbol.createSimple({'name':'circle','color':color,'size':'3'}),value)
-                      for value,color in [('INNENFOR','#258454'),('AVVIK','#db4141'),('UAVKLART','#d89423')]]
+                      for value,color in [('WITHIN TOLERANCE','#258454'),('OUTSIDE TOLERANCE','#db4141'),('INCONCLUSIVE','#d89423')]]
         layer.setRenderer(QgsCategorizedSymbolRenderer('status',categories))
     labels = QgsPalLayerSettings()
-    labels.fieldName = 'kontroll_id'
+    labels.fieldName = 'control_id'
     means.setLabeling(QgsVectorLayerSimpleLabeling(labels))
     means.setLabelsEnabled(True)
     return [obs,means,controls,vectors]

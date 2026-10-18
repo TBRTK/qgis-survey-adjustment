@@ -18,19 +18,19 @@ from .core import key,number
 
 
 FIELDS = {
-    'name': ('Målingens navn', ['Name','Observation','Obs ID','Point name','Point','Punktnavn']),
-    'group': ('Kontrollpunkt-ID', ['Control ID','Kontrollpunkt','Point ID','Target ID','Name','Point name']),
-    'lat': ('Breddegrad (desimalgrader)', ['Latitude','Lat','Breddegrad']),
-    'lon': ('Lengdegrad (desimalgrader)', ['Longitude','Lon','Long','Lengdegrad']),
-    'h': ('Ellipsoidisk punkthøyde (m)', ['Ellipsoidal height','Ellipsoid height','h_ellip','Ellipsoidal H']),
-    'status': ('Løsningsstatus (bare FIX brukes)', ['Solution status','RTK status','Fix type','Solution','Status']),
-    'time': ('Starttid for målingen', ['Averaging start','Timestamp','Start time','Tid']),
-    'se': ('1σ geodetisk øst (m)', ['Sigma E','Sigma East','sde','StdDev E m','StdDev E']),
-    'sn': ('1σ geodetisk nord (m)', ['Sigma N','Sigma North','sdn','StdDev N m','StdDev N']),
-    'su': ('1σ opp (m)', ['Sigma U','Sigma Up','sdu','StdDev U m','StdDev U']),
+    'name': ('Measurement name', ['Name','Observation','Obs ID','Point name','Point','Punktnavn']),
+    'group': ('Control point ID', ['Control ID','Kontrollpunkt','Point ID','Target ID','Name','Point name']),
+    'lat': ('Latitude (decimal degrees)', ['Latitude','Lat','Breddegrad']),
+    'lon': ('Longitude (decimal degrees)', ['Longitude','Lon','Long','Lengdegrad']),
+    'h': ('Ellipsoidal point height (m)', ['Ellipsoidal height','Ellipsoid height','h_ellip','Ellipsoidal H']),
+    'status': ('Solution status (only FIX is used)', ['Solution status','RTK status','Fix type','Solution','Status']),
+    'time': ('Measurement start time', ['Averaging start','Timestamp','Start time','Tid']),
+    'se': ('1σ geodetic east (m)', ['Sigma E','Sigma East','sde','StdDev E m','StdDev E']),
+    'sn': ('1σ geodetic north (m)', ['Sigma N','Sigma North','sdn','StdDev N m','StdDev N']),
+    'su': ('1σ up (m)', ['Sigma U','Sigma Up','sdu','StdDev U m','StdDev U']),
 }
 FRAMES = {'EPSG:4937': ('ETRS89 / GRS80',298.257222101),
-          'EPSG:4979': ('WGS84 / WGS84-ellipsoide',298.257223563)}
+          'EPSG:4979': ('WGS84 / WGS84 ellipsoid',298.257223563)}
 
 
 @dataclass
@@ -67,7 +67,7 @@ def xyz(lat,lon,h,frame):
 def llh(values,frame):
     x,y,z=values; a=6378137.; f=1/FRAMES[frame][1]; e2=f*(2-f)
     p=math.hypot(x,y)
-    if p<1: raise ValueError('Punktet ligger for nær polaksen for denne importprofilen.')
+    if p<1: raise ValueError('The point is too close to the polar axis for this import profile.')
     phi=math.atan2(z,p*(1-e2))
     for _ in range(15):
         n=a/math.sqrt(1-e2*math.sin(phi)**2)
@@ -90,7 +90,7 @@ def inverse_spd(a):
         for j in range(i+1):
             value=a[i][j]-math.fsum(l[i][k]*l[j][k] for k in range(j))
             if i==j:
-                if not math.isfinite(value) or value<=0: raise ValueError('Ugyldig kovarians/normalmatrise.')
+                if not math.isfinite(value) or value<=0: raise ValueError('Invalid covariance/normal matrix.')
                 l[i][j]=math.sqrt(value)
             else: l[i][j]=value/l[j][j]
     columns=[]
@@ -115,60 +115,60 @@ def covariance(lat,lon,sigmas):
 def sigma(value,line):
     value=number(value,'1σ',line)
     if not .0001<=value<=100:
-        raise ValueError(f'Rad {line}: 1σ må være mellom 0.0001 og 100 meter.')
+        raise ValueError(f'Row {line}: 1σ must be between 0.0001 and 100 metres.')
     return value
 
 
 def coordinate_job(table,mapping,options):
     if options.frame not in FRAMES:
-        raise ValueError('Velg og dokumenter ETRS89 eller WGS84 for bredde/lengde/ellipsoidisk høyde.')
+        raise ValueError('Select and document ETRS89 or WGS84 for latitude/longitude/ellipsoidal height.')
     if not all((options.ellipsoid_confirmed,options.independent_confirmed,options.uncertainty_confirmed)):
-        raise ValueError('Bekreft ellipsoidisk punkthøyde, usikkerhetsmodell og uavhengige målinger før SALSA.')
+        raise ValueError('Confirm ellipsoidal point height, uncertainty model and independent measurements before running SALSA.')
     try: date.fromisoformat(options.epoch)
-    except (ValueError,TypeError): raise ValueError('Oppgi måleepoke som dato ÅÅÅÅ-MM-DD. Ingen epoketransformasjon utføres.') from None
+    except (ValueError,TypeError): raise ValueError('Enter the measurement epoch as YYYY-MM-DD. No epoch transformation is applied.') from None
     if not all(s.strip() for s in (options.uncertainty_source,options.correction_source,options.antenna_note)):
-        raise ValueError('Dokumenter kilde for 1σ, korreksjonstjeneste/base og antenne-/punkthøyde.')
-    if options.sigma_mode not in ('constant','columns'): raise ValueError('Velg usikkerhetsmodell.')
+        raise ValueError('Document the 1σ source, correction service/base and antenna/point height.')
+    if options.sigma_mode not in ('constant','columns'): raise ValueError('Select an uncertainty model.')
     required=['name','group','lat','lon','h','status']
     if options.sigma_mode=='columns': required+=['se','sn','su']
     for field in required:
-        if mapping.get(field) not in table['headers']: raise ValueError('Velg kildekolonne for '+FIELDS[field][0]+'.')
+        if mapping.get(field) not in table['headers']: raise ValueError('Select source column for '+FIELDS[field][0]+'.')
     if len({mapping[f] for f in ('lat','lon','h')})!=3:
-        raise ValueError('Breddegrad, lengdegrad og ellipsoidisk høyde må bruke ulike kolonner.')
+        raise ValueError('Latitude, longitude and ellipsoidal height must use different columns.')
     if options.sigma_mode=='columns' and any('rms' in key(mapping[f]) for f in ('se','sn','su')):
-        raise ValueError('RMS-kolonner tolkes ikke automatisk som 1σ, uansett mottaker. Bruk dokumenterte sigmakolonner eller egne vurderte verdier.')
+        raise ValueError('RMS columns are not interpreted automatically as 1σ, regardless of receiver. Use documented sigma columns or your own assessed values.')
     constants=[sigma(v,0) for v in (options.sigma_e,options.sigma_n,options.sigma_u)] if options.sigma_mode=='constant' else None
-    if len(table['rows'])>500: raise ValueError('Første profil støtter høyst 500 koordinatobservasjoner per kjøring.')
+    if len(table['rows'])>500: raise ValueError('This prototype profile supports at most 500 coordinate observations per run.')
     groups=defaultdict(list); excluded=[]; times=set(); warnings=[]
     for row in table['rows']:
         line=row['__line__']; status=row[mapping['status']].upper().replace(' ','_')
         if status not in ('FIX','FIXED','RTK_FIX','RTK_FIXED'):
-            excluded.append(dict(row=line,name=row[mapping['name']],reason='Ikke dokumentert FIX: '+(status or '(tom)')))
+            excluded.append(dict(row=line,name=row[mapping['name']],reason='Not documented FIX: '+(status or '(empty)')))
             continue
         name,group=row[mapping['name']].strip(),row[mapping['group']].strip()
-        if not name or not group: raise ValueError(f'Rad {line}: målingsnavn og kontrollpunkt-ID må være fylt inn.')
+        if not name or not group: raise ValueError(f'Row {line}: measurement name and control point ID are required.')
         try: lat,lon,h=[number(row[mapping[f]],f,line) for f in ('lat','lon','h')]
         except ValueError:
-            raise ValueError(f'Rad {line}: bredde/lengde må være endelige desimalgrader, høyden et endelig tall i meter.') from None
+            raise ValueError(f'Row {line}: latitude/longitude must be finite decimal degrees and height a finite number in metres.') from None
         if not (-89<=lat<=89 and -180<=lon<=180 and -1000<=h<=10000):
-            raise ValueError(f'Rad {line}: ugyldig bredde/lengde/ellipsoidisk høyde; bruk desimalgrader og meter.')
+            raise ValueError(f'Row {line}: invalid latitude/longitude/ellipsoidal height; use decimal degrees and metres.')
         for header in table['headers']:
             if key(header)=='geodeticcrs' and row[header] and row[header]!=options.frame:
-                raise ValueError(f'Rad {line}: Geodetic CRS stemmer ikke med valgt grunnlag.')
+                raise ValueError(f'Row {line}: Geodetic CRS does not match the selected reference frame.')
             if key(header)=='heightdatum' and row[header] and row[header].upper() not in ('ELLIP','ELLIPSOIDAL') and key(mapping['h']) in ('elevation','height','z'):
-                raise ValueError(f'Rad {line}: ortometrisk Elevation kan ikke brukes som ellipsoidisk høyde.')
+                raise ValueError(f'Row {line}: orthometric Elevation cannot be used as ellipsoidal height.')
         time=row.get(mapping.get('time'),'').strip()
         if time:
             stamp=(group,time)
-            if stamp in times: raise ValueError(f'Rad {line}: samme kontrollpunkt og måletid forekommer flere ganger. Kontroller dobbeltimport.')
+            if stamp in times: raise ValueError(f'Row {line}: the same control point and measurement time occur more than once. Check for duplicate import.')
             times.add(stamp)
         sigmas=[sigma(row[mapping[f]],line) for f in ('se','sn','su')] if constants is None else constants
         cov=covariance(lat,lon,sigmas)
         groups[group].append(dict(row=line,name=name,group=group,time=time,lat=lat,lon=lon,h=h,
             xyz=xyz(lat,lon,h,options.frame),sigma_enu=list(sigmas),covariance_xyz=cov))
-    if not groups: raise ValueError('Ingen FIX-målinger å utjevne.')
+    if not groups: raise ValueError('No FIX measurements to adjust.')
     for group,values in groups.items():
-        if len(values)<2: raise ValueError('Minst to selvstendige målinger kreves per kontrollpunkt i denne profilen: '+group)
+        if len(values)<2: raise ValueError('At least two independent measurements per control point are required in this profile: '+group)
     used=[o for name in sorted(groups) for o in groups[name]]
     origin=[round(v/1000)*1000 for v in used[0]['xyz']]
     lines=['# ABSOLUTE COORDINATE OBSERVATIONS - NOT MEASURED GNSS BASELINES',
@@ -198,16 +198,16 @@ def coordinate_job(table,mapping,options):
             lines.append('DEL COORDORIGIN '+label+' '+' '.join(f'{v:.9f}' for v in delta)+' '+
                          ' '.join(f'{v:.16g}' for v in upper)+' M tag='+tag)
             residuals.append(dict(tag=tag,**obs,residual_xyz=[v-m for v,m in zip(obs['xyz'],estimate)]))
-    warnings+=['Modellen antar uavhengige målinger og diagonal 1σ-kovarians i geodetisk ENU. Felles base-/datumfeil er ikke modellert.',
-               'Ingen RINEX-prosessering, baselinjemåling, antennehøyde-, geoid-, datum- eller epoketransformasjon utføres.']
-    if any(not o['time'] for o in used): warnings.append('Måletid mangler for én eller flere målinger; selvstendighet må dokumenteres utenfor CSV.')
+    warnings+=['The model assumes independent measurements and diagonal 1σ covariance in geodetic ENU. Common base/datum errors are not modelled.',
+               'No RINEX processing, baseline measurement, antenna height, geoid, datum or epoch transformation is applied.']
+    if any(not o['time'] for o in used): warnings.append('Measurement time is missing for one or more observations; independence must be documented outside the CSV.')
     meta=dict(kind='coordinate_observations',synthetic=options.synthetic,frame=options.frame,frame_name=FRAMES[options.frame][0],height='ELLIP',
         epoch=options.epoch,expected_positions=expected,identifiers=identifiers,model_covariance_xyz=model_covariances,
         computational_origin_xyz=origin,observations=residuals,excluded=excluded,assumptions=warnings,
         uncertainty_source=options.uncertainty_source,correction_source=options.correction_source,antenna_note=options.antenna_note,
         mapping=dict(mapping),source={k:table[k] for k in ('path','sha256','encoding','delimiter')},
         options=asdict(options),
-        independent_method='Vektet absolutt XYZ-middel med full rotert kovarians; bare den valgte lineære modellen kontrolleres.')
+        independent_method='Weighted absolute XYZ mean with fully rotated covariance; only the selected linear model is checked.')
     return '\n'.join(lines)+'\n',meta
 
 
@@ -215,7 +215,7 @@ def prepare_coordinate(folder,table,mapping,options):
     data,meta=coordinate_job(table,mapping,options)
     raw=Path(table['path']).read_bytes()
     if hashlib.sha256(raw).hexdigest()!=table['sha256']:
-        raise ValueError('Kilde-CSV er endret etter innlesing. Åpne filen på nytt.')
+        raise ValueError('The source CSV has changed since import. Reopen the file.')
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=False)
     meta['input_dat_sha256']=hashlib.sha256(data.encode('ascii')).hexdigest()
     (folder/'input.dat').write_text(data,encoding='ascii',newline='\n')
@@ -234,7 +234,7 @@ def write_coordinate_results(folder,meta,positions):
         writer.writerow(['Control ID','Latitude','Longitude','Ellipsoidal height','ECEF X','ECEF Y','ECEF Z','Geodetic CRS','Epoch','Assessment'])
         for name,values in positions.items():
             lat,lon,h=adjusted[name]
-            writer.writerow([cell(meta['identifiers'][name]),f'{lat:.12f}',f'{lon:.12f}',f'{h:.6f}',*[f'{v:.6f}' for v in values],meta['frame'],meta['epoch'],'MÅ VURDERES'])
+            writer.writerow([cell(meta['identifiers'][name]),f'{lat:.12f}',f'{lon:.12f}',f'{h:.6f}',*[f'{v:.6f}' for v in values],meta['frame'],meta['epoch'],'REVIEW REQUIRED'])
     with (Path(folder)/'coordinate_residuals.csv').open('w',encoding='utf-8-sig',newline='') as file:
         writer=csv.writer(file)
         writer.writerow(['Source row','Name','Control ID','Time','Residual X (m)','Residual Y (m)','Residual Z (m)'])

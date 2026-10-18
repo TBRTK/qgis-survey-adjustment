@@ -21,7 +21,7 @@ class EngineTests(unittest.TestCase):
         self.assertNotIn('NN2000',data)
         self.assertTrue(meta['synthetic'])
 
-    @unittest.skipUnless(PROGRAM.exists(),'SALSA-motoren er ikke tilgjengelig lokalt')
+    @unittest.skipUnless(PROGRAM.exists(),'Local SALSA engine unavailable')
     def test_real_solver_then_detect_tampered_output_and_nonzero_exit(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as temporary:
             folder = Path(temporary)/'job'

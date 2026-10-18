@@ -46,14 +46,14 @@ def demo_job():
         expected[name] = [math.fsum(v[axis] for v in observed)/len(observed) for axis in range(3)]
     return '\n'.join(lines)+'\n',dict(frame='WGS84 ECEF XYZ, metre',height='ELLIP',
                 synthetic=True, expected_positions=expected,
-                description='To ukjente punkter, seks syntetiske GNSS-vektorer fra ett fast referansepunkt. '
-                            'Dette er et eget SALSA-eksempel, ikke en automatisk konvertering av en GNSS-koordinatliste.')
+                description='Two unknown points, six synthetic GNSS vectors from one fixed reference point. '
+                            'This is a separate SALSA example, not an automatic conversion of a GNSS coordinate list.')
 
 
 def solver_program(path):
     path = Path(path).expanduser().resolve()
     if not path.is_file() or path.name.lower() not in ('lsasolver.exe','lsasolver'):
-        raise ValueError('Velg SALSAs lsasolver.exe (eller lsasolver på Linux).')
+        raise ValueError('Select SALSA lsasolver.exe (or lsasolver on Linux).')
     return path
 
 
@@ -102,19 +102,19 @@ def inspect_result(folder,exit_code,program):
     text = (folder/'solution.out').read_text(encoding='utf-8',errors='replace') if (folder/'solution.out').exists() else ''
     errors = re.findall(r'^.*(?:\bError\b|\bException\b|\bFatal\b).*$',text,re.M|re.I)
     if exit_code != 0 or errors or not (folder/'solution.bin').is_file():
-        raise ValueError('SALSA-kjøringen feilet. ' + ('; '.join(errors[:3]) or f'Prosesskode {exit_code}; resultatfiler mangler.'))
+        raise ValueError('The SALSA run failed. ' + ('; '.join(errors[:3]) or f'Exit code {exit_code}; result files are missing.'))
     if ('Convergence reached at iteration' not in text or 'Final Adjusted Positions XYZ' not in text or
         not re.search(r'Degrees of freedom\s*=\s*[1-9]\d*;.*\(Final\)',text)):
-        raise ValueError('SALSA-resultatet mangler bekreftet sluttberegning/statistikk.')
+        raise ValueError('The SALSA result lacks a confirmed final calculation/statistics.')
     warnings = [line.strip() for line in text.splitlines() if
                 re.match(r'^\s*Warning\b',line,re.I) or
                 ('Chi-squared test' in line and re.search(r'\bfail\b',line,re.I)) or
                 (line.lstrip().startswith('Del.') and '**' in line)]
     meta = json.loads((folder/'input_metadata.json').read_text(encoding='utf-8'))
     if meta.get('input_dat_sha256') and sha256(folder/'input.dat')!=meta['input_dat_sha256']:
-        raise ValueError('SALSA-inndata er endret etter klargjøring.')
+        raise ValueError('The SALSA input has changed since preparation.')
     if meta.get('kind')=='coordinate_observations' and sha256(folder/'source.csv')!=meta['source']['sha256']:
-        raise ValueError('Kildekopien er endret etter klargjøring.')
+        raise ValueError('The source copy has changed since preparation.')
     section = text.split('Final Adjusted Positions XYZ',1)[-1].split('Final Adjusted Positions LLH',1)[0]
     positions = {}
     for line in section.splitlines():
@@ -122,27 +122,27 @@ def inspect_result(folder,exit_code,program):
         if parts and parts[0] in meta['expected_positions']:
             try:
                 if parts[0] in positions:
-                    raise ValueError('Duplisert sluttposisjon.')
+                    raise ValueError('Duplicate final position.')
                 positions[parts[0]] = [float(v) for v in parts[1:4]]
                 if len(positions[parts[0]])!=3 or not all(math.isfinite(v) for v in positions[parts[0]]):
-                    raise ValueError('Mangler endelig XYZ.')
+                    raise ValueError('Missing finite XYZ.')
             except ValueError:
-                raise ValueError('Ugyldige tall i SALSAs sluttposisjoner.') from None
+                raise ValueError('Invalid numbers in the SALSA final positions.') from None
     if set(positions) != set(meta['expected_positions']):
-        raise ValueError('SALSA mangler sluttposisjoner for ett eller flere punkter.')
+        raise ValueError('SALSA final positions are missing for one or more points.')
     difference = max(abs(v-w) for name,xyz in positions.items() for v,w in zip(xyz,meta['expected_positions'][name]))
     if not math.isfinite(difference) or difference > 0.000002:
-        raise ValueError('SALSA-resultatet avviker fra den uavhengige kontrollberegningen av den valgte modellen.')
+        raise ValueError('The SALSA result differs from the independent calculation of the selected model.')
     warnings.extend(meta.get('assumptions',[]))
     synthetic = meta.get('synthetic',True)
     coordinates = meta.get('kind')=='coordinate_observations'
     version = re.search(r'SALSA Ver\.\s+(\S+)',text)
-    result = dict(engine='SALSA',version=version[1] if version else 'ukjent',
-                  execution='BEREGNET',quality='MÅ VURDERES' if warnings else 'Ingen varsler funnet i loggen; faglig vurdering gjenstår',
+    result = dict(engine='SALSA',version=version[1] if version else 'unknown',
+                  execution='CALCULATED',quality='REVIEW REQUIRED' if warnings else 'No warnings found in the log; professional review is still required',
                   warnings=warnings,solver_sha256=sha256(program),input_sha256=sha256(folder/'input.dat'),
                   output_sha256=sha256(folder/'solution.out'),synthetic=synthetic,
-                  independent_comparison=('BESTÅTT mot direkte XYZ-middel for dette lineære eksempelet' if not coordinates else
-                      'BESTÅTT mot uavhengig vektet XYZ-løsning av den valgte koordinatmodellen'),
+                  independent_comparison=('PASSED against the direct XYZ mean for this linear example' if not coordinates else
+                      'PASSED against the independent weighted XYZ solution of the selected coordinate model'),
                   maximum_difference_metres=difference,positions_ecef=positions,
                   frame=meta['frame'],height=meta['height'],folder=str(folder.resolve()))
     if coordinates:
@@ -152,7 +152,7 @@ def inspect_result(folder,exit_code,program):
         result['epoch'] = meta['epoch']
         result['source'] = meta['source']
         result['excluded'] = meta['excluded']
-        result['model'] = 'Uavhengige absolutte koordinatobservasjoner; ingen målte GNSS-baselinjer'
+        result['model'] = 'Independent absolute coordinate observations; no measured GNSS baselines'
         result['uncertainty_source'] = meta['uncertainty_source']
         result['kind'] = 'coordinate_observations'
     (folder/'run_report.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')

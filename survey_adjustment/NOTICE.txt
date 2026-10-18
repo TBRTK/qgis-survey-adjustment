@@ -1,21 +1,21 @@
 Survey Adjustment
 Copyright (c) 2026 Tore Berthelsen.
-Pluginens egen kildekode og syntetiske eksempeldata: GPL-3.0-only.
-Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsbegrensning
-gjelder etter GPLv3 §§15–17 og i den utstrekning gjeldende rett tillater.
-Se LICENSE. Ingen garanti for egnethet eller leveransegodkjenning.
+The plugin's own source code and synthetic examples: GPL-3.0-only.
+The software is provided “AS IS”, without warranty. Disclaimers and limitations
+of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
+law. See LICENSE. No guarantee of fitness or delivery approval is provided.
 
 SALSA – Surveyor's Applications for Least Squares Adjustment
 Copyright (c) 2015-2024 Applied Research Laboratories,
 The University of Texas at Austin (ARL:UT).
-SALSA er et separat eksternt program under GPL-3.0-only.
+SALSA is a separate external program under GPL-3.0-only.
 https://github.com/SGL-UT/SALSA
 https://wwwext.arlut.utexas.edu/salsa/
 
-SALSA-kode, binærfiler, manualer, logoer og installasjonspakke følger ikke
-denne pluginpakken. DAT-eksemplet er selvstendig generert syntetisk data.
-Ingen offisiell tilknytning til SALSA, ARL:UT, Emlid eller QGIS hevdes.
-Navnene brukes beskrivende. Emlid-eksemplet er ikke målt med et ekte instrument.
+SALSA code, binaries, manuals, logos and installation packages are not included
+in this plugin package. The DAT example is independently generated synthetic
+data. No official affiliation with SALSA, ARL:UT, Emlid or QGIS is claimed.
+Names are used descriptively. No example was measured with a real instrument.
 
-QGIS/PyQt og SALSAs avhengigheter har egne opphavsretts- og lisensmerknader.
-De endres eller redistribueres ikke i dette pluginutkastet.
+QGIS/PyQt and SALSA dependencies have their own copyright and licence notices.
+They are not modified or redistributed in this plugin prototype.

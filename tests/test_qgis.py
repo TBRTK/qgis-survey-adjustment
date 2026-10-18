@@ -53,19 +53,19 @@ class QgisTests(unittest.TestCase):
         dlg.add_layers()
         layers = list(QgsProject.instance().mapLayers().values())
         self.assertEqual(sorted(l.featureCount() for l in layers),[4,4,9,9])
-        points = next(l for l in layers if 'faktisk XYZ' in l.name())
+        points = next(l for l in layers if 'actual XYZ' in l.name())
         obs = dlg.result['observations'][0]
         first = next(points.getFeatures()).geometry().constGet()
         self.assertEqual((first.x(),first.y(),first.z()),(obs['e'],obs['n'],obs['z']))
         self.assertTrue(points.readOnly())
-        single = next(f for f in points.getFeatures() if f['kontroll_id']=='KP04')
-        self.assertEqual(single['status'],'UAVKLART')
+        single = next(f for f in points.getFeatures() if f['control_id']=='KP04')
+        self.assertEqual(single['status'],'INCONCLUSIVE')
         group = QgsProject.instance().layerTreeRoot().children()[0]
-        self.assertIn('middelverdier',group.children()[0].layer().name())
+        self.assertIn('means',group.children()[0].layer().name())
         with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
             with patch.object(QFileDialog,'getExistingDirectory',return_value=folder),patch.object(QMessageBox,'information'):
                 dlg.save_results()
-            self.assertEqual(len(list(Path(folder).glob('*/kontroll.json'))),1)
+            self.assertEqual(len(list(Path(folder).glob('*/check.json'))),1)
         dlg.grab().save(str(ROOT/'test_output/qgis_gjentak.png'))
         dlg.h_tol.setValue(.01)
         self.assertIsNone(dlg.result)
@@ -89,10 +89,10 @@ class QgisTests(unittest.TestCase):
         combo.setCurrentIndex(combo.findData('Name'))
         self.assertTrue(dlg.calculate())
         self.assertTrue(all(g['count']==1 for g in dlg.result['groups']))
-        self.assertTrue(all(g['status']!='INNENFOR' for g in dlg.result['groups']))
+        self.assertTrue(all(g['status']!='WITHIN TOLERANCE' for g in dlg.result['groups']))
         dlg.close()
 
-    @unittest.skipUnless(PROGRAM.exists(),'SALSA-motoren er ikke tilgjengelig lokalt')
+    @unittest.skipUnless(PROGRAM.exists(),'Local SALSA engine unavailable')
     def test_real_salsa_from_qt_process_not_blocking_qgis(self):
         dlg = self.dialog()
         dlg.solver.setText(str(PROGRAM))
@@ -115,11 +115,11 @@ class QgisTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(self.iface.actions,['Survey Adjustment'])
         plugin.run()
-        self.assertIn('0.2.1',plugin.dialog.windowTitle())
+        self.assertIn('0.2.2',plugin.dialog.windowTitle())
         plugin.unload()
         self.assertEqual(self.iface.actions,[])
 
-    @unittest.skipUnless(PROGRAM.exists(),'SALSA-motoren er ikke tilgjengelig lokalt')
+    @unittest.skipUnless(PROGRAM.exists(),'Local SALSA engine unavailable')
     def test_own_coordinate_panel_process_exports_map_z_and_invalidation(self):
         dlg=SurveyDialog(self.iface); panel=dlg.coordinate_panel
         panel.load_demo(); dlg.tabs.setCurrentIndex(3); dlg.show(); app.processEvents()
@@ -143,7 +143,7 @@ class QgisTests(unittest.TestCase):
             first=next(layer.getFeatures()); lat,lon,h=next(iter(dlg.engine_result['positions_geodetic'].values()))
             point=first.geometry().constGet()
             self.assertEqual((point.x(),point.y(),point.z()),(lon,lat,h))
-            self.assertEqual(first['hoydegrunnlag'],'ELLIP')
+            self.assertEqual(first['height_datum'],'ELLIP')
             dlg.tabs.setCurrentIndex(2); dlg.grab().save(str(ROOT/'test_output/qgis_coordinate_result.png'))
             panel.epoch.setText('2026-10-19'); self.assertFalse(panel.map_button.isEnabled())
         dlg.close()

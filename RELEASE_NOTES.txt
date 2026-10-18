@@ -1,26 +1,24 @@
-Survey Adjustment 0.2.1 – GNSS fra ulike mottakere
+Survey Adjustment 0.2.2 – English interface, help and reports
 
-- Produsentuavhengige faner, filvalg og hjelpetekster for gjentak og SALSA.
-- Flere forslag til feltkobling for navngitte GNSS-kolonner. Manuell kobling
-  beholdes. CSV/TXT/TSV med komma, semikolon eller tabulator støttes.
-- Nye tydelig syntetiske eksempelfiler med alternative kolonnenavn,
-  semikolon og desimalkomma. Ingen produsentsertifisering hevdes.
-- Punktlister uten tekstlige kolonnenavn stoppes før første måling kan bli
-  mistolket som kolonnenavn. Numeriske statuskoder gjettes ikke som FIX.
-- Skillet mellom ellipsoidisk høyde/NN2000 og RMS/1σ forklares i hjelpen.
-- Forfatter, GPL-lisens, AS IS og frivillig støttelenke følger pakken.
+- All plugin-owned menus, tabs, field help, validation errors and status
+  messages are in English, including SALSA result and warning explanations.
+- Repeatability reports and generated map layer names/fields are in English.
+  Report files: check.json, check.txt, check.html, means.csv, residuals.csv.
+- Output status values: WITHIN TOLERANCE, OUTSIDE TOLERANCE, INCONCLUSIVE.
+  SALSA output assessment: REVIEW REQUIRED. Existing results are not rewritten.
+- Root and packaged README, metadata and NOTICE are in English.
+- Norwegian source-column aliases remain supported. Source observations,
+  units, covariance, coordinate calculation and height treatment are preserved.
+- Author, project link, GPL licence and optional support footer remain included.
 
-Verifisert med 26 tester i QGIS 4.0.0-miljøet, inkludert faktiske SALSA-
-kjøringer, alternative feltkoblinger, usikkerhetsmodell og PointZ-resultat.
-Den installerte 0.2.0-flyten ble også kjørt i brukerens åpne QGIS: gjentak,
-rapport, SALSA og GeoPackage-eksport. X/Y/Z var identiske ved disk-gjeninnlesing.
+Validation: all 26 tests pass in the QGIS 4.0.0 environment, including actual
+SALSA runs, English report files/statuses and preservation of PointZ results.
 
-Reelle mottakereksporter gjenstår. All import krever kontroll av kolonner,
-enheter, koordinat-/høydegrunnlag og kvalitetsfelt. Ingen RINEX-/baselinje-
-prosessering, geoid/datum/epoketransformasjon eller leveransegodkjenning.
-SALSA-varsler beholdes; beregnet resultat betyr ikke faglig godkjenning.
-SALSA-motoren distribueres separat og følger ikke med plugin-ZIP-filen.
+The software is provided “AS IS”, without warranty. Disclaimers and limitations
+of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
+law. See LICENSE.
 
-Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsfraskrivelse
-og ansvarsbegrensning gjelder i det omfang GPLv3 §§15–17 og gjeldende rett
-tillater. Se LICENSE.
+This is an experimental prototype. Real receiver exports still need validation.
+No raw GNSS/RINEX or measured-baseline processing, geoid/datum/epoch conversion
+or delivery approval. SALSA is installed separately and is not bundled.
+Native QGIS/operating-system dialogs retain the host application's language.
