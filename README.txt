@@ -140,3 +140,15 @@ Reelle anonymiserte Emlid-filer må testes mot eksportformatet du bruker.
 Egne SALSA-observasjonsnett, full kovarians, korrelasjoner, fastmerkeusikkerhet,
 geoid/datum/epoke og eventuelle rå GNSS-baselinjer må spesifiseres før tillegget
 kan brukes til faglig nettutjevning. Det er ikke leveransegodkjent programvare.
+
+## Support
+
+If this project has been useful to you and you would like to support further testing, documentation, and development, you can buy me a coffee:
+
+[☕ Buy me a coffee](https://buymeacoffee.com/tb_rtk)
+
+Support is completely optional and is greatly appreciated.
+
+## License
+
+See [LICENSE](LICENSE).
