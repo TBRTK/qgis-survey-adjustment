@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.1.0 – SELVSTENDIG UTKAST FOR QGIS 4.0
+SURVEY ADJUSTMENT 0.1.1 – SELVSTENDIG UTKAST FOR QGIS 4.0
 Forfatter: Tore Berthelsen – https://www.3dmapper.no
 Dato: 18.10.2026
 Prosjektside: https://github.com/TBRTK/qgis-survey-adjustment
@@ -10,7 +10,7 @@ alle former for lovpålagt ansvar.
 
 INSTALLASJON
 QGIS 4.0: Programtillegg > Håndtering og installering av programtillegg >
-Installer fra ZIP. Velg survey_adjustment-0.1.0.zip og aktiver tillegget.
+Installer fra ZIP. Velg survey_adjustment-0.1.1.zip og aktiver tillegget.
 Python-pakken heter survey_adjustment; SOSI Survey er en separat plugin.
 SALSA må velges separat på fane 3. Hele SALSA-mappen med motorens egne
 DLL-er må beholdes; en løs lsasolver.exe er normalt ikke tilstrekkelig.
@@ -40,6 +40,8 @@ SLIK PRØVER DU EMLID-EKSEMPLET
   middel, referansepunkter og restavvikslinjer med faktisk lengde. Laget med
   middelverdier får kontrollpunktnavn og farger. Restavvik på centimeternivå
   kan være for små til å sees uten kraftig innzooming.
+  Middelverdilaget tegnes øverst slik at samlet kontrollstatus er synlig.
+  Uavklarte gjentak merkes også uavklart på enkeltmålinger uten påvist avvik.
 - Lagre rapportpakken. Den inneholder lesbar TXT/HTML, komplett JSON,
   middelverdier/restavvik som CSV og SHA256 for rapportfilene. Kildenes SHA256
   og de valgte feltkoblingene følger kontrollrapporten. Eksisterende filer

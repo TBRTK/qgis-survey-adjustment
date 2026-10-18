@@ -43,7 +43,7 @@ class SurveyDialog(QDialog):
     def __init__(self,iface):
         super().__init__(iface.mainWindow())
         self.iface = iface
-        self.setWindowTitle('Survey Adjustment 0.1.0 – GNSS / SALSA-utkast')
+        self.setWindowTitle('Survey Adjustment 0.1.1 – GNSS / SALSA-utkast')
         self.resize(1080,760)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
@@ -251,7 +251,7 @@ class SurveyDialog(QDialog):
             refs = references(self.reference_table,self.mappings(2)) if self.reference_table else {}
             result = analyze(observations(self.table,self.mappings(1)),refs,options)
             result['synthetic'] = self.synthetic
-            result['plugin_version'] = '0.1.0'
+            result['plugin_version'] = '0.1.1'
             result['sources'] = [{k:table[k] for k in ('path','sha256','encoding','delimiter')} for table in (self.table,self.reference_table) if table]
             result['mappings'] = {'observations':self.mappings(1),'references':self.mappings(2)}
             self.result = result
@@ -284,7 +284,8 @@ class SurveyDialog(QDialog):
             layers = result_layers(self.result)
             project = QgsProject.instance()
             group = project.layerTreeRoot().addGroup('Survey Adjustment – syntetisk prøve' if self.synthetic else 'Survey Adjustment – gjentak')
-            for layer in layers:
+            # Draw aggregate quality above individual observations and references.
+            for layer in (layers[1],layers[0],layers[2],layers[3]):
                 project.addMapLayer(layer,False)
                 group.addLayer(layer)
             self.iface.setActiveLayer(layers[1])

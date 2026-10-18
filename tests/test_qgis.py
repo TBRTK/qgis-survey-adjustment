@@ -58,6 +58,10 @@ class QgisTests(unittest.TestCase):
         first = next(points.getFeatures()).geometry().constGet()
         self.assertEqual((first.x(),first.y(),first.z()),(obs['e'],obs['n'],obs['z']))
         self.assertTrue(points.readOnly())
+        single = next(f for f in points.getFeatures() if f['kontroll_id']=='KP04')
+        self.assertEqual(single['status'],'UAVKLART')
+        group = QgsProject.instance().layerTreeRoot().children()[0]
+        self.assertIn('middelverdier',group.children()[0].layer().name())
         with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
             with patch.object(QFileDialog,'getExistingDirectory',return_value=folder),patch.object(QMessageBox,'information'):
                 dlg.save_results()
@@ -111,7 +115,7 @@ class QgisTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(self.iface.actions,['Survey Adjustment'])
         plugin.run()
-        self.assertIn('0.1.0',plugin.dialog.windowTitle())
+        self.assertIn('0.1.1',plugin.dialog.windowTitle())
         plugin.unload()
         self.assertEqual(self.iface.actions,[])
 

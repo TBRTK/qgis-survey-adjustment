@@ -28,10 +28,13 @@ def result_layers(report):
     text,number,integer = QMetaType.Type.QString,QMetaType.Type.Double,QMetaType.Type.Int
     point = lambda xyz: QgsGeometry(QgsPoint(*xyz))
     crs = report['options']['crs']
+    group_status = {g['group']:g['status'] for g in report['groups']}
     prefix = 'SYNTESE – ' if report.get('synthetic') else 'Gjentak – '
     obs = make_layer('PointZ',prefix+'målinger (faktisk XYZ)',crs,
         [('punkt',text),('kontroll_id',text),('rad',integer),('rtk',text),('tid',text),('dE_m',number),('dN_m',number),('dZ_m',number),('status',text)],
-        [([o['name'],o['group'],o['row'],o['status'],o['time'],*o['delta'],'AVVIK' if o['exceed'] else 'INNENFOR'],point((o['e'],o['n'],o['z']))) for o in report['observations']])
+        [([o['name'],o['group'],o['row'],o['status'],o['time'],*o['delta'],
+           'AVVIK' if o['exceed'] else ('UAVKLART' if group_status[o['group']]=='UAVKLART' else 'INNENFOR')],
+           point((o['e'],o['n'],o['z']))) for o in report['observations']])
     means = make_layer('PointZ',prefix+'middelverdier (uvektet)',crs,
         [('kontroll_id',text),('antall',integer),('sE_m',number),('sN_m',number),('sZ_m',number),('status',text)],
         [([g['group'],g['count'],*g['sd'],g['status']],point(g['mean'])) for g in report['groups']])

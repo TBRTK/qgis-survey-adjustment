@@ -1,4 +1,7 @@
-Survey Adjustment 0.1.0 – første utkast for QGIS 4.0.0
+Survey Adjustment 0.1.1 – første utkast for QGIS 4.0.0
+
+- Retter kartvisning fra 0.1.0: enkeltmålinger uten tilstrekkelig gjentak
+  merkes UAVKLART; samlet kontrollpunktstatus tegnes øverst i kartet.
 
 - Selvstendig plugin, separat fra SOSI Survey.
 - CSV-feltkoblinger for Emlid-lignende E/N/Z-data og kontrollpunkt-ID.

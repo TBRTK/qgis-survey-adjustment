@@ -9,7 +9,7 @@ from pathlib import Path
 
 def text_report(report):
     options = report['options']
-    lines = ['Survey Adjustment 0.1.0 – gjentakskontroll',
+    lines = ['Survey Adjustment 0.1.1 – gjentakskontroll',
              'SYNTETISKE EKSEMPELDATA' if report.get('synthetic') else 'Koordinatkontroll – ikke råobservasjonsutjevning',
              report['method'],
              f"{options['crs']}, {options['height']}, koordinater og grenser i meter.",
