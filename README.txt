@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.1.1 – SELVSTENDIG UTKAST FOR QGIS 4.0
+SURVEY ADJUSTMENT 0.2.0 – SELVSTENDIG UTKAST FOR QGIS 4.0
 Forfatter: Tore Berthelsen – https://www.3dmapper.no
 Dato: 18.10.2026
 Prosjektside: https://github.com/TBRTK/qgis-survey-adjustment
@@ -10,7 +10,7 @@ alle former for lovpålagt ansvar.
 
 INSTALLASJON
 QGIS 4.0: Programtillegg > Håndtering og installering av programtillegg >
-Installer fra ZIP. Velg survey_adjustment-0.1.1.zip og aktiver tillegget.
+Installer fra ZIP. Velg survey_adjustment-0.2.0.zip og aktiver tillegget.
 Python-pakken heter survey_adjustment; SOSI Survey er en separat plugin.
 SALSA må velges separat på fane 3. Hele SALSA-mappen med motorens egne
 DLL-er må beholdes; en løs lsasolver.exe er normalt ikke tilstrekkelig.
@@ -19,13 +19,14 @@ Dette er en uavhengig prototype. Den har ingen kodeavhengighet til SOSI Survey,
 og endrer ikke SOSI-pluginen. Den er ikke laget eller godkjent av SALSA,
 ARL:UT, Emlid, QGIS eller en norsk netteier.
 
-TO SEPARATE BEREGNINGER
+BEREGNINGER OG PROFILER
 1. Gjentakskontroll av ferdige E/N/Z-koordinater fra CSV. Den er uvektet og
    kjøres i pluginen. Den dokumenterer spredning og avvik mot referansepunkter.
 2. En programkobling til SALSA 1.17.0. Førsteutkastet kjører et eget syntetisk
    GNSS-vektornett, og kontrollerer sluttposisjonene mot en uavhengig beregning.
-   Egen måle-CSV fra fane 1 sendes ikke til SALSA. Den blir ikke omgjort til
-   GNSS-baselinjer. Import av egne observasjonsnett er senere arbeid.
+   Egen måle-CSV fra fane 1 brukes fortsatt bare til gjentakskontroll.
+3. Fane 4 utjevner egne gjentatte koordinatobservasjoner fra Emlid CSV i SALSA,
+   med eksplisitt ellipsoidisk høyde og 1σ-modell. Dette er ikke rå GNSS-baselinjer.
 
 SLIK PRØVER DU EMLID-EKSEMPLET
 - Åpne Programtillegg > Survey Adjustment > Survey Adjustment – GNSS og SALSA.
@@ -96,6 +97,59 @@ Geoidvarselet i dette eksemplet skyldes at ingen geoidfil er valgt. Det betyr
 at tyngdekorreksjoner ikke brukes. Det gjøres ingen NN2000-transformasjon.
 Ingen rå Emlid-målefil lastes opp på nettet. All beregning er lokal.
 
+EGNE KOORDINATOBSERVASJONER TIL SALSA (FANE 4)
+Bruk CSV «All columns» med kolonnenavn fra Emlid Flow. Følgende må finnes:
+Name, en entydig kontrollpunkt-ID, Latitude, Longitude, Ellipsoidal height
+og Solution status. Bredde/lengde må være desimalgrader, høyde i meter.
+Averaging start anbefales. Velg fysisk kontrollpunkt-ID selv; ingen navn
+kuttes automatisk. Minst to selvstendige FIX-målinger per punkt kreves.
+FLOAT/tom/annen status beholdes i en tydelig utelattliste.
+
+Velg dokumentert geodetisk grunnlag: ETRS89/GRS80 (EPSG:4937) eller WGS84
+(EPSG:4979), og oppgi måleepoke som ÅÅÅÅ-MM-DD. Måleepoken registreres;
+ingen datum- eller epoketransformasjon skjer. Ikke gjett at lat/lon bruker
+samme grunnlag som de projiserte prosjektkoordinatene. NN2000/NN54-Elevation
+må ikke brukes som ellipsoidisk høyde. Rene UTM/NN2000-filer uten ellipsoidisk
+høyde kan fortsatt gjentakskontrolleres på fane 1, men stoppes i denne profilen.
+Høyden skal allerede gjelde punktet, inkludert eventuell antenne-/tiltkorreksjon.
+
+Oppgi tre vurderte 1σ-verdier i geodetisk øst/nord/opp, enten felles for alle
+målinger eller fra dokumenterte Sigma E/Sigma N/Sigma U-kolonner. Verdiene
+skal være standardavvik i meter, ikke varians. Easting/Northing/Elevation RMS
+kopieres ikke automatisk til 1σ. Usikkerhetskilde, korreksjonstjeneste/base og
+antenne-/punkthøyde må beskrives. Bekreft høydegrunnlag og modellforutsetninger.
+Komponentkorrelasjoner og korrelasjon mellom målingene settes til null i ENU.
+Felles base-, datum-, sentrerings- og miljøfeil fjernes ikke av utjevningen.
+Det er ikke en modell for vilkårlig korrelerte RTK-epoker eller hele nettverk.
+
+Modellen er absolutt XYZ(P)=XYZ(observasjon)+støy. Hver ENU-kovarians roteres
+fullt til ECEF. SALSAs DEL-poster bruker en fast beregningsorigo kun som en
+tallforskyvning. Dette er matematisk en absolutt koordinatobservasjon, ikke
+en målt GNSS-baselinje fra en fysisk eller feilfri base. Ingen målte punkter
+låses som feilfrie. Kjente kontrollpunkter brukes separat til kontroll.
+
+Resultatmappen inneholder uendret source.csv, input.dat, input_metadata.json,
+SALSAs solution.out/solution.bin, console.txt og run_report.json med SHA256.
+adjusted_coordinates.csv gir kontrollpunkt-ID, lat/lon/ellipsoidisk h, ECEF,
+grunnlag og epoke. coordinate_residuals.csv gir restavvik per opprinnelig rad.
+Hele den valgte modellen sammenlignes med en uavhengig vektet XYZ-løsning
+innen 0.000002 m. Dette kontrollerer modelloverføringen og tallberegningen,
+ikke at feltmålingenes forutsetninger eller oppgitte usikkerhet er riktige.
+SALSA-varsler og Chi-kvadrat-avvik beholdes og må vurderes. Resultatlaget er
+PointZ i valgt geodetisk CRS med ELLIP-høyde, merket «MÅ VURDERES».
+
+«Last syntetisk koordinateksempel» gir to punkt med tre FIX-gjentak hver,
+ulike 1σ-verdier og én FLOAT som utelates. Du må selv krysse av de tre
+bekreftelsene. Det konstruerte eksemplet har liten spredning sammenlignet
+med oppgitte sigmaer og gir varsel på nedre Chi-kvadratgrense. Varslet er
+bevisst synlig; en fullført modellberegning er ikke en faglig godkjenning.
+
+Det er foreløpig ingen RINEX-import/-prosessering, import av målte baselinjer,
+full nettutjevning med krysskovarians eller geoid-/NN2000-transformasjon.
+Reelle anonymiserte Emlid-eksporter er ennå ikke verifisert. Før feltbruk må
+vi kontrollere dine eksportkolonner, koordinat-/høydegrunnlag, korreksjoner,
+antenne-/tiltinnstillinger, måletider og hvordan 1σ skal bestemmes.
+
 RETTIGHETER OG GITHUB
 Pluginens egen kildekode er GPL-3.0-only. Lisensen følger som LICENSE.
 SALSA er Copyright (c) 2015-2024 Applied Research Laboratories,
@@ -134,10 +188,12 @@ https://github.com/qgis/QGIS
 Emlid CSV/prosjektformat og kvalitetskolonner:
 https://docs.emlid.com/emlid-flow/setting-up-team-and-projects/creating-project/
 https://docs.emlid.com/emlid-flow/ef-changelogs/android-changelogs/
+https://docs.emlid.com/emlid-flow/export-projects/
+https://docs.emlid.com/emlid-studio/stop-n-go-with-ef-workflow/
 
 GJENSTÅENDE ARBEID
 Reelle anonymiserte Emlid-filer må testes mot eksportformatet du bruker.
-Egne SALSA-observasjonsnett, full kovarians, korrelasjoner, fastmerkeusikkerhet,
+Rå SALSA-observasjonsnett, krysskovarians, korrelasjoner, fastmerkeusikkerhet,
 geoid/datum/epoke og eventuelle rå GNSS-baselinjer må spesifiseres før tillegget
 kan brukes til faglig nettutjevning. Det er ikke leveransegodkjent programvare.
 

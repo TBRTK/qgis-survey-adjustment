@@ -8,6 +8,8 @@ every version posted on GitHub. Preserve this in README, NOTICE, and release
 notes, qualified by GPLv3 sections 15–17 and applicable law. Retain GPL-3.0-only,
 the license file, and correct attribution. Do not imply official SALSA/Emlid
 endorsement. Engine binaries and dependencies are not part of this plugin ZIP.
+Keep the user's Support and License footer at the end of both root and packaged
+README, linking to https://buymeacoffee.com/tb_rtk and LICENSE.
 
 Synthetic examples must remain clearly identified. Coordinate repeatability
 checks are not a raw GNSS/network adjustment. Do not silently reinterpret

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Independent Qt6/QGIS4 prototype: descriptive CSV checks and SALSA engine demo."""
+"""Independent Qt6/QGIS4 CSV checks and explicit SALSA coordinate adjustment."""
 from datetime import datetime,timezone
 import json
 from pathlib import Path
@@ -15,6 +15,7 @@ from .core import ALIASES,Options,read_table,default_mapping,observations,refere
 from .engine import solver_program,environment,prepare_demo,command,inspect_result
 from .layers import result_layers,make_layer
 from .reporting import text_report,save_bundle
+from .coordinate_ui import CoordinatePanel
 
 PACKAGE = Path(__file__).parent
 
@@ -43,7 +44,7 @@ class SurveyDialog(QDialog):
     def __init__(self,iface):
         super().__init__(iface.mainWindow())
         self.iface = iface
-        self.setWindowTitle('Survey Adjustment 0.1.1 – GNSS / SALSA-utkast')
+        self.setWindowTitle('Survey Adjustment 0.2.0 – GNSS / SALSA-utkast')
         self.resize(1080,760)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
@@ -125,7 +126,8 @@ class SurveyDialog(QDialog):
         info = QLabel('SALSA kjører her et eget syntetisk 3D-målenett: seks GNSS-vektorer, ett fast punkt og to ukjente punkter. '
                       'Resultatene sammenlignes med en uavhengig kontrollberegning.\n'
                       'Egne Emlid-koordinater fra fane 1 blir ikke automatisk til GNSS-baselinjer. '
-                      'Import av egne observasjonsnett og full kovariansmodell kommer i en senere versjon.')
+                      'Egne koordinatobservasjoner med dokumentert usikkerhet kan utjevnes på fane 4. '
+                      'Rå GNSS-baselinjer/RINEX støttes ikke i denne profilen.')
         info.setWordWrap(True)
         engine_layout.addRow(info)
         self.solver = QLineEdit(str(QSettings().value('survey_adjustment/solver','')))
@@ -145,12 +147,14 @@ class SurveyDialog(QDialog):
         self.engine_log.setPlainText('SALSA må velges separat. Motoren følger ikke med pluginpakken. Ingen måledata sendes på nett.')
         engine_layout.addRow(self.engine_log)
         self.tabs.addTab(page,'3. SALSA-motor')
+        self.coordinate_panel = CoordinatePanel(self)
+        self.tabs.addTab(self.coordinate_panel,'4. Egne Emlid → SALSA')
         page = QDialog()
         docs_layout = QVBoxLayout(page)
         docs = QTextBrowser()
         docs.setPlainText((PACKAGE/'README.txt').read_text(encoding='utf-8') if (PACKAGE/'README.txt').exists() else 'Se dokumentasjonen i pluginmappen.')
         docs_layout.addWidget(docs)
-        self.tabs.addTab(page,'4. Hjelp og rettigheter')
+        self.tabs.addTab(page,'5. Hjelp og rettigheter')
         self.status = QLabel('Velg eksempeldata eller egne CSV-filer.')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -251,7 +255,7 @@ class SurveyDialog(QDialog):
             refs = references(self.reference_table,self.mappings(2)) if self.reference_table else {}
             result = analyze(observations(self.table,self.mappings(1)),refs,options)
             result['synthetic'] = self.synthetic
-            result['plugin_version'] = '0.1.1'
+            result['plugin_version'] = '0.2.0'
             result['sources'] = [{k:table[k] for k in ('path','sha256','encoding','delimiter')} for table in (self.table,self.reference_table) if table]
             result['mappings'] = {'observations':self.mappings(1),'references':self.mappings(2)}
             self.result = result
@@ -314,14 +318,18 @@ class SurveyDialog(QDialog):
             self.solver.setText(path)
             QSettings().setValue('survey_adjustment/solver',path)
     def run_engine(self):
+        self.start_job(prepare_demo,'SALSA_demo_',True)
+    def start_job(self,prepare,prefix,synthetic):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning: return
         try:
             program = solver_program(self.solver.text())
-            parent = QFileDialog.getExistingDirectory(self,'Velg mappe for nytt syntetisk SALSA-resultat')
+            parent = QFileDialog.getExistingDirectory(self,'Velg mappe for nytt SALSA-resultat')
             if not parent: return
-            folder = Path(parent)/('SALSA_demo_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
-            prepare_demo(folder)
+            folder = Path(parent)/(prefix+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+            prepare(folder)
             self.engine_result = None
+            self.engine_aborted = False
+            self.coordinate_panel.map_button.setEnabled(False)
             self.engine_program,self.engine_folder = program,folder
             self.process = QProcess(self)
             env = QProcessEnvironment()
@@ -337,33 +345,42 @@ class SurveyDialog(QDialog):
             self.timer.timeout.connect(self.stop_engine)
             self.timer.start(45000)
             self.engine_run.setEnabled(False)
-            self.engine_log.setPlainText('Kjører syntetisk eksempel i SALSA. Emlid-kontrollen er separat.\n'+str(folder))
+            self.coordinate_panel.setEnabled(False)
+            self.tabs.setCurrentIndex(2)
+            self.engine_log.setPlainText(('Kjører syntetisk eksempel i SALSA.' if synthetic else
+                'Kjører koordinatobservasjoner i SALSA; dette er ikke målte GNSS-baselinjer.')+'\n'+str(folder))
             self.process.start()
         except Exception as error: self.error(error)
     def engine_error(self,error):
         if error==QProcess.ProcessError.FailedToStart:
             self.timer.stop()
             self.engine_run.setEnabled(True)
+            self.coordinate_panel.setEnabled(True)
             self.engine_log.setPlainText('SALSA kunne ikke starte. Kontroller programsti og SALSAs egne avhengigheter.')
     def engine_finished(self,exit_code,*_):
         self.timer.stop()
         self.engine_run.setEnabled(True)
+        self.coordinate_panel.setEnabled(True)
         console = bytes(self.process.readAllStandardOutput())+b'\n'+bytes(self.process.readAllStandardError())
         (self.engine_folder/'console.txt').write_bytes(console)
         try:
+            if self.engine_aborted: raise ValueError('Kjøringen ble stoppet; delvise resultatfiler skal ikke brukes.')
             self.engine_result = inspect_result(self.engine_folder,exit_code,self.engine_program)
             data = self.engine_result
-            self.engine_log.setPlainText(f"SALSA {data['version']}: beregning fullført.\n"
-                f"Uavhengig eksempelkontroll: BESTÅTT, største XYZ-forskjell {data['maximum_difference_metres']:.9g} m.\n"
-                'Referanse: WGS84 ECEF XYZ, ellipsoidiske høyder. Ingen NN2000-transformasjon.\n'
+            self.coordinate_panel.map_button.setEnabled(data.get('kind')=='coordinate_observations')
+            self.engine_log.setPlainText(f"SALSA {data['version']}: beregning fullført.\n"+
+                ('Syntetiske eksempeldata.\n' if data['synthetic'] else 'Egen kildefil; ikke verifisert mot dine feltdata.\n')+
+                f"Uavhengig modellkontroll: BESTÅTT, største XYZ-forskjell {data['maximum_difference_metres']:.9g} m.\n"
+                f"Grunnlag: {data['frame']}, ellipsoidiske høyder. Ingen NN2000-transformasjon.\n"
                 'Varsler fra SALSA må vurderes:\n'+'\n'.join(data['warnings'])+'\n\nResultatmappe: '+str(self.engine_folder)+
                 '\n\n'+(self.engine_folder/'solution.out').read_text(encoding='utf-8',errors='replace'))
-            self.status.setText('SALSA-eksempelet er beregnet og kontrollert. Se varsler og rapport i resultatmappen.')
+            self.status.setText('SALSA-beregningen er fullført og modellkontrollert. Se varsler og rapport i resultatmappen.')
         except Exception as error:
             self.engine_result = None
             self.engine_log.setPlainText('SALSA-resultatet ble ikke godkjent av programkoblingen: '+str(error)+'\n'+str(self.engine_folder))
     def stop_engine(self):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning:
+            self.engine_aborted = True
             self.process.kill()
             self.engine_result = None
             self.engine_log.setPlainText('SALSA stoppet. Delvise resultatfiler skal ikke brukes.')

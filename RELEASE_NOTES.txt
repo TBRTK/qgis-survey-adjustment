@@ -1,22 +1,23 @@
-Survey Adjustment 0.1.1 – første utkast for QGIS 4.0.0
+Survey Adjustment 0.2.0 – egne Emlid-koordinatobservasjoner til SALSA
 
-- Retter kartvisning fra 0.1.0: enkeltmålinger uten tilstrekkelig gjentak
-  merkes UAVKLART; samlet kontrollpunktstatus tegnes øverst i kartet.
+- Ny fane for egen CSV med lat/lon/ellipsoidisk punkthøyde og eksplisitt 1σ.
+- ETRS89/GRS80 eller WGS84, måleepoke, korreksjonskilde og antennenotat.
+- Full ENU-til-ECEF-rotasjon av hver diagonal inngangskovarians.
+- Reell SALSA-beregning av uavhengige absolutte koordinatobservasjoner;
+  ingen målte GNSS-baselinjer konstrueres eller påstås.
+- Uavhengig vektet XYZ-kontroll, uendret kildekopi, SHA256, restavvik,
+  justerte koordinater som CSV og eget PointZ-lag med ELLIP-høyde.
+- Stopp ved manglende forutsetninger, 1σ, ugyldige tall, dupliserte måletider,
+  for få FIX-gjentak, feil grunnlag eller endrede inndata.
+- Nytt syntetisk eksempel med ulike vekter og synlig Chi-kvadrat-varsel.
+- Den eksisterende gjentakskontrollen og SALSA-vektordemoen beholdes.
+- Støtte-/lisensdelen følger både README og pluginpakken.
 
-- Selvstendig plugin, separat fra SOSI Survey.
-- CSV-feltkoblinger for Emlid-lignende E/N/Z-data og kontrollpunkt-ID.
-- Uvektet gjentakskontroll, referanseavvik, FIX-filter og tydelig utelattliste.
-- Ti syntetiske eksempelobservasjoner med normale gjentak, uteligger,
-  felles kontrollpunktavvik, FLOAT og utilstrekkelig antall målinger.
-- Kartlag med faktisk XYZ, middelverdier, referansepunkter og restavvik.
-- Rapportpakke med TXT/HTML/JSON/CSV og kontrollsummer.
-- Separat SALSA 1.17.0-motor: reelt syntetisk 3D-vektoreksempel og uavhengig
-  kontroll av eksempelresultatet. Egne Emlid-filer sendes ikke til denne motoren.
-- 14 tester bestått, inkludert QGIS 4.0.0 og ekte SALSA-kjøring.
-
-Begrensninger: første prototype; ingen rå GNSS-prosessering, automatisk
-Emlid-til-SALSA-nettutjevning, geoid/datum-transformasjon eller leveransegodkjenning.
-SALSA-motoren følger ikke med ZIP-filen. Bruk offisiell SALSA-distribusjon.
+Verifisert med 21 tester, inkludert QGIS 4.0.0 og faktiske SALSA-kjøringer.
+Reelle brukerfiler er ennå ikke validert. Profilen forutsetter uavhengige
+målinger og vurderte standardavvik; ingen RINEX/baselinjeprosessering,
+geoid/datum/epoketransformasjon eller leveransegodkjenning.
+SALSA-motoren distribueres separat og følger ikke med plugin-ZIP-filen.
 
 Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsfraskrivelse
 og ansvarsbegrensning gjelder i det omfang GPLv3 §§15–17 og gjeldende rett

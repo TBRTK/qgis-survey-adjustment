@@ -115,9 +115,38 @@ class QgisTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(self.iface.actions,['Survey Adjustment'])
         plugin.run()
-        self.assertIn('0.1.1',plugin.dialog.windowTitle())
+        self.assertIn('0.2.0',plugin.dialog.windowTitle())
         plugin.unload()
         self.assertEqual(self.iface.actions,[])
+
+    @unittest.skipUnless(PROGRAM.exists(),'SALSA-motoren er ikke tilgjengelig lokalt')
+    def test_own_coordinate_panel_process_exports_map_z_and_invalidation(self):
+        dlg=SurveyDialog(self.iface); panel=dlg.coordinate_panel
+        panel.load_demo(); dlg.tabs.setCurrentIndex(3); dlg.show(); app.processEvents()
+        with patch.object(QMessageBox,'warning') as warning:
+            self.assertFalse(panel.preview()); self.assertTrue(warning.called)
+        for box in (panel.ellipsoid,panel.uncertainty_confirm,panel.independent): box.setChecked(True)
+        self.assertTrue(panel.preview())
+        dlg.grab().save(str(ROOT/'test_output/qgis_coordinate_setup.png'))
+        dlg.solver.setText(str(PROGRAM))
+        with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
+            with patch.object(QFileDialog,'getExistingDirectory',return_value=folder): panel.run()
+            deadline=time.monotonic()+15
+            while not dlg.engine_run.isEnabled() and time.monotonic()<deadline:
+                app.processEvents(); time.sleep(.01)
+            self.assertIsNotNone(dlg.engine_result,dlg.engine_log.toPlainText())
+            self.assertTrue(dlg.engine_result['synthetic'])
+            self.assertEqual(dlg.engine_result['kind'],'coordinate_observations')
+            panel.add_layer()
+            layer=self.iface.active
+            self.assertEqual(layer.crs().authid(),'EPSG:4937'); self.assertTrue(layer.readOnly())
+            first=next(layer.getFeatures()); lat,lon,h=next(iter(dlg.engine_result['positions_geodetic'].values()))
+            point=first.geometry().constGet()
+            self.assertEqual((point.x(),point.y(),point.z()),(lon,lat,h))
+            self.assertEqual(first['hoydegrunnlag'],'ELLIP')
+            dlg.tabs.setCurrentIndex(2); dlg.grab().save(str(ROOT/'test_output/qgis_coordinate_result.png'))
+            panel.epoch.setText('2026-10-19'); self.assertFalse(panel.map_button.isEnabled())
+        dlg.close()
 
 
 if __name__=='__main__':

@@ -75,6 +75,7 @@ def prepare_demo(folder):
     folder = Path(folder)
     folder.mkdir(parents=True,exist_ok=False)
     data,meta = demo_job()
+    meta['input_dat_sha256'] = hashlib.sha256(data.encode('ascii')).hexdigest()
     (folder/'input.dat').write_text(data,encoding='ascii',newline='\n')
     (folder/'input_metadata.json').write_text(json.dumps(meta,indent=2,ensure_ascii=False),encoding='utf-8')
     return folder
@@ -102,15 +103,18 @@ def inspect_result(folder,exit_code,program):
     errors = re.findall(r'^.*(?:\bError\b|\bException\b|\bFatal\b).*$',text,re.M|re.I)
     if exit_code != 0 or errors or not (folder/'solution.bin').is_file():
         raise ValueError('SALSA-kjøringen feilet. ' + ('; '.join(errors[:3]) or f'Prosesskode {exit_code}; resultatfiler mangler.'))
-    if 'Convergence reached at iteration' not in text or not re.search(r'Degrees of freedom\s*=\s*\d+',text):
+    if ('Convergence reached at iteration' not in text or 'Final Adjusted Positions XYZ' not in text or
+        not re.search(r'Degrees of freedom\s*=\s*[1-9]\d*;.*\(Final\)',text)):
         raise ValueError('SALSA-resultatet mangler bekreftet sluttberegning/statistikk.')
     warnings = [line.strip() for line in text.splitlines() if
                 re.match(r'^\s*Warning\b',line,re.I) or
                 ('Chi-squared test' in line and re.search(r'\bfail\b',line,re.I)) or
                 (line.lstrip().startswith('Del.') and '**' in line)]
-    # This example is linear with equal independent covariance. Its least-squares
-    # solution is the arithmetic XYZ mean, allowing an independent numeric check.
     meta = json.loads((folder/'input_metadata.json').read_text(encoding='utf-8'))
+    if meta.get('input_dat_sha256') and sha256(folder/'input.dat')!=meta['input_dat_sha256']:
+        raise ValueError('SALSA-inndata er endret etter klargjøring.')
+    if meta.get('kind')=='coordinate_observations' and sha256(folder/'source.csv')!=meta['source']['sha256']:
+        raise ValueError('Kildekopien er endret etter klargjøring.')
     section = text.split('Final Adjusted Positions XYZ',1)[-1].split('Final Adjusted Positions LLH',1)[0]
     positions = {}
     for line in section.splitlines():
@@ -125,17 +129,31 @@ def inspect_result(folder,exit_code,program):
             except ValueError:
                 raise ValueError('Ugyldige tall i SALSAs sluttposisjoner.') from None
     if set(positions) != set(meta['expected_positions']):
-        raise ValueError('SALSA mangler sluttposisjoner for ett eller flere eksempelpunkter.')
+        raise ValueError('SALSA mangler sluttposisjoner for ett eller flere punkter.')
     difference = max(abs(v-w) for name,xyz in positions.items() for v,w in zip(xyz,meta['expected_positions'][name]))
     if not math.isfinite(difference) or difference > 0.000002:
-        raise ValueError('SALSA-resultatet avviker fra den uavhengige eksempelberegningen.')
+        raise ValueError('SALSA-resultatet avviker fra den uavhengige kontrollberegningen av den valgte modellen.')
+    warnings.extend(meta.get('assumptions',[]))
+    synthetic = meta.get('synthetic',True)
+    coordinates = meta.get('kind')=='coordinate_observations'
     version = re.search(r'SALSA Ver\.\s+(\S+)',text)
     result = dict(engine='SALSA',version=version[1] if version else 'ukjent',
                   execution='BEREGNET',quality='MÅ VURDERES' if warnings else 'Ingen varsler funnet i loggen; faglig vurdering gjenstår',
                   warnings=warnings,solver_sha256=sha256(program),input_sha256=sha256(folder/'input.dat'),
-                  output_sha256=sha256(folder/'solution.out'),synthetic=True,
-                  independent_comparison='BESTÅTT mot direkte XYZ-middel for dette lineære eksempelet',
+                  output_sha256=sha256(folder/'solution.out'),synthetic=synthetic,
+                  independent_comparison=('BESTÅTT mot direkte XYZ-middel for dette lineære eksempelet' if not coordinates else
+                      'BESTÅTT mot uavhengig vektet XYZ-løsning av den valgte koordinatmodellen'),
                   maximum_difference_metres=difference,positions_ecef=positions,
                   frame=meta['frame'],height=meta['height'],folder=str(folder.resolve()))
+    if coordinates:
+        from .coordinate_job import write_coordinate_results
+        result['positions_geodetic'] = write_coordinate_results(folder,meta,positions)
+        result['identifiers'] = meta['identifiers']
+        result['epoch'] = meta['epoch']
+        result['source'] = meta['source']
+        result['excluded'] = meta['excluded']
+        result['model'] = 'Uavhengige absolutte koordinatobservasjoner; ingen målte GNSS-baselinjer'
+        result['uncertainty_source'] = meta['uncertainty_source']
+        result['kind'] = 'coordinate_observations'
     (folder/'run_report.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
     return result
