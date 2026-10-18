@@ -1,0 +1,21 @@
+Survey Adjustment
+Copyright (c) 2026 Tore Berthelsen.
+Pluginens egen kildekode og syntetiske eksempeldata: GPL-3.0-only.
+Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsbegrensning
+gjelder etter GPLv3 §§15–17 og i den utstrekning gjeldende rett tillater.
+Se LICENSE. Ingen garanti for egnethet eller leveransegodkjenning.
+
+SALSA – Surveyor's Applications for Least Squares Adjustment
+Copyright (c) 2015-2024 Applied Research Laboratories,
+The University of Texas at Austin (ARL:UT).
+SALSA er et separat eksternt program under GPL-3.0-only.
+https://github.com/SGL-UT/SALSA
+https://wwwext.arlut.utexas.edu/salsa/
+
+SALSA-kode, binærfiler, manualer, logoer og installasjonspakke følger ikke
+denne pluginpakken. DAT-eksemplet er selvstendig generert syntetisk data.
+Ingen offisiell tilknytning til SALSA, ARL:UT, Emlid eller QGIS hevdes.
+Navnene brukes beskrivende. Emlid-eksemplet er ikke målt med et ekte instrument.
+
+QGIS/PyQt og SALSAs avhengigheter har egne opphavsretts- og lisensmerknader.
+De endres eller redistribueres ikke i dette pluginutkastet.

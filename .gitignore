@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.zip
+*.msi
+*.exe
+*.dll
+*.bin
+*.qgs
+*.qgz
+*.gpkg
+upstream/
+test_output/
+.env
+.env.*
+local_settings.json

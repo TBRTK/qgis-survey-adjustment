@@ -1,0 +1,20 @@
+Survey Adjustment 0.1.0 – første utkast for QGIS 4.0.0
+
+- Selvstendig plugin, separat fra SOSI Survey.
+- CSV-feltkoblinger for Emlid-lignende E/N/Z-data og kontrollpunkt-ID.
+- Uvektet gjentakskontroll, referanseavvik, FIX-filter og tydelig utelattliste.
+- Ti syntetiske eksempelobservasjoner med normale gjentak, uteligger,
+  felles kontrollpunktavvik, FLOAT og utilstrekkelig antall målinger.
+- Kartlag med faktisk XYZ, middelverdier, referansepunkter og restavvik.
+- Rapportpakke med TXT/HTML/JSON/CSV og kontrollsummer.
+- Separat SALSA 1.17.0-motor: reelt syntetisk 3D-vektoreksempel og uavhengig
+  kontroll av eksempelresultatet. Egne Emlid-filer sendes ikke til denne motoren.
+- 14 tester bestått, inkludert QGIS 4.0.0 og ekte SALSA-kjøring.
+
+Begrensninger: første prototype; ingen rå GNSS-prosessering, automatisk
+Emlid-til-SALSA-nettutjevning, geoid/datum-transformasjon eller leveransegodkjenning.
+SALSA-motoren følger ikke med ZIP-filen. Bruk offisiell SALSA-distribusjon.
+
+Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsfraskrivelse
+og ansvarsbegrensning gjelder i det omfang GPLv3 §§15–17 og gjeldende rett
+tillater. Se LICENSE.

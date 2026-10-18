@@ -1,0 +1,15 @@
+[general]
+name=Survey Adjustment – SALSA-utkast
+description=Gjentakskontroll av GNSS-målinger og separat kobling til SALSA.
+version=0.1.0
+qgisMinimumVersion=4.0
+qgisMaximumVersion=4.99
+author=Tore Berthelsen
+email=
+homepage=https://www.3dmapper.no
+repository=https://github.com/TBRTK/qgis-survey-adjustment
+tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
+about=Uavhengig prototype. Syntetiske Emlid-eksempler, spredning, kontrollpunktavvik og SALSA-eksempel. Ikke et offisielt SALSA- eller Emlid-produkt.
+category=Vector
+experimental=True
+hasProcessingProvider=False
