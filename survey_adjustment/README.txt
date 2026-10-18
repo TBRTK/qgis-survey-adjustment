@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.2.0 – SELVSTENDIG UTKAST FOR QGIS 4.0
+SURVEY ADJUSTMENT 0.2.1 – SELVSTENDIG UTKAST FOR QGIS 4.0
 Forfatter: Tore Berthelsen – https://www.3dmapper.no
 Dato: 18.10.2026
 Prosjektside: https://github.com/TBRTK/qgis-survey-adjustment
@@ -10,7 +10,7 @@ alle former for lovpålagt ansvar.
 
 INSTALLASJON
 QGIS 4.0: Programtillegg > Håndtering og installering av programtillegg >
-Installer fra ZIP. Velg survey_adjustment-0.2.0.zip og aktiver tillegget.
+Installer fra ZIP. Velg survey_adjustment-0.2.1.zip og aktiver tillegget.
 Python-pakken heter survey_adjustment; SOSI Survey er en separat plugin.
 SALSA må velges separat på fane 3. Hele SALSA-mappen med motorens egne
 DLL-er må beholdes; en løs lsasolver.exe er normalt ikke tilstrekkelig.
@@ -25,12 +25,12 @@ BEREGNINGER OG PROFILER
 2. En programkobling til SALSA 1.17.0. Førsteutkastet kjører et eget syntetisk
    GNSS-vektornett, og kontrollerer sluttposisjonene mot en uavhengig beregning.
    Egen måle-CSV fra fane 1 brukes fortsatt bare til gjentakskontroll.
-3. Fane 4 utjevner egne gjentatte koordinatobservasjoner fra Emlid CSV i SALSA,
+3. Fane 4 utjevner egne gjentatte koordinatobservasjoner fra GNSS-tekstfiler i SALSA,
    med eksplisitt ellipsoidisk høyde og 1σ-modell. Dette er ikke rå GNSS-baselinjer.
 
-SLIK PRØVER DU EMLID-EKSEMPLET
+SLIK PRØVER DU GNSS-EKSEMPLET
 - Åpne Programtillegg > Survey Adjustment > Survey Adjustment – GNSS og SALSA.
-- Velg «Last Emlid-eksempel». Eksemplet inneholder 10 syntetiske målinger,
+- Velg «Last syntetisk GNSS-eksempel». Eksemplet inneholder 10 syntetiske målinger,
   fordelt på fire kontrollpunkter. «Control ID» er en egen eksempelkolonne
   for å gruppere gjentak; den er ikke lovet som standardkolonne fra Emlid.
 - Kontroller UTM 32 og NN2000 og kryss av bekreftelsen for eksempeldataene.
@@ -48,8 +48,12 @@ SLIK PRØVER DU EMLID-EKSEMPLET
   og de valgte feltkoblingene følger kontrollrapporten. Eksisterende filer
   erstattes ikke; hver kjøring får en ny mappe.
 
-EGNE EMLID-FILER
-Eksporter CSV med kolonnenavn fra Emlid Flow. Bruk prosjekterte koordinater
+EGNE GNSS-FILER FRA ULIKE MOTTAKERE
+Bruk CSV, TXT eller TSV med kolonnenavn fra feltprogrammet. Komma, semikolon
+og tabulator støttes; semikolon/tabulator tillater desimalkomma. Kolonnene
+foreslås etter navn og kan kobles manuelt. Ingen mottakermerke er påkrevd.
+Emlid Flow «All columns» er ett eksempel på en eksport, ikke et krav.
+Bruk prosjekterte koordinater
 i meter, for eksempel Easting, Northing og Elevation. Navn, kontrollpunkt-ID,
 E/N/Z må kobles. Status og måletid kan kobles. Når FIX-filteret er på,
 utelates tom/ukjent status samt FLOAT/SINGLE. Slå av filteret bare når du
@@ -68,6 +72,23 @@ Ingen geoid-, datum- eller koordinattransformasjon skjer i gjentakskontrollen.
 CSV med eksplisitt annet EPSG/datum stoppes. Ellers må brukeren kontrollere
 de faktiske filinnstillingene og bekrefte at filene er sammenlignbare.
 Elevation må allerede være punkt-/bakkehøyde. Antennehøyde korrigeres ikke igjen.
+
+FORMATER OG KVALITETSFELT
+Samme filtype betyr ikke samme innhold. Kontroller akser, meter/fot,
+desimalgrader/DMS, koordinatgrunnlag, høydegrunnlag og statusbetydning.
+Tekstlig FIX, FIXED, RTK FIX og RTK FIXED gjenkjennes. Numeriske statuskoder
+(for eksempel 1 eller 4) tolkes ikke som FIX uten dokumentert normalisering
+i en separat arbeidskopi. Originalfilen skal beholdes. HRMS/VRMS/RMS og
+95 %-verdier er ikke automatisk 1σ ENU, uansett mottakermerke.
+Headerløse punktlister (PNEZD), JOB/DBX, proprietære prosjektfiler og RINEX
+importeres ikke direkte. Eksporter en tekstfil med navngitte kolonner først.
+Dette er formatstøtte, ikke sertifisering av alle mottakere eller eksportvalg.
+
+TILLEGGSEKSEMPLER
+examples/gnss_gjentak.csv og examples/gnss_salsa_llh.csv har samme syntetiske
+målinger som de opprinnelige Emlid-lignende eksemplene, men alternative
+kolonnenavn, semikolon og desimalkomma. De viser produsentuavhengig kobling.
+De er konstruert av prosjektet; de er ikke godkjente produsenteksporter.
 
 TOLKNING
 Middelverdien er et uvektet gjennomsnitt. Restavvik er måling minus middel.
@@ -95,10 +116,10 @@ konvergens, resultatfil, sluttposisjoner og samsvar innen 0.000002 m.
 Feil/varsler og Chi-kvadrat-avvik vises; filene beholdes for vurdering.
 Geoidvarselet i dette eksemplet skyldes at ingen geoidfil er valgt. Det betyr
 at tyngdekorreksjoner ikke brukes. Det gjøres ingen NN2000-transformasjon.
-Ingen rå Emlid-målefil lastes opp på nettet. All beregning er lokal.
+Ingen GNSS-målefil lastes opp på nettet. All beregning er lokal.
 
 EGNE KOORDINATOBSERVASJONER TIL SALSA (FANE 4)
-Bruk CSV «All columns» med kolonnenavn fra Emlid Flow. Følgende må finnes:
+Bruk CSV/TXT/TSV med kolonnenavn fra ditt feltprogram. Følgende må kunne kobles:
 Name, en entydig kontrollpunkt-ID, Latitude, Longitude, Ellipsoidal height
 og Solution status. Bredde/lengde må være desimalgrader, høyde i meter.
 Averaging start anbefales. Velg fysisk kontrollpunkt-ID selv; ingen navn
@@ -146,7 +167,7 @@ bevisst synlig; en fullført modellberegning er ikke en faglig godkjenning.
 
 Det er foreløpig ingen RINEX-import/-prosessering, import av målte baselinjer,
 full nettutjevning med krysskovarians eller geoid-/NN2000-transformasjon.
-Reelle anonymiserte Emlid-eksporter er ennå ikke verifisert. Før feltbruk må
+Reelle anonymiserte mottakereksporter er ennå ikke verifisert. Før feltbruk må
 vi kontrollere dine eksportkolonner, koordinat-/høydegrunnlag, korreksjoner,
 antenne-/tiltinnstillinger, måletider og hvordan 1σ skal bestemmes.
 
@@ -192,7 +213,7 @@ https://docs.emlid.com/emlid-flow/export-projects/
 https://docs.emlid.com/emlid-studio/stop-n-go-with-ef-workflow/
 
 GJENSTÅENDE ARBEID
-Reelle anonymiserte Emlid-filer må testes mot eksportformatet du bruker.
+Reelle anonymiserte GNSS-filer må testes mot eksportformatet du bruker.
 Rå SALSA-observasjonsnett, krysskovarians, korrelasjoner, fastmerkeusikkerhet,
 geoid/datum/epoke og eventuelle rå GNSS-baselinjer må spesifiseres før tillegget
 kan brukes til faglig nettutjevning. Det er ikke leveransegodkjent programvare.

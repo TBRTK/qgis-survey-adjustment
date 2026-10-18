@@ -27,6 +27,32 @@ def example():
 
 
 class CoordinateTests(unittest.TestCase):
+    def test_receiver_neutral_semicolon_and_tab_headers_give_identical_weighted_xyz(self):
+        table,mapping,options=example()
+        original,meta=coordinate_job(table,mapping,options)
+        alternative=read_table(ROOT/'survey_adjustment/examples/gnss_salsa_llh.csv')
+        data,other=coordinate_job(alternative,mapping_for(alternative['headers']),options)
+        self.assertEqual(original,data)
+        self.assertEqual(meta['expected_positions'],other['expected_positions'])
+        self.assertEqual(meta['model_covariance_xyz'],other['model_covariance_xyz'])
+        self.assertEqual(meta['excluded'],other['excluded'])
+        with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
+            path=Path(folder)/'measurements.tsv'
+            path.write_text((ROOT/'survey_adjustment/examples/gnss_salsa_llh.csv').read_text(encoding='utf-8').replace(';','\t'),encoding='utf-8')
+            tabular=read_table(path)
+            self.assertEqual(tabular['delimiter'],'\t')
+            self.assertEqual(coordinate_job(tabular,mapping_for(tabular['headers']),options)[0],original)
+
+    def test_numeric_solution_code_excluded_and_generic_height_not_assumed_ellipsoidal(self):
+        table,mapping,options=example()
+        modified=dict(table,rows=[dict(r) for r in table['rows']])
+        modified['rows'][0]['Solution status']='4'
+        _,meta=coordinate_job(modified,mapping,options)
+        self.assertEqual(len(meta['observations']),5)
+        self.assertEqual(len(meta['excluded']),2)
+        self.assertIn('4',meta['excluded'][0]['reason'])
+        self.assertEqual(mapping_for(['Observation','Target ID','Lat','Lon','Elevation'])['h'],'')
+
     def test_unequal_weights_analytic_solution_no_fictitious_gnss_baseline(self):
         table,mapping,options=example()
         rows=[]

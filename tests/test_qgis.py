@@ -115,7 +115,7 @@ class QgisTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(self.iface.actions,['Survey Adjustment'])
         plugin.run()
-        self.assertIn('0.2.0',plugin.dialog.windowTitle())
+        self.assertIn('0.2.1',plugin.dialog.windowTitle())
         plugin.unload()
         self.assertEqual(self.iface.actions,[])
 

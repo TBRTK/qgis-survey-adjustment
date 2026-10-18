@@ -10,18 +10,19 @@ import csv
 import hashlib
 import io
 import math
+import re
 from pathlib import Path
 import statistics
 
 
 ALIASES = {
-    'name': ['Name', 'Point', 'Punktnavn', 'Punkt'],
-    'group': ['Control ID', 'Control Point', 'Kontrollpunkt', 'Point ID', 'Name', 'Point'],
-    'e': ['Easting', 'East', 'Øst', 'Oest', 'E'],
-    'n': ['Northing', 'North', 'Nord', 'N'],
-    'z': ['Elevation', 'Height', 'Høyde', 'Z'],
-    'status': ['Solution status', 'Solution', 'RTK status', 'Status'],
-    'time': ['Averaging start', 'Timestamp', 'Tid'],
+    'name': ['Name', 'Observation', 'Obs ID', 'Point name', 'Point', 'Punktnavn', 'Punkt'],
+    'group': ['Control ID', 'Control Point', 'Kontrollpunkt', 'Point ID', 'Target ID', 'Name', 'Point name', 'Point'],
+    'e': ['Easting', 'East', 'Øst', 'Oest', 'E', 'E_m'],
+    'n': ['Northing', 'North', 'Nord', 'N', 'N_m'],
+    'z': ['Elevation', 'Height', 'Høyde', 'Z', 'H_m', 'Z_m'],
+    'status': ['Solution status', 'Solution', 'RTK status', 'Fix type', 'Status'],
+    'time': ['Averaging start', 'Timestamp', 'Start time', 'Tid'],
 }
 
 
@@ -49,6 +50,8 @@ def read_table(path):
         headers = [h.strip() for h in next(reader)]
         if any(not h for h in headers) or len(set(map(key,headers))) != len(headers):
             raise ValueError('CSV har tomme eller dupliserte kolonnenavn.')
+        if any(re.fullmatch(r'[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:[eE][+-]?\d+)?',h) for h in headers):
+            raise ValueError('CSV må ha en overskriftsrad med tekstlige kolonnenavn. Første rad ser ut som måledata; legg til kolonnenavn før import.')
         rows = []
         for row in reader:
             if not row or all(not value.strip() for value in row):

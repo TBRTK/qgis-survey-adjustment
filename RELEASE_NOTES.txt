@@ -1,22 +1,24 @@
-Survey Adjustment 0.2.0 – egne Emlid-koordinatobservasjoner til SALSA
+Survey Adjustment 0.2.1 – GNSS fra ulike mottakere
 
-- Ny fane for egen CSV med lat/lon/ellipsoidisk punkthøyde og eksplisitt 1σ.
-- ETRS89/GRS80 eller WGS84, måleepoke, korreksjonskilde og antennenotat.
-- Full ENU-til-ECEF-rotasjon av hver diagonal inngangskovarians.
-- Reell SALSA-beregning av uavhengige absolutte koordinatobservasjoner;
-  ingen målte GNSS-baselinjer konstrueres eller påstås.
-- Uavhengig vektet XYZ-kontroll, uendret kildekopi, SHA256, restavvik,
-  justerte koordinater som CSV og eget PointZ-lag med ELLIP-høyde.
-- Stopp ved manglende forutsetninger, 1σ, ugyldige tall, dupliserte måletider,
-  for få FIX-gjentak, feil grunnlag eller endrede inndata.
-- Nytt syntetisk eksempel med ulike vekter og synlig Chi-kvadrat-varsel.
-- Den eksisterende gjentakskontrollen og SALSA-vektordemoen beholdes.
-- Støtte-/lisensdelen følger både README og pluginpakken.
+- Produsentuavhengige faner, filvalg og hjelpetekster for gjentak og SALSA.
+- Flere forslag til feltkobling for navngitte GNSS-kolonner. Manuell kobling
+  beholdes. CSV/TXT/TSV med komma, semikolon eller tabulator støttes.
+- Nye tydelig syntetiske eksempelfiler med alternative kolonnenavn,
+  semikolon og desimalkomma. Ingen produsentsertifisering hevdes.
+- Punktlister uten tekstlige kolonnenavn stoppes før første måling kan bli
+  mistolket som kolonnenavn. Numeriske statuskoder gjettes ikke som FIX.
+- Skillet mellom ellipsoidisk høyde/NN2000 og RMS/1σ forklares i hjelpen.
+- Forfatter, GPL-lisens, AS IS og frivillig støttelenke følger pakken.
 
-Verifisert med 21 tester, inkludert QGIS 4.0.0 og faktiske SALSA-kjøringer.
-Reelle brukerfiler er ennå ikke validert. Profilen forutsetter uavhengige
-målinger og vurderte standardavvik; ingen RINEX/baselinjeprosessering,
-geoid/datum/epoketransformasjon eller leveransegodkjenning.
+Verifisert med 26 tester i QGIS 4.0.0-miljøet, inkludert faktiske SALSA-
+kjøringer, alternative feltkoblinger, usikkerhetsmodell og PointZ-resultat.
+Den installerte 0.2.0-flyten ble også kjørt i brukerens åpne QGIS: gjentak,
+rapport, SALSA og GeoPackage-eksport. X/Y/Z var identiske ved disk-gjeninnlesing.
+
+Reelle mottakereksporter gjenstår. All import krever kontroll av kolonner,
+enheter, koordinat-/høydegrunnlag og kvalitetsfelt. Ingen RINEX-/baselinje-
+prosessering, geoid/datum/epoketransformasjon eller leveransegodkjenning.
+SALSA-varsler beholdes; beregnet resultat betyr ikke faglig godkjenning.
 SALSA-motoren distribueres separat og følger ikke med plugin-ZIP-filen.
 
 Programvaren leveres «som den er» (AS IS), uten garanti. Ansvarsfraskrivelse

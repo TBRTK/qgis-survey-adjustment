@@ -6,7 +6,7 @@ from zipfile import ZipFile,ZIP_DEFLATED
 
 ROOT = Path(__file__).resolve().parent
 package = ROOT/'survey_adjustment'
-output = ROOT/'survey_adjustment-0.2.0.zip'
+output = ROOT/'survey_adjustment-0.2.1.zip'
 with ZipFile(output,'w',ZIP_DEFLATED) as archive:
     for path in sorted(package.rglob('*')):
         if path.is_file() and '__pycache__' not in path.parts and (path.suffix in ('.py','.txt','.csv') or path.name=='LICENSE'):

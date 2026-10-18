@@ -44,7 +44,7 @@ class SurveyDialog(QDialog):
     def __init__(self,iface):
         super().__init__(iface.mainWindow())
         self.iface = iface
-        self.setWindowTitle('Survey Adjustment 0.2.0 – GNSS / SALSA-utkast')
+        self.setWindowTitle('Survey Adjustment 0.2.1 – GNSS / SALSA-utkast')
         self.resize(1080,760)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
@@ -59,12 +59,12 @@ class SurveyDialog(QDialog):
         page = QDialog()
         form = QFormLayout(page)
         row = QHBoxLayout()
-        for title,callback in [('Last Emlid-eksempel',self.load_demo),('Åpne måle-CSV …',self.open_csv),('Åpne referanse-CSV …',self.open_reference),('Fjern referanse',self.clear_reference)]:
+        for title,callback in [('Last syntetisk GNSS-eksempel',self.load_demo),('Åpne måle-CSV …',self.open_csv),('Åpne referanse-CSV …',self.open_reference),('Fjern referanse',self.clear_reference)]:
             button = QPushButton(title)
             button.clicked.connect(callback)
             row.addWidget(button)
         form.addRow(row)
-        self.source_info = QLabel('Velg en CSV eller last eksempelet. Ingen tilkobling til antenner.')
+        self.source_info = QLabel('GNSS fra ulike mottakere: velg CSV/TXT/TSV med kolonnenavn eller last eksempelet. Ingen tilkobling til antenner.')
         self.source_info.setWordWrap(True)
         form.addRow(self.source_info)
         self.mapping = QTableWidget(len(ALIASES),4)
@@ -101,7 +101,7 @@ class SurveyDialog(QDialog):
         button = QPushButton('Beregn gjentakskontroll →')
         button.clicked.connect(self.calculate)
         form.addRow(button)
-        self.tabs.addTab(page,'1. Emlid / gjentak')
+        self.tabs.addTab(page,'1. GNSS / gjentak')
         page = QDialog()
         result_layout = QVBoxLayout(page)
         self.summary = QLabel('Ingen beregning kjørt.')
@@ -125,7 +125,7 @@ class SurveyDialog(QDialog):
         engine_layout = QFormLayout(page)
         info = QLabel('SALSA kjører her et eget syntetisk 3D-målenett: seks GNSS-vektorer, ett fast punkt og to ukjente punkter. '
                       'Resultatene sammenlignes med en uavhengig kontrollberegning.\n'
-                      'Egne Emlid-koordinater fra fane 1 blir ikke automatisk til GNSS-baselinjer. '
+                      'Egne GNSS-koordinater fra fane 1 blir ikke automatisk til GNSS-baselinjer. '
                       'Egne koordinatobservasjoner med dokumentert usikkerhet kan utjevnes på fane 4. '
                       'Rå GNSS-baselinjer/RINEX støttes ikke i denne profilen.')
         info.setWordWrap(True)
@@ -148,7 +148,7 @@ class SurveyDialog(QDialog):
         engine_layout.addRow(self.engine_log)
         self.tabs.addTab(page,'3. SALSA-motor')
         self.coordinate_panel = CoordinatePanel(self)
-        self.tabs.addTab(self.coordinate_panel,'4. Egne Emlid → SALSA')
+        self.tabs.addTab(self.coordinate_panel,'4. GNSS → SALSA')
         page = QDialog()
         docs_layout = QVBoxLayout(page)
         docs = QTextBrowser()
@@ -180,7 +180,7 @@ class SurveyDialog(QDialog):
         labels = {'name':'Målingens navn','group':'Kontrollpunkt-ID','e':'Øst (E)','n':'Nord (N)','z':'Høyde (Z)','status':'Løsningsstatus','time':'Måletid'}
         help_text = {'name':'Identifiserer hver måling.','group':'Samme ID = samme fysiske kontrollpunkt.',
                      'e':'Projisert østkoordinat i meter.','n':'Projisert nordkoordinat i meter.',
-                     'z':'Ferdig punkt-/bakkehøyde i valgt datum.', 'status':'FIX, FLOAT osv. Tom verdi er ikke dokumentert FIX.',
+                     'z':'Ferdig punkt-/bakkehøyde i valgt datum.', 'status':'Tekstlig FIX/RTK FIX/FIXED, FLOAT osv. Tallkoder tolkes ikke automatisk; dokumenter og normaliser status i en arbeidskopi.',
                      'time':'Brukes til å varsle om manglende eller like måletider.'}
         for row,field in enumerate(ALIASES):
             self.mapping.setItem(row,0,self.item(labels[field]))
@@ -213,10 +213,10 @@ class SurveyDialog(QDialog):
             self.crs.setCurrentIndex(1)
             self.height.setCurrentText('NN2000')
             self.rebuild_mappings()
-            self.status.setText('Syntetisk Emlid-eksempel lastet. Bekreft UTM 32 / NN2000 før kontroll.')
+            self.status.setText('Syntetisk GNSS-eksempel lastet. Bekreft UTM 32 / NN2000 før kontroll.')
         except Exception as error: self.error(error)
     def open_csv(self):
-        path,_ = QFileDialog.getOpenFileName(self,'Åpne Emlid-/måle-CSV','','CSV (*.csv *.txt)')
+        path,_ = QFileDialog.getOpenFileName(self,'Åpne GNSS-målinger med kolonnenavn','','Tekstdata (*.csv *.txt *.tsv);;Alle filer (*)')
         if path:
             try:
                 self.table = read_table(path)
@@ -224,7 +224,7 @@ class SurveyDialog(QDialog):
                 self.rebuild_mappings()
             except Exception as error: self.error(error)
     def open_reference(self):
-        path,_ = QFileDialog.getOpenFileName(self,'Åpne referansepunkter i samme CRS/høydegrunnlag','','CSV (*.csv *.txt)')
+        path,_ = QFileDialog.getOpenFileName(self,'Åpne referansepunkter i samme CRS/høydegrunnlag','','Tekstdata (*.csv *.txt *.tsv);;Alle filer (*)')
         if path:
             try:
                 self.reference_table = read_table(path)
@@ -239,7 +239,7 @@ class SurveyDialog(QDialog):
                        self.only_fix.isChecked(),self.h_tol.value(),self.v_tol.value())
     def calculate(self):
         try:
-            if not self.table: raise ValueError('Velg målefil eller last Emlid-eksempelet.')
+            if not self.table: raise ValueError('Velg målefil eller last GNSS-eksempelet.')
             self.invalidate()
             options = self.options()
             for table in (self.table,self.reference_table):
@@ -255,7 +255,7 @@ class SurveyDialog(QDialog):
             refs = references(self.reference_table,self.mappings(2)) if self.reference_table else {}
             result = analyze(observations(self.table,self.mappings(1)),refs,options)
             result['synthetic'] = self.synthetic
-            result['plugin_version'] = '0.2.0'
+            result['plugin_version'] = '0.2.1'
             result['sources'] = [{k:table[k] for k in ('path','sha256','encoding','delimiter')} for table in (self.table,self.reference_table) if table]
             result['mappings'] = {'observations':self.mappings(1),'references':self.mappings(2)}
             self.result = result

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Explicit, fail-closed setup for independent Emlid coordinate observations."""
+"""Explicit, receiver-independent setup for GNSS coordinate observations."""
 from pathlib import Path
 from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QColor
@@ -17,12 +17,13 @@ class CoordinatePanel(QWidget):
         super().__init__(); self.owner=owner; self.table=None; self.synthetic=False
         layout=QVBoxLayout(self); area=QScrollArea(); area.setWidgetResizable(True)
         layout.addWidget(area); content=QWidget(); form=QFormLayout(content); area.setWidget(content)
-        info=QLabel('Egne Emlid CSV-filer: vektet utjevning av gjentatte absolutte koordinatobservasjoner i SALSA. '
+        info=QLabel('GNSS fra ulike mottakere: vektet utjevning av gjentatte absolutte koordinatobservasjoner i SALSA. '
             'Dette er ikke rå GNSS-/baselinjeutjevning. Krever bredde/lengde, ellipsoidisk punkthøyde og dokumenterte 1σ-verdier. '
-            'Eksporter helst CSV «All columns» med kolonnenavn fra Emlid Flow. RINEX og vanlig NN2000-Elevation kan ikke brukes direkte her.')
+            'Bruk CSV/TXT/TSV med kolonnenavn og koble feltene nedenfor. Eksempel: Emlid Flow «All columns». '
+            'Lik filtype garanterer ikke like enheter, høyder eller kvalitetsfelt. RINEX og vanlig NN2000-Elevation kan ikke brukes direkte her.')
         info.setWordWrap(True); form.addRow(info)
         row=QHBoxLayout()
-        for title,callback in [('Åpne egen Emlid-CSV …',self.open_csv),('Last syntetisk koordinateksempel',self.load_demo)]:
+        for title,callback in [('Åpne GNSS-fil …',self.open_csv),('Last syntetisk koordinateksempel',self.load_demo)]:
             button=QPushButton(title); button.clicked.connect(callback); row.addWidget(button)
         form.addRow(row)
         self.source=QLabel('Ingen CSV valgt.'); self.source.setWordWrap(True); form.addRow(self.source)
@@ -43,7 +44,7 @@ class CoordinatePanel(QWidget):
             row.addWidget(QLabel(label)); box=QDoubleSpinBox(); box.setRange(0,100); box.setDecimals(4); box.setSuffix(' m'); box.setSingleStep(.005)
             row.addWidget(box); self.sigmas.append(box)
         form.addRow('Felles 1σ (ved felles modell)',row)
-        self.uncertainty=QLineEdit(); self.uncertainty.setPlaceholderText('Grunnlag for 1σ; Emlid RMS kopieres ikke automatisk')
+        self.uncertainty=QLineEdit(); self.uncertainty.setPlaceholderText('Grunnlag for 1σ; mottakerens RMS/HRMS/VRMS kopieres ikke automatisk')
         form.addRow('Kilde/vurdering av usikkerhet',self.uncertainty)
         self.corrections=QLineEdit(); self.corrections.setPlaceholderText('Korreksjonstjeneste/mountpoint eller base og koordinatgrunnlag')
         form.addRow('Korreksjoner/base',self.corrections)
@@ -54,7 +55,7 @@ class CoordinatePanel(QWidget):
         self.independent=QCheckBox('Gjentakene er selvstendige; felles base-/datumfeil og korrelasjon mellom målingene er ikke modellert.')
         for checkbox in (self.ellipsoid,self.uncertainty_confirm,self.independent): form.addRow(checkbox)
         hint=QLabel('Samme kontrollpunkt-ID betyr samme fysiske punkt. Minst to FIX-målinger per punkt kreves. '
-            'Kjente kontrollpunkter brukes som separat kontroll, ikke som feilfrie tvangspunkter i denne profilen. '
+            'Tekstlig FIX/FIXED/RTK FIX kreves; numeriske statuskoder tolkes ikke automatisk. Dokumenter og normaliser dem i en arbeidskopi før import. Kjente kontrollpunkter brukes som separat kontroll, ikke som feilfrie tvangspunkter i denne profilen. '
             'En fast beregningsorigo brukes bare som tallforskyvning i SALSA; det er ikke en innmålt base. '
             'Originalfilen beholdes. Resultatet får ECEF og bredde/lengde/ellipsoidisk høyde, ingen NN2000-omregning.')
         hint.setWordWrap(True); form.addRow(hint)
@@ -86,7 +87,7 @@ class CoordinatePanel(QWidget):
             combo.currentIndexChanged.connect(self.invalidate); self.mapping.setCellWidget(row,1,combo)
 
     def open_csv(self):
-        path,_=QFileDialog.getOpenFileName(self,'Velg egen Emlid CSV','','CSV (*.csv);;Alle filer (*)')
+        path,_=QFileDialog.getOpenFileName(self,'Velg GNSS-koordinater med kolonnenavn','','Tekstdata (*.csv *.txt *.tsv);;Alle filer (*)')
         if not path: return
         try:
             self.table=read_table(path); self.synthetic=False; self.rebuild()

@@ -18,16 +18,16 @@ from .core import key,number
 
 
 FIELDS = {
-    'name': ('Målingens navn', ['Name','Point','Punktnavn']),
-    'group': ('Kontrollpunkt-ID', ['Control ID','Kontrollpunkt','Point ID','Name']),
-    'lat': ('Breddegrad (desimalgrader)', ['Latitude','Breddegrad']),
-    'lon': ('Lengdegrad (desimalgrader)', ['Longitude','Lengdegrad']),
-    'h': ('Ellipsoidisk punkthøyde (m)', ['Ellipsoidal height','Ellipsoid height']),
-    'status': ('Løsningsstatus (bare FIX brukes)', ['Solution status','RTK status','Status']),
-    'time': ('Starttid for målingen', ['Averaging start','Timestamp','Tid']),
-    'se': ('1σ geodetisk øst (m)', ['Sigma E','Sigma East','sde']),
-    'sn': ('1σ geodetisk nord (m)', ['Sigma N','Sigma North','sdn']),
-    'su': ('1σ opp (m)', ['Sigma U','Sigma Up','sdu']),
+    'name': ('Målingens navn', ['Name','Observation','Obs ID','Point name','Point','Punktnavn']),
+    'group': ('Kontrollpunkt-ID', ['Control ID','Kontrollpunkt','Point ID','Target ID','Name','Point name']),
+    'lat': ('Breddegrad (desimalgrader)', ['Latitude','Lat','Breddegrad']),
+    'lon': ('Lengdegrad (desimalgrader)', ['Longitude','Lon','Long','Lengdegrad']),
+    'h': ('Ellipsoidisk punkthøyde (m)', ['Ellipsoidal height','Ellipsoid height','h_ellip','Ellipsoidal H']),
+    'status': ('Løsningsstatus (bare FIX brukes)', ['Solution status','RTK status','Fix type','Solution','Status']),
+    'time': ('Starttid for målingen', ['Averaging start','Timestamp','Start time','Tid']),
+    'se': ('1σ geodetisk øst (m)', ['Sigma E','Sigma East','sde','StdDev E m','StdDev E']),
+    'sn': ('1σ geodetisk nord (m)', ['Sigma N','Sigma North','sdn','StdDev N m','StdDev N']),
+    'su': ('1σ opp (m)', ['Sigma U','Sigma Up','sdu','StdDev U m','StdDev U']),
 }
 FRAMES = {'EPSG:4937': ('ETRS89 / GRS80',298.257222101),
           'EPSG:4979': ('WGS84 / WGS84-ellipsoide',298.257223563)}
@@ -136,7 +136,7 @@ def coordinate_job(table,mapping,options):
     if len({mapping[f] for f in ('lat','lon','h')})!=3:
         raise ValueError('Breddegrad, lengdegrad og ellipsoidisk høyde må bruke ulike kolonner.')
     if options.sigma_mode=='columns' and any('rms' in key(mapping[f]) for f in ('se','sn','su')):
-        raise ValueError('Emlids RMS-kolonner tolkes ikke automatisk som 1σ. Bruk dokumenterte sigmakolonner eller egne vurderte verdier.')
+        raise ValueError('RMS-kolonner tolkes ikke automatisk som 1σ, uansett mottaker. Bruk dokumenterte sigmakolonner eller egne vurderte verdier.')
     constants=[sigma(v,0) for v in (options.sigma_e,options.sigma_n,options.sigma_u)] if options.sigma_mode=='constant' else None
     if len(table['rows'])>500: raise ValueError('Første profil støtter høyst 500 koordinatobservasjoner per kjøring.')
     groups=defaultdict(list); excluded=[]; times=set(); warnings=[]

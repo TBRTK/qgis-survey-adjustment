@@ -47,7 +47,7 @@ def demo_job():
     return '\n'.join(lines)+'\n',dict(frame='WGS84 ECEF XYZ, metre',height='ELLIP',
                 synthetic=True, expected_positions=expected,
                 description='To ukjente punkter, seks syntetiske GNSS-vektorer fra ett fast referansepunkt. '
-                            'Dette er et eget SALSA-eksempel, ikke en automatisk konvertering av Emlid-koordinatlisten.')
+                            'Dette er et eget SALSA-eksempel, ikke en automatisk konvertering av en GNSS-koordinatliste.')
 
 
 def solver_program(path):

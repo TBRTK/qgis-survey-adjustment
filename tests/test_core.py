@@ -15,6 +15,30 @@ EXAMPLES = ROOT/'survey_adjustment/examples'
 
 
 class CoreTests(unittest.TestCase):
+    def test_receiver_neutral_headers_and_decimal_comma_preserve_all_observations(self):
+        original=read_table(EXAMPLES/'emlid_gjentak.csv')
+        alternative=read_table(EXAMPLES/'gnss_gjentak.csv')
+        self.assertEqual(alternative['delimiter'],';')
+        left=observations(original,default_mapping(original['headers']))
+        right=observations(alternative,default_mapping(alternative['headers']))
+        self.assertEqual(left,right)
+        _,refs=self.setup_data()
+        self.assertEqual(analyze(left,refs,Options(confirmed=True)),
+                         analyze(right,refs,Options(confirmed=True)))
+
+    def test_headerless_pnezd_is_rejected_without_losing_first_observation(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as folder:
+            for name,data in (('numeric.csv','1,6701000,291000,24,KP\n2,6701001,291001,25,KP\n'),
+                              ('names.txt','P1;6701000;291000;24;KP\nP2;6701001;291001;25;KP\n')):
+                path=Path(folder)/name; path.write_text(data,encoding='utf-8')
+                with self.assertRaisesRegex(ValueError,'overskriftsrad'): read_table(path)
+
+    def test_numeric_solution_codes_are_not_guessed_as_fixed(self):
+        for code in ('1','4','50'):
+            items=[Observation(2,'A','P',100,100,1,code,'t1'),Observation(3,'B','P',100,100,1,code,'t2')]
+            with self.subTest(code=code),self.assertRaisesRegex(ValueError,'FIX-filteret'):
+                analyze(items,{},Options(confirmed=True))
+
     def setup_data(self):
         table = read_table(EXAMPLES/'emlid_gjentak.csv')
         ref = read_table(EXAMPLES/'kontrollpunkter.csv')

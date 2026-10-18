@@ -1,7 +1,7 @@
 [general]
 name=Survey Adjustment – SALSA-utkast
-description=Gjentakskontroll og SALSA-utjevning av dokumenterte Emlid-koordinatobservasjoner.
-version=0.2.0
+description=Gjentakskontroll og SALSA-utjevning av dokumenterte GNSS-koordinatobservasjoner fra ulike mottakere.
+version=0.2.1
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Tore Berthelsen
@@ -9,7 +9,7 @@ email=
 homepage=https://www.3dmapper.no
 repository=https://github.com/TBRTK/qgis-survey-adjustment
 tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
-about=Uavhengig prototype. Gjentakskontroll og egen CSV til SALSA med ellipsoidisk høyde og eksplisitt 1σ-modell. Ikke rå GNSS-/RINEX-prosessering eller et offisielt SALSA-/Emlid-produkt.
+about=Uavhengig prototype. Gjentakskontroll og egen CSV til SALSA med ellipsoidisk høyde og eksplisitt 1σ-modell. Ikke rå GNSS-/RINEX-prosessering eller et offisielt SALSA- eller mottakerprodukt.
 category=Vector
 experimental=True
 hasProcessingProvider=False
