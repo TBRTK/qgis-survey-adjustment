@@ -200,6 +200,9 @@ https://www.qgis.org/license/
 https://github.com/qgis/QGIS
 https://docs.emlid.com/emlid-flow/export-projects/
 
+PUBLISHING AND PRIVACY
+Use RELEASE_TEMPLATE.md for all GitHub releases. See docs/PUBLISHING.md for mandatory source, history, synthetic-fixture and ZIP checks before uploading.
+
 ## Support
 
 If this project has been useful to you and you would like to support further testing, documentation, and development, you can buy me a coffee:

@@ -1,15 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Explicit allowlist: no engine binaries, local paths, recordings or private data."""
-import hashlib
+"""Build only exact reviewed members; refuse unsafe inputs and verify the final ZIP."""
 from pathlib import Path
-from zipfile import ZipFile,ZIP_DEFLATED
+import configparser
+import hashlib
+from zipfile import ZipFile, ZIP_DEFLATED
+from tools.check_release import ROOT, checked_package, inspect_archive, worktree_files
+import json
 
-ROOT = Path(__file__).resolve().parent
-package = ROOT/'survey_adjustment'
-output = ROOT/'survey_adjustment-0.2.2.zip'
-with ZipFile(output,'w',ZIP_DEFLATED) as archive:
-    for path in sorted(package.rglob('*')):
-        if path.is_file() and '__pycache__' not in path.parts and (path.suffix in ('.py','.txt','.csv') or path.name=='LICENSE'):
-            archive.write(path,path.relative_to(ROOT).as_posix())
-print(output)
-print('SHA256',hashlib.sha256(output.read_bytes()).hexdigest())
+members = checked_package()
+metadata = configparser.ConfigParser()
+metadata.read(ROOT / "survey_adjustment/metadata.txt", encoding="utf-8")
+output = ROOT / ("survey_adjustment-" + metadata["general"]["version"] + ".zip")
+with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+    for destination, source in sorted(members.items()):
+        archive.write(ROOT / source, destination)
+policy = json.loads((ROOT / "publication_manifest.json").read_text(encoding="utf-8"))
+if inspect_archive(output, worktree_files(), policy):
+    raise ValueError("Final ZIP differs from reviewed publication allowlist.")
+print(output.name)
+print("SHA256", hashlib.sha256(output.read_bytes()).hexdigest())

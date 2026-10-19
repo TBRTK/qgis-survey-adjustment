@@ -14,3 +14,5 @@ README, linking to https://buymeacoffee.com/tb_rtk and LICENSE.
 Synthetic examples must remain clearly identified. Coordinate repeatability
 checks are not a raw GNSS/network adjustment. Do not silently reinterpret
 orthometric heights, RMS fields, independence, or covariance.
+
+Before any GitHub upload, follow docs/PUBLISHING.md and RELEASE_TEMPLATE.md. Run the publication/privacy gate, all-history Gitleaks scan and exact ZIP verification. Only constructed synthetic data may be published. No real measurements, reports, backups, customer information, personal paths or credentials. Do not bypass a scan failure or automatically approve changed fixture hashes.

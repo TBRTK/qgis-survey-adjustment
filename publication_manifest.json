@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "package": "survey_adjustment",
+  "repository_files": [
+    ".githooks/pre-commit",
+    ".githooks/pre-push",
+    ".github/workflows/release-safety.yml",
+    ".gitignore",
+    "AGENTS.md",
+    "DISCLAIMER.txt",
+    "LICENSE",
+    "README.txt",
+    "RELEASE_NOTES.txt",
+    "RELEASE_TEMPLATE.md",
+    "build_release.py",
+    "docs/PUBLISHING.md",
+    "publication_manifest.json",
+    "survey_adjustment/LICENSE",
+    "survey_adjustment/NOTICE.txt",
+    "survey_adjustment/README.txt",
+    "survey_adjustment/__init__.py",
+    "survey_adjustment/coordinate_job.py",
+    "survey_adjustment/coordinate_ui.py",
+    "survey_adjustment/core.py",
+    "survey_adjustment/engine.py",
+    "survey_adjustment/examples/emlid_gjentak.csv",
+    "survey_adjustment/examples/emlid_salsa_llh.csv",
+    "survey_adjustment/examples/gnss_gjentak.csv",
+    "survey_adjustment/examples/gnss_salsa_llh.csv",
+    "survey_adjustment/examples/kontrollpunkter.csv",
+    "survey_adjustment/layers.py",
+    "survey_adjustment/metadata.txt",
+    "survey_adjustment/plugin.py",
+    "survey_adjustment/reporting.py",
+    "tests/test_coordinate_job.py",
+    "tests/test_core.py",
+    "tests/test_engine.py",
+    "tests/test_qgis.py",
+    "tools/check_release.py",
+    "tools/run_secret_scan.py",
+    "tools/safe_push.py",
+    "tools/test_release_safety.py"
+  ],
+  "package_files": {
+    "survey_adjustment/DISCLAIMER.txt": "DISCLAIMER.txt",
+    "survey_adjustment/LICENSE": "LICENSE",
+    "survey_adjustment/NOTICE.txt": "survey_adjustment/NOTICE.txt",
+    "survey_adjustment/README.txt": "README.txt",
+    "survey_adjustment/__init__.py": "survey_adjustment/__init__.py",
+    "survey_adjustment/coordinate_job.py": "survey_adjustment/coordinate_job.py",
+    "survey_adjustment/coordinate_ui.py": "survey_adjustment/coordinate_ui.py",
+    "survey_adjustment/core.py": "survey_adjustment/core.py",
+    "survey_adjustment/engine.py": "survey_adjustment/engine.py",
+    "survey_adjustment/examples/emlid_gjentak.csv": "survey_adjustment/examples/emlid_gjentak.csv",
+    "survey_adjustment/examples/emlid_salsa_llh.csv": "survey_adjustment/examples/emlid_salsa_llh.csv",
+    "survey_adjustment/examples/gnss_gjentak.csv": "survey_adjustment/examples/gnss_gjentak.csv",
+    "survey_adjustment/examples/gnss_salsa_llh.csv": "survey_adjustment/examples/gnss_salsa_llh.csv",
+    "survey_adjustment/examples/kontrollpunkter.csv": "survey_adjustment/examples/kontrollpunkter.csv",
+    "survey_adjustment/layers.py": "survey_adjustment/layers.py",
+    "survey_adjustment/metadata.txt": "survey_adjustment/metadata.txt",
+    "survey_adjustment/plugin.py": "survey_adjustment/plugin.py",
+    "survey_adjustment/reporting.py": "survey_adjustment/reporting.py"
+  },
+  "synthetic_fixtures": {
+    "survey_adjustment/examples/emlid_gjentak.csv": {
+      "sha256": "07f52e199ba0dca683df46b88b7d9a4c662f36879e2a6d8cd53d83ffe4095d8a",
+      "provenance": "Constructed synthetic training/test coordinates; no field receiver export."
+    },
+    "survey_adjustment/examples/emlid_salsa_llh.csv": {
+      "sha256": "62f8197d031ca259be3a2fa3856ca68e9360df8456b815759497d478795b04b9",
+      "provenance": "Constructed synthetic training/test coordinates; no field receiver export."
+    },
+    "survey_adjustment/examples/gnss_gjentak.csv": {
+      "sha256": "f27ccec0869545d1a8dfd067e8cc503bf1b1c722dd8df4daf099f086f1043c0f",
+      "provenance": "Constructed synthetic training/test coordinates; no field receiver export."
+    },
+    "survey_adjustment/examples/gnss_salsa_llh.csv": {
+      "sha256": "638cedc9d8a10cf3acf4c32221b2d493720016164947f4d366ebb25cf66966bb",
+      "provenance": "Constructed synthetic training/test coordinates; no field receiver export."
+    },
+    "survey_adjustment/examples/kontrollpunkter.csv": {
+      "sha256": "dd058f2a84d829844759c6b01ffce732e29c07d47b01baaf3a7c040612875ca4",
+      "provenance": "Constructed synthetic training/test coordinates; no field receiver export."
+    }
+  },
+  "historical_synthetic_sha256": [
+    "07f52e199ba0dca683df46b88b7d9a4c662f36879e2a6d8cd53d83ffe4095d8a",
+    "62f8197d031ca259be3a2fa3856ca68e9360df8456b815759497d478795b04b9",
+    "638cedc9d8a10cf3acf4c32221b2d493720016164947f4d366ebb25cf66966bb",
+    "dd058f2a84d829844759c6b01ffce732e29c07d47b01baaf3a7c040612875ca4",
+    "f27ccec0869545d1a8dfd067e8cc503bf1b1c722dd8df4daf099f086f1043c0f"
+  ],
+  "notice_files": [
+    "README.txt",
+    "survey_adjustment/NOTICE.txt",
+    "DISCLAIMER.txt",
+    "RELEASE_NOTES.txt",
+    "RELEASE_TEMPLATE.md",
+    "docs/PUBLISHING.md"
+  ],
+  "fixture_hash_normalization": "CRLF-to-LF only; no other bytes or field values are changed."
+}

@@ -1,0 +1,25 @@
+name: Release safety
+on:
+  push:
+  pull_request:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test privacy gate and inspect source and history
+        run: python3 -B tools/check_release.py --history --self-test
+      - name: Test rejection of leaks and tampered archives
+        run: python3 -B -m unittest tools.test_release_safety -v
+      - name: Scan all reachable Git history with pinned Gitleaks
+        run: python3 -B tools/run_secret_scan.py
+      - name: Build and verify exact package contents
+        run: python3 -B build_release.py

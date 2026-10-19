@@ -1,0 +1,7 @@
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15–17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE.
+
+GPLv3 sections 15–17:
+https://www.gnu.org/licenses/gpl-3.0.html#section15
