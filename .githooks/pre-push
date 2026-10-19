@@ -1,4 +1,9 @@
 #!/bin/sh
 set -eu
-"${SURVEY_PYTHON:-python}" -B tools/check_release.py --history --self-test
-"${SURVEY_PYTHON:-python}" -B tools/run_secret_scan.py
+task_python="${SURVEY_PYTHON:-}"
+if [ -z "$task_python" ]; then
+    task_python="$(git config --get survey.python || true)"
+fi
+if [ -z "$task_python" ]; then task_python=python; fi
+"$task_python" -B tools/check_release.py --history --self-test
+"$task_python" -B tools/run_secret_scan.py

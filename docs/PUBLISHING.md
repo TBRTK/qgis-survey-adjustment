@@ -11,7 +11,7 @@ Only reviewed source, documentation and constructed synthetic fixtures may be pu
 
 ## Before committing or uploading
 
-1. Activate repository hooks once: `git config core.hooksPath .githooks`. Python must be available as `python`; SURVEY_PYTHON may select another local interpreter.
+1. Activate repository hooks once: `git config core.hooksPath .githooks`. Python must be available as `python`, or configure this checkout with `git config survey.python <path-to-python>`. This local Git setting is never committed. SURVEY_PYTHON may override it for one run.
 2. Review the exact staged diff. `python -B tools/check_release.py --staged --self-test` checks index bytes and blocks unknown files, secrets and changed measurement fixtures.
 3. Use `python -B tools/safe_push.py` for GitHub pushes. It scans the working tree and all reachable history, runs pinned Gitleaks, builds and verifies the exact ZIP, then performs a normal non-forced push to origin/main. Any scan/download/build failure stops the push.
 4. Before uploading a release asset, run `python -B tools/check_release.py --archive <plugin-version.zip> --release-notes RELEASE_NOTES.txt`, and scan with `python -B tools/run_secret_scan.py`. Copy the qualified notice from RELEASE_TEMPLATE.md into the GitHub release. Never upload the whole working folder.
