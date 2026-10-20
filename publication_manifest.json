@@ -103,7 +103,12 @@
     "tools/run_secret_scan.py",
     "tools/safe_push.py",
     "tools/system_pcv.c",
-    "tools/test_release_safety.py"
+    "tools/test_release_safety.py",
+    "docs/ORIENTATION.txt",
+    "survey_adjustment/orientation.py",
+    "survey_adjustment/orientation_ui.py",
+    "tests/test_orientation.py",
+    "tests/test_orientation_qgis.py"
   ],
   "package_files": {
     "survey_adjustment/DISCLAIMER.txt": "DISCLAIMER.txt",
@@ -161,7 +166,10 @@
     "survey_adjustment/PPK_STATIC.txt": "docs/PPK_STATIC.txt",
     "survey_adjustment/antenna.py": "survey_adjustment/antenna.py",
     "survey_adjustment/SYSTEM_ENGINE.txt": "docs/SYSTEM_ENGINE.txt",
-    "survey_adjustment/RS4_PRO_SUPPORT.txt": "docs/RS4_PRO_SUPPORT.txt"
+    "survey_adjustment/RS4_PRO_SUPPORT.txt": "docs/RS4_PRO_SUPPORT.txt",
+    "survey_adjustment/orientation.py": "survey_adjustment/orientation.py",
+    "survey_adjustment/orientation_ui.py": "survey_adjustment/orientation_ui.py",
+    "survey_adjustment/ORIENTATION.txt": "docs/ORIENTATION.txt"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {

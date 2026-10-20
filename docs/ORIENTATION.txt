@@ -1,0 +1,97 @@
+ORIENTATION / POLE-TIP REVIEW - SURVEY ADJUSTMENT 0.14.0
+
+Scope: a local coordinate supplement in Raw GNSS > PPK/static > Review
+orientation / pole-tip coordinates from NMEA ETC. It uses the existing background
+queue, coordinate/ellipsoid maths, read-only PointZ layer helper and coordinate
+CSV conventions. It does not create a second project store, raw importer, network
+observations or baselines. Existing raw engine/POS/covariance contracts are unchanged.
+
+REACH RS4 PRO, FIRMWARE 34.8 - RESEARCH CHECKED 2026-10-20
+Emlid documents ETC revision 1 in NMEA: UTC time, state, notification, heading,
+tilt direction/value and N/E/U coefficients. It is orientation/compensation output,
+not a documented export of raw accelerometer/gyro samples or a complete attitude
+covariance. No such RS4 Pro raw-IMU export was established in the reviewed sources.
+Firmware 34.8's release notes add no documented raw-attitude export; 34.7 fixed
+GGA/RMC position disagreement with tilt enabled. Verify actual 34.8 logs/settings.
+Streaming support does not establish that every downloaded on-device NMEA log
+contains ETC. Preserve and inspect the actual stream; do not infer its contents.
+
+Existing ordinary RINEX/point CSV cannot reconstruct time-varying orientation.
+For a future test, preserve paired OBS/NAV separately and record the NMEA stream
+with GGA + ETC and continuous ZDA or RMC. GST is optional diagnostic information.
+Keep the original UTC timestamps and checksums, firmware/app versions, output
+compensation setting, pole/adapter height and position reference point evidence.
+This plugin reads files; it never connects to or changes receiver settings.
+
+Emlid Flow/Reach Panel lets you configure position output. Output compensation
+may already include tilt and antenna height. Choose ALREADY-COMPENSATED GROUND
+in that case and leave pole distance empty: coordinates are preserved exactly.
+For UNCOMPENSATED ANTENNA input, document the actual position reference point
+and total distance from pole tip to that endpoint along the pole. No extra height
+is added automatically. The ETC developer PDF gives a model-specific 0.095 m
+bottom-to-ARP distance for RS4/Pro; Flow's own integration instructions describe
+automatic phase-centre offsets. These statements do not justify blindly adding
+95 mm or treating ARP and an electrical phase centre as interchangeable.
+
+HEIGHT AMBIGUITY MUST BE RESOLVED
+The ETC PDF calls GGA height ellipsoidal; standard GGA altitude uses sea-level
+altitude plus geoid separation for ellipsoidal h. Select the convention documented
+for the actual output: altitude already ellipsoidal, OR altitude + separation.
+Missing separation blocks the second choice. Raw altitude/separation are retained.
+No geoid file or datum/epoch transformation is inferred. Select the documented
+WGS84/ETRS89 geographic frame/ellipsoid explicitly; no national delivery approval.
+
+CHECKS AND OUTPUT
+Strict ASCII NMEA, maximum 8 MiB / 100000 lines / 512 characters per sentence.
+Checksums are recomputed, including for unrelated sentences; malformed/binary or
+unchecked inputs fail. Exact duplicate ETC/GGA/GST UTC epochs are blocked, rather
+than silently merging repeated streams. Date anchors must be consistent, ordered
+and within 2 seconds of each used sentence. ZDA full year or RMC 2000-2079 only;
+leap seconds and ambiguous dates are outside this profile. Midnight is supported
+through explicit neighbouring date anchors, never the file name/computer clock.
+
+Only exact GGA/ETC UTC matches with GGA quality 4, ETC state 30 and notification 0
+produce accepted coordinates. Missing matches, FLOAT, setup/alignment, off/error
+and notifications remain visible with reasons. No nearest match/interpolation.
+For uncompensated input, a pole-axis displacement is calculated from tilt direction
+and tilt angle in local geodetic ENU, then converted through the existing ECEF/
+ellipsoid functions. Heading is retained in the timeline/audit; it is not confused
+with tilt direction or assumed to define antenna NRP, camera yaw or a full matrix.
+
+ETC coefficients times pole-axis distance are retained as vendor tilt estimates
+in mm, NOT complete covariance, angular sigma or total survey accuracy. GST is
+retained, but no missing covariance/cross-correlations/uncertainty are invented.
+Accepted point CSV intentionally has no sigma/covariance columns. Reusing it in
+the existing coordinate workflow still requires independent uncertainty, endpoint,
+reference-frame and dependence review. Trajectory epochs are not independent
+control occupations merely because they have different timestamps/names.
+
+The local package contains the unchanged original NMEA, full epoch audit including
+exclusions, accepted ground-coordinate CSV, options/evidence, report and SHA256
+checksums. Export re-reads the original. Readback recalculates from original data
+and compares all numerical CSV fields, not just hashes. Checksums are integrity
+checks, not authentication. Real logs/reports/packages stay out of GitHub and ZIP.
+The example generator creates invented turning/tilting data across midnight with
+four deliberately excluded epochs; no real receiver data or calibration is bundled.
+
+STILL REQUIRED FOR FULL DYNAMIC RAW GNSS
+Dynamic raw ANTEX/carrier processing remains blocked. ETC heading is not treated
+as sufficient proof of the antenna-axis/full attitude convention. A reviewed
+body-to-antenna/NRP mapping, time alignment with GNSS observations, reference-point
+and lever-arm definitions, attitude uncertainty/dependence and dynamic carrier
+phase/wind-up treatment are still needed, followed by independent real checks.
+Do not feed already-compensated points back as raw observations or claim that a
+post-coordinate pole shift corrects carrier measurements taken by a tilted antenna.
+
+PRIMARY REFERENCES
+https://docs.emlid.com/reachrs4/specifications/nmea-format/
+https://files.emlid.com/docs/ETC_rev.3_RS4.pdf
+https://docs.emlid.com/reachrs4/changelogs/
+https://docs.emlid.com/reachrs4/integration/mergin-maps-ios/
+https://docs.emlid.com/reachrs4/integration/qgis-survey/
+https://docs.emlid.com/reachrs4/ppk-quickstart/how-to-record-and-download-logs/ppk-logging/
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE. Own implementation GPL-3.0-only; no Emlid source,
+developer PDF, engine binary, real NMEA or actual receiver calibration is bundled.

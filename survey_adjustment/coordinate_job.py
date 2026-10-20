@@ -102,12 +102,16 @@ def inverse_spd(a):
     return transpose(columns)
 
 
-def covariance(lat,lon,sigmas):
+def enu_rotation(lat,lon):
     phi,lam=math.radians(lat),math.radians(lon)
     # Columns are geodetic East, North, Up unit vectors in XYZ.
-    r=[[-math.sin(lam),-math.sin(phi)*math.cos(lam),math.cos(phi)*math.cos(lam)],
+    return [[-math.sin(lam),-math.sin(phi)*math.cos(lam),math.cos(phi)*math.cos(lam)],
        [math.cos(lam),-math.sin(phi)*math.sin(lam),math.cos(phi)*math.sin(lam)],
        [0.,math.cos(phi),math.sin(phi)]]
+
+
+def covariance(lat,lon,sigmas):
+    r=enu_rotation(lat,lon)
     d=[[sigmas[i]**2 if i==j else 0. for j in range(3)] for i in range(3)]
     return matmul(matmul(r,d),transpose(r))
 

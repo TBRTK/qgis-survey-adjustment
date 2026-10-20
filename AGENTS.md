@@ -40,6 +40,15 @@ accuracy claim. Keep original upstream/SA1 audit contracts readable. Same signal
 at both receivers; F/NAV clock selection, no invented B1C SPP bias; actual relative
 BDS observations remain in residual reports. Audit every grid sample and separately
 recalculate an applied correction. See docs/SYSTEM_ENGINE.txt for precise limits.
+0.14.0 adds an ETC coordinate supplement inside the SAME processing dialog and
+background queue. Preserve original raw engine/covariance/baseline contracts.
+Unknown endpoint/frame/GGA-height convention blocks correction. Exact UTC joins
+with explicit ZDA/RMC dates only. Already-ground coordinates remain unchanged;
+never subtract antenna height twice. Retain exclusions/heading/tilt/provider
+coefficients without fabricating full attitude/covariance/independent observations.
+No full dynamic raw ANTEX/carrier correction is inferred from ETC heading.
+Real orientation logs and local exported packages remain private; generate only
+invented examples in gnss_demo.py. See docs/ORIENTATION.txt for precise limits.
 Preserve original engine POS/covariance, raw occupation identity, base coordinates,
 antenna offsets and processing audit. Static/PPK epochs are correlated; no
 automatic averaging, coordinate updates or independent baseline insertion.

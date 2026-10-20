@@ -100,6 +100,8 @@ class ProcessingDialog(QDialog):
         self.open_button=QPushButton('Open result folder');self.open_button.clicked.connect(self.open_folder);self.open_button.setEnabled(False)
         for field in (self.example_button,self.run_button,self.stop_button,self.open_button):row.addWidget(field)
         layout.addLayout(row)
+        self.orientation_button=QPushButton('Review orientation / pole-tip coordinates from NMEA ETC …')
+        self.orientation_button.clicked.connect(self.review_orientation);layout.addWidget(self.orientation_button)
         self.status=QLabel('No calculation. Review existing links and all required fields.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.views=QTabWidget();self.views.setMinimumHeight(200);layout.addWidget(self.views,1)
         self.report=QTextBrowser();self.views.addTab(self.report,'Report / limitations')
@@ -134,6 +136,10 @@ class ProcessingDialog(QDialog):
             for source in self.project.get('raw_sources',[]):
                 if source['role']==role:combo_.addItem(source['source_name']+' / '+source['point']+' / '+source['session'],source['id'])
             if combo_.count()==2:combo_.setCurrentIndex(1)
+
+    def review_orientation(self):
+        from .orientation_ui import OrientationDialog
+        dialog=OrientationDialog(self);dialog.exec();dialog.deleteLater()
 
     def options(self):
         try:coordinates=tuple(float(v) for v in self.base_xyz.text().replace(',',' ').split())
@@ -229,6 +235,7 @@ class ProcessingDialog(QDialog):
 
     def idle(self):
         self.timer.stop();self.controls.setEnabled(True);self.example_button.setEnabled(True);self.run_button.setEnabled(True);self.stop_button.setEnabled(False)
+        self.orientation_button.setEnabled(True)
 
     def start(self):
         if self.preparing or (self.process and self.process.state()!=QProcess.ProcessState.NotRunning):return False
@@ -242,6 +249,7 @@ class ProcessingDialog(QDialog):
             self.folder=Path(parent)/('GNSS_'+options.mode+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
             self.submitted=asdict(options);self.program=executable;self.preparing=True
             self.controls.setEnabled(False);self.example_button.setEnabled(False);self.run_button.setEnabled(False);self.stop_button.setEnabled(True)
+            self.orientation_button.setEnabled(False)
             QSettings().setValue({'survey-sa1':'SurveyAdjustment/rtklib_sa1','survey-sa2':'SurveyAdjustment/rtklib_sa2'}.get(options.engine_variant,'SurveyAdjustment/rtklib_ex251'),str(executable))
             self.status.setText('Checking and copying local raw inputs in the existing background queue …');self.timer.start(120000)
             folder=self.folder;project=deepcopy(self.project)

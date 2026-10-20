@@ -1,4 +1,8 @@
-PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.13.0
+PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.14.0
+
+0.14.0 adds ETC orientation/pole-tip coordinate review inside the existing dialog.
+This is a coordinate supplement; full dynamic raw ANTEX/carrier processing remains
+blocked. See ORIENTATION.txt for 34.8 research, logging, heights and exact limits.
 
 ENGINE PROFILE
 Survey SA2 adds azimuth calibration and E1/E5a, B1C/B3I pairs in the SAME dialog.

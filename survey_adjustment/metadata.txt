@@ -1,7 +1,7 @@
 [general]
 name=Survey Adjustment – SALSA prototype
-description=Experimental azimuth ANTEX with explicit headings and E1/E5a, B1C/B3I bands using external Survey SA2; legacy RTKLIB, existing RINEX and reviewed baseline workflow; SALSA adjustment and traceable PointZ delivery.
-version=0.13.0
+description=ETC orientation and explicit pole-tip coordinate review; experimental azimuth ANTEX with explicit headings and E1/E5a, B1C/B3I bands using external Survey SA2; legacy RTKLIB, existing RINEX and reviewed baseline workflow; SALSA adjustment and traceable PointZ delivery.
+version=0.14.0
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Tore Berthelsen
@@ -9,7 +9,7 @@ email=
 homepage=https://www.3dmapper.no
 repository=https://github.com/TBRTK/qgis-survey-adjustment
 tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
-about=Independent prototype using a separately installed SALSA engine and independent model checks. GNSS networks, mixed total-station CSV and 1D levelling. Separate delivery review requires frame/epoch/height evidence, distinguishes NN2000:2018/2025, supports explicit same-frame UTM/NTM projection and reviewed local HREF height conversion. Unchanged calculations, original/adjusted/delivered PointZ coordinates, reports and checksums are preserved locally. Raw RINEX catalogue, metadata review and local map/timeline preflight share the existing network/import workflow. Explicit local GPS/Galileo/BeiDou PPK/static uses separately installed RTKLIB EX 2.5.1. Legacy upstream ANTEX remains GPS-only. Separate experimental Survey SA1 adds GLONASS float and independent G/E/C/R receiver ANTEX arrays with explicit application audit. Survey SA2 adds complete azimuth grids and explicit fixed level antenna orientations, E1/E5a and B1C/B3I bands, matching signals and independently checked correction audit. Provider copied/unverified notes remain visible. Dynamic tilt/yaw and full RS4 Pro device support are not claimed. No VRS, ITRF/WGS84 frame shift, epoch transformation or output uncertainty propagation. No professional delivery approval or official endorsement.
+about=Independent prototype using a separately installed SALSA engine and independent model checks. GNSS networks, mixed total-station CSV and 1D levelling. Separate delivery review requires frame/epoch/height evidence, distinguishes NN2000:2018/2025, supports explicit same-frame UTM/NTM projection and reviewed local HREF height conversion. Unchanged calculations, original/adjusted/delivered PointZ coordinates, reports and checksums are preserved locally. Raw RINEX catalogue, metadata review and local map/timeline preflight share the existing network/import workflow. Explicit local GPS/Galileo/BeiDou PPK/static uses separately installed RTKLIB EX 2.5.1. Legacy upstream ANTEX remains GPS-only. Separate experimental Survey SA1 adds GLONASS float and independent G/E/C/R receiver ANTEX arrays with explicit application audit. Survey SA2 adds complete azimuth grids and explicit fixed level antenna orientations, E1/E5a and B1C/B3I bands, matching signals and independently checked correction audit. Provider copied/unverified notes remain visible. Local ETC review and explicit coordinate-only tilt compensation preserve already-compensated points; exact UTC/height/endpoint checks. Full dynamic raw tilt/yaw and full RS4 Pro device support are not claimed. No VRS, ITRF/WGS84 frame shift, epoch transformation or output uncertainty propagation. No professional delivery approval or official endorsement.
 category=Vector
 experimental=True
 hasProcessingProvider=False

@@ -1,4 +1,8 @@
-EMLID REACH RS4 PRO - SUPPORT STATUS, SURVEY ADJUSTMENT 0.13.0
+EMLID REACH RS4 PRO - SUPPORT STATUS, SURVEY ADJUSTMENT 0.14.0
+
+0.14.0 adds ETC orientation/pole-tip coordinate review inside the existing dialog.
+This is a coordinate supplement; full dynamic raw ANTEX/carrier processing remains
+blocked. See ORIENTATION.txt for 34.8 research, logging, heights and exact limits.
 
 The plugin remains receiver independent and processes documented exported data.
 It does not control receiver firmware/radios, camera/visual survey, AR or IMU tilt.

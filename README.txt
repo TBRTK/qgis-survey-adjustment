@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.13.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.14.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,25 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.13.0
+WHAT CHANGED IN 0.14.0
+The existing Raw GNSS > PPK/static dialog gains an orientation/pole-tip review
+button. Local Emlid ETC + GGA + ZDA/RMC logs show changing heading/tilt and UTC
+status. Explicit coordinate-only antenna-to-pole-tip correction reuses the existing
+coordinate maths, background queue and PointZ helper. Already-compensated ground
+coordinates are preserved exactly; unknown endpoints/height conventions fail.
+Originals and excluded epochs remain in the local audit. No nearest-time matching,
+invented date, double antenna height, inferred uncertainty or independent baselines.
+Export includes ellipsoidal heights, report and recalculated/readback checksums.
+The synthetic example turns/tilts across UTC midnight, with deliberate bad epochs.
+See ORIENTATION.txt (docs/ in source) for actual logging requirements and limits.
+
+This is NOT full dynamic raw PPK/ANTEX or IMU processing. Raw moving-antenna
+orientation remains blocked pending documented antenna axes/full attitude, timing,
+reference point/lever arms, uncertainty and dynamic carrier-phase model. Ordinary
+RINEX/point CSV cannot reconstruct an unrecorded ETC orientation series. No full
+Reach RS4 Pro or firmware-specific field-accuracy claim is made.
+
+FEATURES FROM 0.13.0
 The existing Raw GNSS > PPK/static flow gains an explicitly selected experimental
 Survey SA2 profile. It preserves complete ANTEX 1.4 azimuth grids, interpolates
 azimuth/zenith values and rotates PCO using separately documented base/rover NRP

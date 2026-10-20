@@ -12,6 +12,38 @@ from functools import lru_cache
 from .coordinate_job import xyz
 from . import network as n,rinex as r,antenna
 
+
+def orientation_example(folder):
+    """Invent a turning/tilting NMEA track, including midnight and bad epochs."""
+    from . import orientation as o,coordinate_job as c
+    folder=Path(folder);folder.mkdir(parents=True,exist_ok=False)
+    start=datetime(2026,10,20,23,59,50);lines=[];truth=[]
+    def angle(value,latitude):
+        value=abs(value);degrees=int(value)
+        return f'{degrees:0{2 if latitude else 3}d}{(value-degrees)*60:012.9f}'
+    for index in range(121):
+        tick=start+timedelta(seconds=index/5);clock=tick.strftime('%H%M%S')+f'.{tick.microsecond//1000:03d}'
+        if index%5==0:lines.append(o.sentence(f'GNZDA,{clock},{tick.day:02d},{tick.month:02d},{tick.year},00,00'))
+        lat,lon,height=60.4+index*.0000001,5.2,100.+index*.001
+        heading=(359+index*7)%360;direction=(index*11)%360;tilt=30*(1+math.sin(index/9))/2
+        quality=5 if index==5 else 4;state=20 if index==10 else 30;notification=10 if index==15 else 0
+        lines.append(o.sentence(f'GNGGA,{clock},{angle(lat,True)},N,{angle(lon,False)},E,{quality},18,0.6,{height:.6f},M,0.000000,M,0.5,'))
+        if index!=20:
+            data=f'{heading:.6f},{direction:.6f},{tilt:.6f},1.0,1.2,1.5' if state==30 else ',,,,,'
+            lines.append(o.sentence(f'GNETC,{clock},{state},{notification},{data}'))
+        # Independent ECEF basis and pole-axis vector, deliberately not the
+        # production conversion routine; keep quantized source angles in truth.
+        a=math.radians(round(direction,6));t=math.radians(round(tilt,6));b=math.radians(lat);l=math.radians(lon)
+        enu=(-2*math.sin(t)*math.sin(a),-2*math.sin(t)*math.cos(a),-2*math.cos(t))
+        columns=((-math.sin(l),math.cos(l),0),(-math.sin(b)*math.cos(l),-math.sin(b)*math.sin(l),math.cos(b)),
+                 (math.cos(b)*math.cos(l),math.cos(b)*math.sin(l),math.sin(b)))
+        delta=[sum(enu[j]*columns[j][i] for j in range(3)) for i in range(3)]
+        truth.append([v+d for v,d in zip(c.xyz(lat,lon,height,'EPSG:4979'),delta)])
+    path=folder/'synthetic_orientation.nmea';path.write_text('\n'.join(lines)+'\n',encoding='ascii')
+    (folder/'SYNTHETIC_TRUTH.json').write_text(json.dumps(dict(synthetic=True,antenna_height_m=2.,ground_xyz=truth,
+        note='Invented software integration data, not real receiver observations or field accuracy.'),indent=2)+'\n',encoding='utf-8')
+    return path
+
 C=299792458.; OMEGA=7.2921151467e-5; MU=3.986005e14; A=26560000.
 START=datetime(2026,10,18,8,0,18)
 GPS0=datetime(1980,1,6)
