@@ -3,6 +3,28 @@
 Keep this plugin independent of SOSI Survey. Package name: survey_adjustment.
 Use QGIS 4 / Qt6 APIs. The SALSA engine runs as a separate program.
 
+User direction, 2026-10-20: reuse and improve existing GNSS workflows. Add only
+useful missing capabilities. Before adding a feature, inspect existing import,
+validation, project, processing, map, report and delivery code and identify the
+specific gap. Extend the owning component; extract shared logic where needed
+instead of copying it. Do not create parallel imports, duplicate inventory
+observations, competing project stores or another GNSS Solutions workflow/tab.
+RINEX/raw-data support belongs in the existing GNSS/network workflow;
+reuse core.py/coordinate_job.py for coordinate input, baselines.py for processed
+relative solutions and its duplicate-import checks, network.py for inventory,
+and existing quality/map/delivery components downstream. New format adapters
+must preserve the distinction between raw observations, absolute coordinate
+solutions and measured relative baselines, including covariance/dependence and
+provenance. A shared entry point must not silently reinterpret one as another.
+Do not reimplement import audit/fingerprint checks in a raw-processing module.
+See docs/GNSS_SOLUTIONS_AND_VRS.txt for the agreed scope. This direction does not
+mean raw positioning/PPK/VRS processing is already implemented. Version 0.9.0
+adds a read-only RINEX catalogue/preflight in the same network, not a solver.
+Keep legacy schema-2 serialization unchanged; raw links opt the project into
+schema 3. Do not infer UTC offsets or turn header approximate XYZ into controls.
+Only the three hash-reviewed synthetic .rnx parser fixtures may be published.
+Keep external source files, raw catalogue projects and source paths private.
+
 The user requires a clear AS IS / no-warranty / liability-limitation notice in
 every version posted on GitHub. Preserve this in README, NOTICE, and release
 notes, qualified by GPLv3 sections 15–17 and applicable law. Retain GPL-3.0-only,

@@ -1,11 +1,43 @@
 GNSS SOLUTIONS AS A WORKFLOW REFERENCE; VRS INVESTIGATION
-Survey Adjustment 0.6.0 - reviewed 2026-10-19
+Workflow reference researched 2026-10-19; reuse-first scope agreed 2026-10-20.
+Existing implementation baseline: Survey Adjustment 0.9.0.
 
 STATUS
-This is a design/investigation note, not a claim that raw GNSS processing or
-VRS generation exists in Survey Adjustment. The plugin is an independent
+The read-only RINEX catalogue/map/timeline/preflight is implemented in 0.9.0;
+see RINEX.txt. Raw GNSS positioning and VRS generation remain investigation
+topics, not implemented features. The plugin is an independent
 implementation. It does not include GNSS Solutions code, engine, installer,
 manual, icons or proprietary project formats. No affiliation is claimed.
+
+AGREED REUSE-FIRST SCOPE
+The user requires reuse and improvement of existing functions, with new code
+only for useful missing capabilities. GNSS Solutions is a workflow reference.
+Future raw-data support extends the existing GNSS/network workflow and common
+import path. It must not create another parallel import, project store, map,
+quality calculation, report, delivery workflow or GNSS Solutions tab.
+
+Reuse map before implementation:
+- Coordinate tables and column mapping: core.py and coordinate_job.py, with
+  existing coordinate/repeatability consumers retaining their stated meaning.
+- Processed relative POS/vector CSV: baselines.py and the existing import review,
+  audit, fingerprint and duplicate-observation checks. Reopening a source for
+  inspection must not add it to the inventory again. Renamed/re-exported source
+  data and relabelled sessions must not create artificial independent repeats.
+- Points, sessions, observation roles and saved inventory: network.py/network_ui.py.
+- Verified SALSA adjustment, covariance, residuals and checks: existing network
+  quality and mixed-survey components, with their current model limitations.
+- QGIS map/selection and local reference-reviewed exports: network_map.py and
+  delivery.py. Improve those components when a new input needs more metadata.
+
+Implemented useful additions in 0.9.0 are bounded RINEX-specific decoding,
+raw-file/station/antenna/time review and coverage/overlap views. A reviewed
+raw-processing engine adapter remains future work. Route a supported processed result
+through the existing baseline review/import contract with preserved source and
+processing identity. Do not invent covariance or import every correlated epoch.
+Raw carrier-phase observations, absolute coordinates and relative baselines
+remain different data products; one shared import workflow does not erase this.
+Document the existing owner and the missing capability for every proposed change.
+VRS remains separately scoped research rather than part of the first addition.
 
 WORKFLOW IDEAS
 The manufacturer's GNSS Solutions Reference Manual describes coordinated
@@ -23,9 +55,10 @@ For an independent QGIS workflow, the practical progression is:
    open the original record and provenance. Compare saved alternative runs
    without silently updating the underlying measurements or control points.
    See NETWORK_MAP.txt for the actual profile, display scaling and limitations.
-3. A later raw-processing workspace: local file catalogue, station/antenna and
-   epoch review, time coverage/overlap, satellite/observation availability and
-   a job queue for a separately reviewed processing engine. Final coordinates
+3. Implemented in 0.9.0: existing GNSS/network workspace now includes raw-file
+   catalogue entries, station/antenna/time review, time coverage/overlap and
+   satellite/observation availability. Jobs for a separately reviewed processing
+   engine remain future work. Reuse inventory, processed-solution import and downstream checks. Final coordinates
    and processed baseline vectors must remain different data products.
 
 VRS IN GNSS SOLUTIONS

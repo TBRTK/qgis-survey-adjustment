@@ -20,15 +20,15 @@ from .version import VERSION
 class InspectTool(QgsMapTool):
     picked=pyqtSignal(str,str)
 
-    def __init__(self,canvas,workspace):
-        super().__init__(canvas); self.workspace=workspace
+    def __init__(self,canvas,workspace,keys=None,kinds=None):
+        super().__init__(canvas); self.workspace=workspace; self.keys=keys; self.kinds=kinds or {}
         self.setCursor(Qt.CursorShape.CrossCursor)
 
     def canvasReleaseEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton: return
         point=QgsGeometry.fromPointXY(QgsPointXY(event.mapPoint()))
-        scope=self.workspace.inspect_scope.currentData()
-        keys=[scope] if scope else ['points','baselines','residuals','changes','comparison']
+        scope=self.workspace.inspect_scope.currentData() if hasattr(self.workspace,'inspect_scope') else None
+        keys=[scope] if scope else self.keys or ['points','baselines','residuals','changes','comparison']
         tolerance=self.canvas().mapUnitsPerPixel()*9; candidates=[]
         visible=self.canvas().layers()
         for priority,key in enumerate(keys):
@@ -42,7 +42,7 @@ class InspectTool(QgsMapTool):
                     candidates.append((0 if key=='points' else 1,distance,priority,key,str(feature['record_id'])))
         if candidates:
             _,_,_,key,identifier=min(candidates)
-            self.picked.emit('point' if key in ('points','changes','comparison') else 'observation',identifier)
+            self.picked.emit(self.kinds.get(key,'point' if key in ('points','changes','comparison') else 'observation'),identifier)
         else: self.workspace.message.setText('No record within the pick radius. Choose a specific inspect type or a table row.')
 
 

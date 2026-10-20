@@ -1,3 +1,44 @@
+Survey Adjustment 0.9.0 - integrated RINEX catalogue, map/timeline and preflight
+
+Extends the existing GNSS/network workflow with one Import GNSS file entry:
+processed POS/vector CSV reuses the existing baseline review; raw RINEX adds
+read-only source links to the same network project. Shared source-identity
+checks prevent duplicate imports, including renamed/gzip/line-ending copies.
+Map construction, labels and picking reuse existing components. No new survey
+points, sessions, coordinates or baseline observations are synthesized.
+
+Supports first-profile RINEX 2.11 / 3.02-3.05 observation inspection and broadcast
+navigation record framing, with bounded gzip, cancellable background reading,
+explicit point/session/antenna/time review and unchanged-source rechecks.
+Preflight reports actual epochs/signals, gaps, LLI bits, source/session bounds
+and exactly aligned base/rover code-phase availability. Linked UTC timeline
+excludes gaps. Approximate header map is explicitly DISPLAY ONLY. Missing or
+changed sources remain visible without being mapped. Schema 3 stores a raw
+catalogue in the existing network; legacy schema-2 serialization is preserved.
+
+Validation: 182 functional tests in QGIS 4.0.0 and nine publication/privacy
+tests passed. Native scope is recorded in the local 0.9.0 test/install receipt. Automated QGIS
+tests cover import routing, duplicate guards, source tampering, review and saved
+project persistence, selection, stale/cancelled tasks and legacy workflows.
+Three new fixtures were manually reviewed as constructed synthetic source data;
+navigation fields are nonphysical and cannot be used for positioning.
+
+Limits: no raw static/PPK solution, orbit/fit validation, ambiguity resolution,
+independent cycle-slip detection or VRS synthesis. UTC offsets are documented
+operator declarations; no leap-second model is inferred. Other RINEX versions,
+compact/Hatanaka, nonstandard folded RINEX3 satellite records, mid-file header
+updates and leap-second epochs require another reviewed profile/conversion.
+32 MiB source/expanded file, 50000 epochs/records, 100 source links and the
+existing 20 MiB project limit. Original raw bytes stay external, not archived
+in the catalogue. No field-accuracy or professional delivery approval is claimed.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. No official GNSS Solutions, receiver, IGS, QGIS or
+SALSA endorsement. Support/License footer and original attributions retained.
+
+Previous release:
 Survey Adjustment 0.8.0 - Norwegian reference review and traceable delivery
 
 Adds mandatory delivery reference evidence and separate coordinate/acquisition

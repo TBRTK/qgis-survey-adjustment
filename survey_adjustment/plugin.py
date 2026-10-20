@@ -50,7 +50,7 @@ class SurveyDialog(QDialog):
         super().__init__(iface.mainWindow())
         self.iface = iface
         self.setWindowTitle(f'Survey Adjustment {VERSION} – GNSS / SALSA prototype')
-        self.resize(1080,760)
+        self.resize(1080,860)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
         self.synthetic = False
@@ -174,6 +174,7 @@ class SurveyDialog(QDialog):
         self.rebuild_mappings()
 
     def closeEvent(self,event):
+        self.network_panel.raw_panel.cancel()
         if not getattr(self,'_unloading',False):
             if not self.network_panel.maybe_leave():
                 event.ignore()

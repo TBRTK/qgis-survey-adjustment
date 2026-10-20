@@ -41,6 +41,15 @@ local_settings.json
 !survey_adjustment/examples/gnss_quality.sanet.json
 *.pos
 *.pos.stat
+*.rnx
+*.crx
+*.gz
+*.??o
+*.??n
+*.??g
+!survey_adjustment/examples/synthetic_base.rnx
+!survey_adjustment/examples/synthetic_rover.rnx
+!survey_adjustment/examples/synthetic_navigation.rnx
 !survey_adjustment/examples/synthetic_baseline_llh.pos
 !survey_adjustment/examples/synthetic_baseline_xyz.pos
 !survey_adjustment/examples/synthetic_baseline_enu.pos

@@ -9,6 +9,11 @@ Use RELEASE_TEMPLATE.md for every GitHub version, including prereleases. Keep th
 
 Only reviewed source, documentation and constructed synthetic fixtures may be published. Do not upload customer measurements, reference-station coordinates, GNSS/RINEX/RTCM data, receiver serials, project names, QGIS project files, GeoPackages, reports, screenshots, local paths, passwords, NTRIP credentials, private keys, tokens or installed binaries. The author name, project website and support link are intentionally public. The plugin continues to read and write user data locally; these rules apply to distribution.
 
+The three exact .rnx files listed as synthetic_fixtures in publication_manifest.json
+are constructed parser/preflight examples, including nonphysical navigation fields.
+They are the only reviewed RINEX distribution fixtures; this exception does not
+authorize real observations, raw catalogues, external paths or generated reports.
+
 ## Before committing or uploading
 
 1. Activate repository hooks once: `git config core.hooksPath .githooks`. Python must be available as `python`, or configure this checkout with `git config survey.python <path-to-python>`. This local Git setting is never committed. SURVEY_PYTHON may override it for one run.

@@ -1,0 +1,122 @@
+RAW GNSS / RINEX - SURVEY ADJUSTMENT 0.9.0
+
+Use tab 5, Network project, and the existing Import GNSS file button. Processed
+POS/vector CSV still opens the existing measured-baseline review. RINEX opens
+a raw-file metadata review and adds a link to the same network project. The
+Raw GNSS / RINEX subtab shows the files, preflight, timeline and approximate map.
+There is no new top-level GNSS Solutions workflow or second project store.
+
+SUPPORTED FIRST PROFILE
+RINEX 2.11 and 3.02-3.05 observation files, plus common broadcast navigation
+record framing for GPS, GLONASS and the RINEX 3 constellation records. ASCII
+text, optionally gzip-compressed; detection uses the file header, not the name.
+RINEX 2 observation/satellite-list and RINEX 3 observation-type-header
+continuations are supported. RINEX 3 satellite observation records use the
+standard unlimited-length physical line; nonstandard folded records are rejected.
+RINEX 3.05 GLONASS navigation uses its additional record.
+
+Limits: 32 MiB per input and expanded gzip source, 50000 observation epochs or
+navigation records per file, 100 catalogue sources and the existing 20 MiB
+network-project limit. Metadata/availability are stored, not raw observation
+values. No file is silently truncated. Read/parse/preflight tasks run outside
+the GUI thread and can be cancelled; stale results cannot overwrite an edited
+project. Compact/Hatanaka, ZIP, receiver binary and other RINEX versions need
+a separately reviewed conversion/profile. No converter or positioning engine
+is downloaded or executed. Leap-second epochs and mid-file header updates
+are rejected explicitly rather than silently reinterpreted.
+
+ADDING A SOURCE
+1. Keep real surveys separate from constructed examples. Define the physical
+   point and UTC acquisition session in the existing network inventory first.
+2. Import GNSS file. Observation files require a Base/Rover role and links to
+   existing point/session IDs. Navigation has its own catalogue role.
+3. Read the original metadata and visible field guidance. Document source time
+   system, source-minus-UTC offset, antenna/reference-point treatment and purpose.
+   An offset is an operator declaration, not an independently validated time
+   transformation. Enter zero only for a documented UTC source. No offset,
+   leap-second, coordinate epoch, antenna correction or covariance is inferred.
+4. Explicitly review classification and confirmation, then add the source.
+   Missing time offset may remain unresolved but blocks time preflight. Missing
+   marker/time-system/antenna headers remain visible blockers. This profile does
+   not rewrite raw headers; obtain a corrected documented source when required.
+5. Save the network using its existing Save / Save as. Review selected metadata
+   changes declarations/links without importing the source a second time.
+   Remove link removes only the catalogue entry after confirmation, never the
+   original raw file. Point/session deletion is blocked while links depend on it.
+6. Check files / refresh map and timeline. Reopening a network does not imply
+   that its external files still exist or match their saved identities.
+
+CHECKS AND THEIR MEANING
+Every check re-reads originals and compares exact file SHA256 and parsed metadata.
+Changed, missing, truncated, ambiguous and unsupported files are reported. The
+shared import-identity guard rejects renamed copies and equivalent compressed /
+line-ending copies. Raw observation identity and processed-baseline identity are
+different products; raw epochs are never inserted as independent measurements.
+
+Observation summaries include actual epochs and satellites, non-missing signal
+counts, sampling gaps, power/event records, receiver-clock-offset occurrence and
+separate phase LLI loss-of-lock, half-cycle and BOC-tracking indicators. Zero or
+blank observations are missing. LLI bits are read indicators, not independent
+cycle-slip detection. Clock/antenna/phase corrections are not applied.
+
+Source timestamps retain their declared time system and exact seven-digit
+fractions. UTC display uses only the documented operator offset. Coordinate
+epoch stays in the existing project; it is never inferred from observation date.
+The observation extent is compared with its linked acquisition-session bounds.
+Header first/last-time disagreements and incomplete references require review.
+
+Base/rover availability is compared within the same linked acquisition session.
+Exactly aligned UTC epochs and matching satellite/code-phase labels are counted;
+no interpolation bridges missing epochs. At least two matched epochs with four
+common code/phase satellites is only a basic screening floor. No satellite
+geometry, atmospheric model, ambiguity success, multipath or position accuracy
+is established. RINEX 2 versus 3 signal labels are not silently remapped.
+Navigation records are checked for supported record framing and numeric fields
+only: orbit validity, health, fit intervals and coverage require a real processing
+engine. A catalogue success must not be labelled PPK-ready or survey-approved.
+
+MAP / TIMELINE
+Click a UTC timeline bar or map marker to select the original catalogue row and
+its header/review. Sampling gaps are excluded from the bars. Without documented
+time basis/offset, sources remain listed without a common UTC timeline.
+The map uses approximate header geocentric XYZ converted on the WGS84 ellipsoid
+for DISPLAY ONLY. Actual XYZ is retained in attributes. This is not a declaration
+of WGS84/ITRF/EUREF89 realisation, coordinate epoch, national height or mark/ARP
+reduction. Missing/unsuitable locations remain listed and unmapped. Header values
+never create/update survey control points, measured baselines or delivery points.
+Map-layer construction, labels and picking reuse the existing map components.
+No web map or measurement upload is needed.
+
+STORAGE / COMPATIBILITY
+Existing schema-1/2 projects retain the established schema-2 in-memory semantics
+and serialization, so previously verified calculation evidence remains reusable.
+Adding raw sources opts the same project into schema 3 with raw_sources metadata.
+Original paths, headers, hashes, availability, bindings and declarations are
+local project data. Original raw files remain external and read-only. Renaming
+or moving an original makes its link unavailable; restore it or explicitly
+review a replacement. A saved catalogue is not an archive of original bytes.
+Existing baseline audit/covariance, network quality, SALSA, mixed survey and
+reference-reviewed delivery use their existing paths and limits. Raw RINEX is
+not sent to SALSA and is not a new observation model. A future raw solver must
+route reviewed processed results through the existing typed baseline import.
+
+SYNTHETIC EXAMPLES
+Load synthetic network, then select Raw GNSS / RINEX -> Add synthetic RINEX
+examples. Three constructed sources bind to existing REF0, P01 and S01; no new
+points, sessions or baseline observations are created. Check files to see one
+rover gap, one phase loss-of-lock indicator, four aligned epochs and four common
+satellites. Navigation fields are deliberately nonphysical zero ephemerides.
+These fixtures test parsing/UI/preflight only and cannot validate positioning.
+Repeated example loading is rejected atomically as a duplicate import.
+
+PRIVACY / LICENSE
+Real RINEX, raw catalogues, paths, antenna identifiers, screenshots and generated
+reports stay local and outside publication. Public examples are constructed and
+hash-reviewed. The software is provided AS IS, without warranty. Disclaimers and
+limitations of liability apply only to the extent permitted by GPLv3 sections
+15-17 and applicable law. See LICENSE. No official GNSS Solutions, receiver,
+IGS, QGIS or SALSA endorsement is claimed.
+
+PRIMARY FORMAT REFERENCES (independent implementation; no third-party code)
+https://files.igs.org/pub/data/format/rinex211.txt
+https://files.igs.org/pub/data/format/rinex305.pdf

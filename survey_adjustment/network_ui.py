@@ -10,7 +10,7 @@ from qgis.PyQt.QtCore import Qt, QSettings
 from qgis.PyQt.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QGridLayout, QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QDialogButtonBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QTabWidget,
-    QTextBrowser, QFileDialog, QMessageBox, QInputDialog, QScrollArea)
+    QTextBrowser, QFileDialog, QMessageBox, QInputDialog, QScrollArea, QSizePolicy)
 from . import network as model
 
 
@@ -233,12 +233,16 @@ class NetworkPanel(QWidget):
         self.file_info.setWordWrap(True)
         layout.addWidget(self.file_info)
         import_row = QHBoxLayout()
-        self.import_button = QPushButton('Import measured baseline …')
-        self.import_button.clicked.connect(self.import_baselines); import_row.addWidget(self.import_button)
+        self.import_button = QPushButton('Import GNSS file …')
+        self.import_button.clicked.connect(self.import_gnss); import_row.addWidget(self.import_button)
         audit_button = QPushButton('Show import audit'); audit_button.clicked.connect(self.show_import_audit); import_row.addWidget(audit_button)
-        hint = QLabel('RTKLIB / Emlid-style POS or explicit ΔXYZ CSV. One reviewed occupation solution at a time.')
+        hint = QLabel('Processed POS / ΔXYZ CSV or raw RINEX. Each file uses its existing typed review; raw data never become baselines automatically.')
         hint.setWordWrap(True); import_row.addWidget(hint,1); layout.addLayout(import_row)
         self.tabs = QTabWidget()
+        # A hidden raw-page minimum must not enlarge the whole plugin on start.
+        # Raw views gain the tool area when that page is selected.
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Ignored)
+        self.tabs.setMinimumHeight(180)
         self.tables = {}
         self.headers = {
             'points':['ID','Role','E (m)','N (m)','Z (m)','σE (m)','σN (m)','σZ (m)','Notes'],
@@ -261,21 +265,25 @@ class NetworkPanel(QWidget):
                                     ('Remove selected',lambda _=False,key=collection:self.delete_record(key))]:
                 button = QPushButton(label); button.clicked.connect(callback); actions.addWidget(button)
             box.addLayout(actions); self.tabs.addTab(page,collection.title())
+        from .rinex_ui import RawPanel
+        self.raw_panel=RawPanel(self); self.tabs.addTab(self.raw_panel,'Raw GNSS / RINEX')
         layout.addWidget(self.tabs,1)
+        self.network_tools=QWidget(); tools=QVBoxLayout(self.network_tools); tools.setContentsMargins(0,0,0,0)
         button = QPushButton('Check project structure (does not calculate)')
         button.clicked.connect(self.check)
-        layout.addWidget(button)
+        tools.addWidget(button)
         quality_row=QHBoxLayout()
         quality_example=QPushButton('Load GNSS quality example'); quality_example.clicked.connect(self.load_quality_example)
         quality_run=QPushButton('GNSS adjustment / quality …'); quality_run.clicked.connect(self.network_quality)
-        quality_row.addWidget(quality_example); quality_row.addWidget(quality_run); layout.addLayout(quality_row)
+        quality_row.addWidget(quality_example); quality_row.addWidget(quality_run); tools.addLayout(quality_row)
         mixed=QPushButton('Mixed survey / total station and levelling …')
-        mixed.clicked.connect(self.mixed_survey); layout.addWidget(mixed)
+        mixed.clicked.connect(self.mixed_survey); tools.addWidget(mixed)
         delivery=QPushButton('Norwegian reference review / delivery package …')
-        delivery.clicked.connect(self.delivery); layout.addWidget(delivery)
+        delivery.clicked.connect(self.delivery); tools.addWidget(delivery)
         self.summary = QTextBrowser()
         self.summary.setMaximumHeight(125)
-        layout.addWidget(self.summary)
+        tools.addWidget(self.summary); layout.addWidget(self.network_tools)
+        self.tabs.currentChanged.connect(lambda _:self.network_tools.setVisible(self.tabs.currentWidget()!=self.raw_panel))
         for field in (self.name,self.epoch,self.notes):
             field.editingFinished.connect(self.changed)
         for field in (self.crs,self.height):
@@ -296,6 +304,7 @@ class NetworkPanel(QWidget):
 
     def changed(self):
         if not self.refreshing:
+            self.raw_panel.invalidate()
             self.dirty = True
             self.summary.setPlainText('Project edited. Check the structure again; this is not an adjusted network.')
             self.stash_recovery()
@@ -326,6 +335,7 @@ class NetworkPanel(QWidget):
                     item=QTableWidgetItem('' if v is None else format(v,'.10g') if isinstance(v,float) else str(v))
                     item.setToolTip(json.dumps(r,ensure_ascii=False,indent=2))
                     table.setItem(row,col,item)
+        self.raw_panel.refresh()
         self.refreshing = False
         self.update_file_info()
 
@@ -476,13 +486,27 @@ class NetworkPanel(QWidget):
             self.error('Cannot recover network draft: '+str(error))
             return False
 
-    def import_baselines(self):
+    def import_gnss(self):
+        path,_=QFileDialog.getOpenFileName(self,'Import GNSS source into this network','','GNSS sources (*.pos *.csv *.txt *.tsv *.rnx *.obs *.nav *.gz *.*o *.*n *.*g);;All files (*)')
+        if not path: return False
+        try:
+            with Path(path).open('rb') as handle: head=handle.read(160)
+            suffix=Path(path).suffix.lower()
+            raw=(b'RINEX VERSION / TYPE' in head or b'CRINEX' in head or head.startswith(b'\x1f\x8b') or suffix in ('.rnx','.obs','.nav','.rinex'))
+            if raw:
+                self.tabs.setCurrentWidget(self.raw_panel)
+                return self.raw_panel.open_source(path)
+            return self.import_baselines(path)
+        except (ValueError,OSError) as error: self.error(error); return False
+
+    def import_baselines(self,path=None):
         try:
             from .baseline_ui import BaselineImportDialog
             project=self.snapshot()
             if len(project['points'])<2 or not project['sessions']:
                 raise ValueError('Add the physical base/rover points and a documented UTC acquisition session before importing a baseline.')
             dialog=BaselineImportDialog(self,project)
+            if path: dialog.load(path)
             if dialog.exec()==QDialog.DialogCode.Accepted:
                 if self.snapshot()!=project:
                     raise ValueError('Network changed during import review. Reopen the import dialog.')

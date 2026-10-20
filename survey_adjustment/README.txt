@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.8.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.9.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,31 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.8.0
+WHAT CHANGED IN 0.9.0
+Adds raw RINEX catalogue, preflight and linked map/timeline inside the existing
+Network project. Import GNSS file routes processed POS/vector CSV through the
+existing measured-baseline review, and RINEX through a raw metadata review.
+The same saved project, duplicate-source gate, map creation/labels/picking and
+downstream quality/delivery paths are reused. Raw epochs never create points,
+coordinate observations or baseline vectors. No separate GNSS Solutions tab.
+
+First profile: RINEX 2.11 / 3.02-3.05 OBS, common broadcast NAV record framing,
+optional bounded gzip. Local originals stay read-only; exact hashes and metadata
+are checked again before a map/timeline refresh. Review point/session binding,
+time basis and explicit source-minus-UTC offset, antenna treatment and source
+classification. Gaps, signal availability, LLI indicators, missing metadata and
+unaligned base/rover coverage remain visible. Background tasks are cancellable;
+edits invalidate previous views. Approximate header locations are DISPLAY ONLY.
+
+Raw sources use schema 3 of the existing network project. Legacy projects/runs
+retain schema-2 serialization. Original raw bytes remain in their external files;
+a saved catalogue is not a raw-file archive. No raw positioning/PPK, VRS,
+ambiguity resolution, orbit/fit assessment or independent cycle-slip detection.
+See docs/RINEX.txt (source) or RINEX.txt (installed package). Three deliberately
+constructed parser/preflight fixtures include nonphysical navigation data and
+must never be used for positioning. Real receiver exports still need validation.
+
+FEATURES FROM 0.8.0
 Adds Norwegian reference review and traceable local delivery from completed,
 verified GNSS-network and mixed-survey SALSA runs. Frame/coordinate-epoch/
 height evidence, recipient/specification, purpose, reviewer, uncertainty review
@@ -69,7 +93,7 @@ available. The plugin remains separate from SOSI Survey.
 
 INSTALLATION
 In QGIS 4: Plugins > Manage and Install Plugins > Install from ZIP.
-Select survey_adjustment-0.8.0.zip and enable the plugin. The Python package
+Select survey_adjustment-0.9.0.zip and enable the plugin. The Python package
 is survey_adjustment. SOSI Survey remains a separate plugin.
 Select the separately installed SALSA lsasolver on tab 3. Keep the full SALSA
 folder with its own DLLs; a standalone lsasolver.exe is usually insufficient.

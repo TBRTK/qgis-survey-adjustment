@@ -299,8 +299,20 @@ def read_source(path, *, processing_mode=None):
     return parse_source(data, Path(path).name, processing_mode=processing_mode)
 
 
+def content_fingerprint(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
 def fingerprint(fmt, meta, time, values, cov):
-    return hashlib.sha256(json.dumps([fmt, meta, time, values, cov], sort_keys=True, allow_nan=False).encode()).hexdigest()
+    return content_fingerprint([fmt, meta, time, values, cov])
+
+
+def ensure_unique_import(batches, source_sha256, identity, line=None):
+    """Shared source/record identity gate for processed and raw import adapters."""
+    for batch in batches:
+        for old in batch.get('records', [batch]):
+            if old['fingerprint']==identity or (batch['source_sha256']==source_sha256 and old.get('line')==line):
+                raise ValueError('This source observation was already imported (including under another filename/session).')
 
 
 def imported_snapshot(project, identifier):
@@ -353,10 +365,9 @@ def plan_import(project, source, line, options):
             raise ValueError('A GNSS baseline for these endpoints already exists in this session. Do not turn correlated epochs into repeats.')
     values, cov, reference = to_ecef(row['values'], row['covariance'], meta, options.frame)
     fp = fingerprint(source['format'], meta, row['time'], row['values'], row['covariance'])
+    ensure_unique_import(project['imports'],source['source_sha256'],fp,line)
     for batch in project['imports']:
         for old in batch['records']:
-            if old['fingerprint']==fp or (batch['source_sha256']==source['source_sha256'] and old['line']==line):
-                raise ValueError('This source observation was already imported (including under another filename/session).')
             previous = old['observation']
             if (old['time']==row['time'] and batch['metadata']['time_system']==meta['time_system']
                     and batch['frame']==options.frame and {previous['from_point'],previous['to_point']}=={options.origin,options.target}):

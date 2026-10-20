@@ -109,8 +109,10 @@ def validate_covariance(value):
 
 def validate_project(project):
     """Reject damaged/ambiguous records; return draft/readiness notes, not approval."""
-    _keys(project, new_project(), 'Project')
-    if project['format'] != FORMAT or type(project['schema_version']) is not int or project['schema_version'] != SCHEMA_VERSION:
+    expected=set(new_project())
+    if isinstance(project,dict) and project.get('schema_version')==3: expected.add('raw_sources')
+    _keys(project, expected, 'Project')
+    if project['format'] != FORMAT or type(project['schema_version']) is not int or project['schema_version'] not in (SCHEMA_VERSION,3):
         raise ValueError('Unsupported network project format/schema version. The file was not changed.')
     for field in ('project_id', 'name'):
         _text(project[field], field, required=True)
@@ -206,6 +208,10 @@ def validate_project(project):
             raise ValueError(label+': document the reason for disabling this observation in Notes.')
     from .baselines import validate_imports
     validate_imports(project)
+    if project['schema_version']==3:
+        from .rinex import validate_catalogue
+        validate_catalogue(project)
+        warnings.append('Raw RINEX catalogue only: original observations are external, hash-checked files; no new coordinate/baseline observation is created. Run raw preflight before using its timeline/map.')
     if project['imports']:
         warnings.append('Measured baseline import: formal precision is conditional on the processing model/base; shared errors and cross-observation covariance are not modelled. Import is not a network solution.')
     if not project['points'] or not project['observations']:

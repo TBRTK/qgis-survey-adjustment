@@ -19,6 +19,7 @@
     "docs/MIXED_SURVEY_DEVELOPMENT.txt",
     "docs/NETWORK_MAP.txt",
     "docs/PUBLISHING.md",
+    "docs/RINEX.txt",
     "publication_manifest.json",
     "survey_adjustment/LICENSE",
     "survey_adjustment/NOTICE.txt",
@@ -39,6 +40,7 @@
     "survey_adjustment/examples/gnss_salsa_llh.csv",
     "survey_adjustment/examples/kontrollpunkter.csv",
     "survey_adjustment/examples/network_inventory.sanet.json",
+    "survey_adjustment/examples/synthetic_base.rnx",
     "survey_adjustment/examples/synthetic_baseline_enu.pos",
     "survey_adjustment/examples/synthetic_baseline_llh.pos",
     "survey_adjustment/examples/synthetic_baseline_xyz.pos",
@@ -47,6 +49,8 @@
     "survey_adjustment/examples/synthetic_measured_baseline.csv",
     "survey_adjustment/examples/synthetic_mixed.samix.json",
     "survey_adjustment/examples/synthetic_mixed_survey.csv",
+    "survey_adjustment/examples/synthetic_navigation.rnx",
+    "survey_adjustment/examples/synthetic_rover.rnx",
     "survey_adjustment/layers.py",
     "survey_adjustment/metadata.txt",
     "survey_adjustment/mixed_survey.py",
@@ -59,6 +63,8 @@
     "survey_adjustment/network_ui.py",
     "survey_adjustment/plugin.py",
     "survey_adjustment/reporting.py",
+    "survey_adjustment/rinex.py",
+    "survey_adjustment/rinex_ui.py",
     "survey_adjustment/version.py",
     "tests/test_baseline_qgis.py",
     "tests/test_baselines.py",
@@ -76,6 +82,8 @@
     "tests/test_network_quality.py",
     "tests/test_network_quality_qgis.py",
     "tests/test_qgis.py",
+    "tests/test_rinex.py",
+    "tests/test_rinex_qgis.py",
     "tools/check_release.py",
     "tools/run_secret_scan.py",
     "tools/safe_push.py",
@@ -124,7 +132,13 @@
     "survey_adjustment/examples/synthetic_levelling.samix.json": "survey_adjustment/examples/synthetic_levelling.samix.json",
     "survey_adjustment/delivery.py": "survey_adjustment/delivery.py",
     "survey_adjustment/delivery_ui.py": "survey_adjustment/delivery_ui.py",
-    "survey_adjustment/DELIVERY.txt": "docs/DELIVERY.txt"
+    "survey_adjustment/DELIVERY.txt": "docs/DELIVERY.txt",
+    "survey_adjustment/rinex.py": "survey_adjustment/rinex.py",
+    "survey_adjustment/rinex_ui.py": "survey_adjustment/rinex_ui.py",
+    "survey_adjustment/RINEX.txt": "docs/RINEX.txt",
+    "survey_adjustment/examples/synthetic_base.rnx": "survey_adjustment/examples/synthetic_base.rnx",
+    "survey_adjustment/examples/synthetic_rover.rnx": "survey_adjustment/examples/synthetic_rover.rnx",
+    "survey_adjustment/examples/synthetic_navigation.rnx": "survey_adjustment/examples/synthetic_navigation.rnx"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {
@@ -186,6 +200,18 @@
     "survey_adjustment/examples/synthetic_levelling.samix.json": {
       "sha256": "db1b108dc02ca02e3a8259edbc83886644790eb887dc8b4c9491e33d86346eb2",
       "provenance": "Manually reviewed constructed training geometry only: REF0 UTM 291000/6701000/80, four additional invented points, seeded independent noise (705), known endpoint heights, explicit ELLIP 3D or NN2000 1D profile. Source construction mixed_survey.synthetic_job. No instrument, receiver or customer measurements; confirmations initially false."
+    },
+    "survey_adjustment/examples/synthetic_base.rnx": {
+      "sha256": "555088ceef7b2525c4d3577144e2ab3231e2d4bd27cfad69986316f30c73b0ba",
+      "provenance": "Manually reviewed constructed RINEX parser/UI fixture only. Invented GPS/Galileo code/phase fields and approximate software-test locations; explicit synthetic GPS-UTC offset. Navigation contains deliberately nonphysical zero ephemerides. No receiver, reference-station or customer observations; unusable for positioning."
+    },
+    "survey_adjustment/examples/synthetic_rover.rnx": {
+      "sha256": "bfe7abfa89e986a572f74d2f04307ece64a894acf857b8669980cca7413d12e0",
+      "provenance": "Manually reviewed constructed RINEX parser/UI fixture only. Invented GPS/Galileo code/phase fields and approximate software-test locations; explicit synthetic GPS-UTC offset. Navigation contains deliberately nonphysical zero ephemerides. No receiver, reference-station or customer observations; unusable for positioning."
+    },
+    "survey_adjustment/examples/synthetic_navigation.rnx": {
+      "sha256": "a8e677aa1836d477dd336c637b3a4e0080ff2ea31c831d4731bcecb883294d7b",
+      "provenance": "Manually reviewed constructed RINEX parser/UI fixture only. Invented GPS/Galileo code/phase fields and approximate software-test locations; explicit synthetic GPS-UTC offset. Navigation contains deliberately nonphysical zero ephemerides. No receiver, reference-station or customer observations; unusable for positioning."
     }
   },
   "historical_synthetic_sha256": [
@@ -194,11 +220,14 @@
     "17bbda1a8b271b7eb356b6dbe99c3ee9e4df49600bdf3dbd901c165855da90f6",
     "20c77d719f4bd65bfa660ef4bc72e5aecde11629fd5d870712161e63f4eae095",
     "36cdc19a533dc42f2bcbb19701453061b62fada1d3338dcf577e9120598f174b",
+    "555088ceef7b2525c4d3577144e2ab3231e2d4bd27cfad69986316f30c73b0ba",
     "62f8197d031ca259be3a2fa3856ca68e9360df8456b815759497d478795b04b9",
     "638cedc9d8a10cf3acf4c32221b2d493720016164947f4d366ebb25cf66966bb",
     "8b12e70d465d8a761f5f6d7e1634f0a08723e573d9cc4edf034757991455f405",
     "a317e3541a95e467b220f37dc319f2edc51e632312ab99bb0a5c16a24646ddb9",
+    "a8e677aa1836d477dd336c637b3a4e0080ff2ea31c831d4731bcecb883294d7b",
     "b3250144b6a23469e4ed47a86776ca93397ca439b94cf9d8f8810bf1a6b25843",
+    "bfe7abfa89e986a572f74d2f04307ece64a894acf857b8669980cca7413d12e0",
     "db1b108dc02ca02e3a8259edbc83886644790eb887dc8b4c9491e33d86346eb2",
     "dd058f2a84d829844759c6b01ffce732e29c07d47b01baaf3a7c040612875ca4",
     "e99f90efdccce226e420ca3016598f12ddf3a84c027fce47a74ec0ed2a9d3e3f",
