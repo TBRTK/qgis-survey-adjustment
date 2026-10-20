@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.10.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.11.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,36 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.10.0
+WHAT CHANGED IN 0.11.0
+Extends the existing PPK/static processing flow with explicitly selected GPS
+L1/L2, Galileo E1/E5b and BeiDou B1I/B2I. GPS is required for this reviewed
+initialisation profile. Engine residuals must confirm every selected system
+contributed; availability in a file is not proof of use. Other systems/bands
+are excluded. Existing imports, project, background queue, map, report,
+full-covariance baseline review and duplicate-occupation gates are reused.
+
+Adds local absolute ANTEX 1.4 receiver PCO/NOAZI PCV for GPS-only processing:
+exact antenna/radome, serial-specific or generic type model, entire-occupation
+validity, DAZI=0 and 0/90/5 zenith grid. Original calibration and exact selected
+engine subset are hashed and copied into the private job package. No radome,
+serial, frequency or validity fallback. Header H/E/N remains a separate
+marker-to-ARP offset. Models and mounting/source/usage rights require review.
+
+Important engine limit: RTKLIB EX 2.5.1 reads GPS receiver calibration only.
+ANTEX with multiple systems is blocked to avoid silently applying GPS patterns
+to Galileo/BeiDou. Multi-GNSS can be run explicitly uncalibrated. GLONASS,
+azimuth-dependent antenna models, other grids and ANTEX 2.0 are not enabled.
+No satellite calibration, precise products, VRS or frame/epoch transformation.
+The same separately installed BSD-2-Clause engine is used; none is bundled.
+
+Choose mode, systems and calibration, then New synthetic example. The generator
+constructs matching observations/navigation and optional invented ANTEX with
+nonzero H/E/N, PCO and PCV. Originals stay unchanged. Local reports preserve
+GPST, ECEF XYZ, ellipsoidal height, covariance and applied-model provenance.
+Synthetic integration tests do not establish field accuracy or survey approval.
+See docs/PPK_STATIC.txt (source) or PPK_STATIC.txt (installed package).
+
+FEATURES FROM 0.10.0
 Adds explicit local PPK kinematic and static relative GPS processing from the
 existing raw RINEX links. It reuses the background queue, saved network,
 source identity checks, map construction/picking and existing POS/baseline

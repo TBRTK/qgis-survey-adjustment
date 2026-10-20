@@ -1,4 +1,4 @@
-PPK / STATIC GPS — SURVEY ADJUSTMENT 0.10.0
+PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.11.0
 
 WORKFLOW / REUSE
 Network project > Raw GNSS / RINEX > PPK / static processing of existing sources.
@@ -14,15 +14,16 @@ workflows, with their frame, covariance and endpoint requirements unchanged.
 2. Choose separately installed RTKLIB EX 2.5.1 Windows rnx2rtkp.exe. Its SHA256
    must match the reviewed version below. The plugin does not download/install it.
 3. Choose Static relative for an occupied stationary point, or PPK kinematic for
-   a moving receiver. Select GPS L1 or L1+L2. Only GPS is processed in this profile.
+   a moving receiver. Select one/two slots: GPS L1/L2, optional Galileo E1/E5b and BeiDou B1I/B2I.
+   GPS is required; GLONASS/QZSS/SBAS/NavIC and other bands are excluded.
 4. Enter independently documented FIXED base geocentric X Y Z in metres, frame
    and coordinate epoch evidence. Approximate header XYZ is never used as control.
    The network epoch is a coordinate epoch, not an observation date. Selecting
    ETRS89/WGS84 is a declaration, not a realised-frame or epoch transformation.
 5. Review original header H/E/N offsets for both receivers. These are passed to
    the engine as E/N/U antenna offsets. Result coordinates refer to the declared
-   marker endpoints. Receiver phase-centre calibration files are not supported
-   by this first profile; review the resulting limitation. Correct an ambiguous
+   marker endpoints. Select explicit uncalibrated processing, or local absolute
+   ANTEX 1.4 receiver calibration for GPS only (details below). Correct an ambiguous
    header in a separately documented source, preserving the original.
 6. Document base uncertainty, antenna endpoints, model, purpose and dependence.
    Scroll the review area down to confirm base, antenna, model and engine licence.
@@ -46,16 +47,21 @@ workflows, with their frame, covariance and endpoint requirements unchanged.
    do not establish a new independent occupation. The duplicate gate rejects it.
    Keep alternative processing runs as separate results for review/comparison.
 
-FIRST PROCESSING PROFILE
-Pinned Windows RTKLIB EX 2.5.1, GPS L1 or L1+L2 code and carrier phase, static
+REVIEWED PROCESSING PROFILE
+Pinned Windows RTKLIB EX 2.5.1, GPS L1/L2, Galileo E1/E5b and BeiDou B1I/B2I
+code and carrier phase, one or two slots, GPS required for initialisation, static
 or kinematic relative forward filtering, continuous ambiguity resolution,
 broadcast ephemerides, elevation mask 10-45 deg and fixed AR ratio 3-10.
 No fix-and-hold, moving-base, single-point/PPP modes or automatic base averaging.
 Observation sources must declare GPS time and the same documented GPS-minus-UTC
 offset; source times are not rewritten. Broadcast/Saastamoinen atmosphere for
 real sources. Atmosphere-off is allowed only for explicit synthetic projects.
-Header H/E/N offsets applied, but no receiver PCO/PCV calibration, tide correction,
-precise products, multi-GNSS processing, frame/epoch shift or network RTK/VRS.
+Header H/E/N offsets applied. Optional GPS receiver PCO/PCV as described below.
+No satellite antenna calibration, tide correction, precise products, frame/epoch
+shift or network RTK/VRS. BeiDou ambiguity fixing is off; float contribution is
+retained alongside GPS/Galileo. No GLONASS ambiguity/bias calibration is claimed.
+Every selected constellation must contribute valid engine residuals. Missing
+contribution rejects the result instead of silently downgrading the selection.
 The engine can decode more formats; the plugin only enables this tested profile.
 The existing RINEX size/epoch/project limits and 10000 POS epoch limit apply.
 
@@ -69,6 +75,31 @@ raw GNSS algorithm cross-check or field/delivery certification is claimed.
 Base/orbit plausibility and catalogue checks are screening only; orbit health,
 validity, usable geometry and ambiguity behaviour still need professional review.
 
+RECEIVER CALIBRATION / ENGINE LIMIT
+Choose Receiver ANTEX, a local absolute ANTEX 1.4 file and source/version/usage
+rights/installation evidence. Both RINEX headers must contain exact IGS model
+(16 columns) plus radome (4 columns). Selection requires the complete observation
+interval within VALID FROM/UNTIL in GPS time. An exact serial-specific model
+takes priority; otherwise one generic type/radome record is allowed and reported.
+Ambiguous or absent matches fail; no different radome/serial is silently used.
+Both receivers need PCO and 19 NOAZI PCV values for G01 (and G02 for two slots).
+Only DAZI=0 and ZEN1/ZEN2/DZEN=0/90/5 are enabled. Other grids, azimuth-dependent
+patterns, relative models, unsupported precision and ANTEX 2.0 fail explicitly.
+North/east/up ANTEX millimetres are preserved; H/E/N RINEX metres remain separate
+marker-to-ARP offsets. Verify antenna orientation, mounting and physical ARP.
+
+The pinned engine readantex() skips non-GPS receiver frequency blocks, antmodel()
+has shared frequency slots, and searchpcv() permits radome fallback and ignores
+receiver serial/validity. The plugin therefore selects strictly BEFORE execution,
+writes two unique aliases containing only the exact selected numerical models,
+enables receiver PCV explicitly, and preserves/hashes original and engine subset.
+It refuses ANTEX combined with Galileo/BeiDou. Multi-GNSS is explicitly
+uncalibrated. Supporting constellation-specific receiver calibration requires a
+different reviewed engine contract, not relabelling GPS frequency blocks.
+This calibration does not establish field accuracy or repair incorrect heights.
+No calibration datasets are downloaded, bundled or published; users retain their
+data provider's rights/attribution obligations. Invented examples are own data.
+
 LOCAL RESULT / INTEGRITY
 processing.json: pending/completed/aborted state, fixed profile, engine identity,
 options, original/copy source SHA256 and fingerprints, base/point/session/frame/
@@ -78,6 +109,9 @@ decoded copies used by the engine; processing.conf: exact submitted options.
 solution.pos: original engine output, including full signed covariance roots;
 solution.pos.stat: engine state/residual log, when produced; console.txt: bounded
 engine log; epochs.csv and report.txt: local readable exports.
+With ANTEX, original.atx and receiver.atx retain original and selected models.
+The v2 processing audit records systems, frequency count and full selected
+calibration. Existing v1 GPS jobs and import audits remain readable.
 These contain private paths/measurements. Keep them local, outside publication.
 Keep the complete result directory to retain its provenance. Reopening the POS
 through the existing importer verifies completed state, copies/configuration and
@@ -86,13 +120,16 @@ links cannot be deleted/relabelled after importing their dependent baseline.
 Hashes are integrity checks, not a signature, authenticity or scientific proof.
 
 CONSTRUCTED EXAMPLES
-Choose a mode, then New synthetic example for selected mode. This creates a NEW
+Choose mode, satellite systems and calibration, then New synthetic example. This creates a NEW
 network with two physical IDs, one session and three raw links in a new local
 folder. It never overwrites an existing network. Review confirmations remain off.
-The generator constructs 24 ideal circular GPS orbits, visible satellite signals,
+The generator constructs 24 ideal circular orbits per selected system, visible signals,
 integer carrier ambiguities, reproducible code/phase noise and a ten-minute
 stationary or moving receiver, with independent known coordinate truth.json.
-Zero antenna patterns/offsets and no atmosphere are deliberate test assumptions.
+No atmosphere is deliberate. Uncalibrated examples have zero antenna offsets.
+ANTEX examples instead inject invented nonzero north/east/up PCO, NOAZI PCV and
+base/rover H=1/2 m. Applying the matching models recovers physical marker heights;
+omitting them leaves a measurable bias in this constructed integration test.
 Moving example changes ECEF X by 12 metres over ten minutes. Original 0.9 parser
 fixtures contain nonphysical zero ephemerides and are explicitly refused here.
 No receiver/reference-station or customer data are bundled. Synthetic tests
@@ -128,6 +165,9 @@ https://github.com/rtklibexplorer/RTKLIB/blob/v2.5.1/src/options.c
 https://github.com/rtklibexplorer/RTKLIB/blob/v2.5.1/src/solution.c
 https://github.com/rtklibexplorer/RTKLIB/blob/v2.5.1/src/postpos.c
 https://files.igs.org/pub/data/format/rinex305.pdf
+https://files.igs.org/pub/data/format/antex14.txt
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/rtkcmn.c
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/rtkpos.c
 
 The software is provided "AS IS", without warranty. Disclaimers and limitations
 of liability apply only to the extent permitted by GPLv3 sections 15-17 and

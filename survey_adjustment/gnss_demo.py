@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Construct ideal GPS observations from invented circular orbits, not receiver data.
+"""Construct GNSS observations from invented circular orbits, not receiver data.
 
-Software integration fixture only: no atmosphere, multipath or antenna phase
-patterns. Kepler circular orbit, signal travel and Earth-rotation range model.
+Software integration fixture only: no atmosphere or multipath. Optional invented
+receiver patterns. Kepler circular orbit, signal travel and Earth-rotation model.
 No RTKLIB source is copied. All carrier ambiguities are constructed integers.
 """
 from datetime import datetime,timedelta
 from pathlib import Path
 import math,random,json
 from .coordinate_job import xyz
-from . import network as n,rinex as r
+from . import network as n,rinex as r,antenna
 
 C=299792458.; OMEGA=7.2921151467e-5; MU=3.986005e14; A=26560000.
 START=datetime(2026,10,18,8,0,18)
@@ -19,19 +19,25 @@ TOE=(START-GPS0).total_seconds()-WEEK*604800
 BASE=xyz(60.4,5.2,80.,'EPSG:4979')
 
 
-def position(prn,seconds):
-    plane,index=divmod(prn-1,4)
-    u=index*math.pi/2+plane*.23+math.sqrt(MU/A**3)*seconds
-    node=plane*math.pi/3-OMEGA*(TOE+seconds); inc=math.radians(55)
-    x,y=A*math.cos(u),A*math.sin(u)
+def orbit(system):
+    return {'G':(A,MU,OMEGA,TOE,0.,0.),'E':(29600000.,3.986004418e14,OMEGA,TOE-60,60.,.4),
+            'C':(27800000.,3.986004418e14,7.292115e-5,TOE-74,60.,.8)}[system]
+
+
+def position(prn,seconds,system='G'):
+    a,mu,omega,toe,lead,offset=orbit(system)
+    plane,index=divmod(prn-(6 if system=='C' else 1),4)
+    u=index*math.pi/2+plane*.23+math.sqrt(mu/a**3)*(seconds+lead)
+    node=plane*math.pi/3+offset-omega*(toe+seconds+lead); inc=math.radians(55)
+    x,y=a*math.cos(u),a*math.sin(u)
     return [x*math.cos(node)-y*math.cos(inc)*math.sin(node),
             x*math.sin(node)+y*math.cos(inc)*math.cos(node),y*math.sin(inc)]
 
 
-def distance(prn,seconds,receiver):
+def distance(prn,seconds,receiver,system='G'):
     travel=.08
     for _ in range(5):
-        sat=position(prn,seconds-travel); angle=OMEGA*travel
+        sat=position(prn,seconds-travel,system); angle=OMEGA*travel
         rotated=[math.cos(angle)*sat[0]+math.sin(angle)*sat[1],-math.sin(angle)*sat[0]+math.cos(angle)*sat[1],sat[2]]
         travel=math.dist(rotated,receiver)/C
     return travel*C
@@ -44,17 +50,25 @@ def rover_at(seconds,moving):
 def header(value,label): return f'{value:<60}{label:<20}\n'
 
 
-def observations(moving,base=False):
+def synthetic_model(base):
+    # Invented values, not a calibration of any real antenna or receiver.
+    return dict(frequencies={f:dict(neu_mm=[10. if base else -20.,5. if base else 15.,100. if base else 350.],
+        noazi_mm=[round((5. if base else 15.)*(z/90)**2,4) for z in range(0,91,5)]) for f in ('G01','G02')})
+
+
+def observations(moving,base=False,systems=('G',),calibrated=False):
     rng=random.Random(100 if base else 101)
     receiver=BASE if base else rover_at(0,moving)
-    text=header(f'{"3.05":>9}           O                   G','RINEX VERSION / TYPE')
+    text=header(f'{"3.05":>9}           O                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
     text+=header('SYNTHETIC IDEAL ORBITS / CODE / PHASE - NO FIELD DATA','COMMENT')
     text+=header('SIM_BASE' if base else 'SIM_ROVER','MARKER NAME')
     text+=header(f'{"SYNTHETIC":<20}{"IDEAL":<20}{"1":<20}','REC # / TYPE / VERS')
-    text+=header(f'{"SYNTHETIC":<20}{"ZERO-PATTERN":<20}','ANT # / TYPE')
+    name=('SIM_BASEANT     NONE' if base else 'SIM_ROVERANT    NONE') if calibrated else 'ZERO-PATTERN'
+    text+=header(f'{"SYNTHETIC":<20}{name:<20}','ANT # / TYPE')
     text+=header(''.join(f'{v:14.4f}' for v in receiver),'APPROX POSITION XYZ')
-    text+=header(''.join(f'{v:14.4f}' for v in (0.,0.,0.)),'ANTENNA: DELTA H/E/N')
-    text+=header('G    4 C1C L1C C2W L2W','SYS / # / OBS TYPES')
+    text+=header(''.join(f'{v:14.4f}' for v in ((1. if base else 2.,0.,0.) if calibrated else (0.,0.,0.))),'ANTENNA: DELTA H/E/N')
+    for system in systems:
+        text+=header({'G':'G    4 C1C L1C C2W L2W','E':'E    4 C1C L1C C7Q L7Q','C':'C    4 C2I L2I C7I L7I'}[system],'SYS / # / OBS TYPES')
     text+=header(f'{5.:10.3f}','INTERVAL')
     for stamp,label in ((START,'TIME OF FIRST OBS'),(START+timedelta(seconds=600),'TIME OF LAST OBS')):
         text+=header(f'{stamp.year:6d}{stamp.month:6d}{stamp.day:6d}{stamp.hour:6d}{stamp.minute:6d}{stamp.second:13.7f}     GPS',label)
@@ -64,49 +78,66 @@ def observations(moving,base=False):
     for seconds in range(0,601,5):
         receiver=BASE if base else rover_at(seconds,moving); stamp=START+timedelta(seconds=seconds)
         sats=[]
-        for prn in range(1,25):
-            sat=position(prn,seconds); vector=[a-b for a,b in zip(sat,receiver)]
-            elevation=math.asin(sum(a*b for a,b in zip(vector,up))/math.sqrt(sum(a*a for a in vector)))
-            if elevation>math.radians(15): sats.append(prn)
+        for system in systems:
+            for prn in range(6 if system=='C' else 1,30 if system=='C' else 25):
+                sat=position(prn,seconds,system); vector=[a-b for a,b in zip(sat,receiver)]
+                elevation=math.asin(sum(a*b for a,b in zip(vector,up))/math.sqrt(sum(a*a for a in vector)))
+                if elevation>math.radians(15): sats.append((system,prn))
         text+=f'> {stamp:%Y %m %d %H %M} {stamp.second:10.7f}  0{len(sats):3d}\n'
-        for prn in sats:
-            rho=distance(prn,seconds,receiver)
+        for system,prn in sats:
+            rho=distance(prn,seconds,receiver,system)
+            if calibrated:
+                sat=position(prn,seconds,system); los=[a-b for a,b in zip(sat,receiver)]; norm=math.sqrt(sum(v*v for v in los)); los=[v/norm for v in los]
+                east=[-math.sin(lam),math.cos(lam),0.];north=[-math.sin(phi)*math.cos(lam),-math.sin(phi)*math.sin(lam),math.cos(phi)]
+                model=synthetic_model(base)['frequencies']['G01'];nn,ee,uu=[v/1000 for v in model['neu_mm']]
+                offset=[nn*a+ee*b+(uu+(1. if base else 2.))*c for a,b,c in zip(north,east,up)]
+                zen=math.degrees(math.acos(sum(a*b for a,b in zip(los,up))));i=min(17,int(zen/5));f=zen/5-i
+                rho+=-sum(a*b for a,b in zip(offset,los))+(model['noazi_mm'][i]*(1-f)+model['noazi_mm'][i+1]*f)/1000
+            f1,f2={'G':(1575.42e6,1227.60e6),'E':(1575.42e6,1207.14e6),'C':(1561.098e6,1207.14e6)}[system]
             code1=rho+rng.gauss(0,.02); code2=rho+rng.gauss(0,.02)
-            phase1=(rho+rng.gauss(0,.001))/(C/1575.42e6)+100000+prn*100+(0 if base else 50)
-            phase2=(rho+rng.gauss(0,.001))/(C/1227.60e6)+80000+prn*80+(0 if base else 30)
-            text+=f'G{prn:02d}'+''.join(f'{v:14.3f}07' for v in (code1,phase1,code2,phase2))+'\n'
+            phase1=(rho+rng.gauss(0,.001))/(C/f1)+100000+prn*100+(0 if base else 50)
+            phase2=(rho+rng.gauss(0,.001))/(C/f2)+80000+prn*80+(0 if base else 30)
+            text+=f'{system}{prn:02d}'+''.join(f'{v:14.3f}07' for v in (code1,phase1,code2,phase2))+'\n'
     return text
 
 
-def navigation():
-    text=header(f'{"3.05":>9}           N                   G','RINEX VERSION / TYPE')
-    text+=header('SYNTHETIC CIRCULAR GPS ORBITS - NOT REAL EPHEMERIDES','COMMENT')+header('','END OF HEADER')
-    for prn in range(1,25):
-        plane,index=divmod(prn-1,4)
-        text+=f'G{prn:02d} {START:%Y %m %d %H %M %S}'+''.join(f'{0.:19.12E}' for _ in range(3))+'\n'
-        rows=[[1,0,0,index*math.pi/2+plane*.23],[0,0,0,math.sqrt(A)],
-            [TOE,0,plane*math.pi/3,0],[math.radians(55),0,0,0],
-            [0,1,WEEK,0],[1,0,0,1],[TOE,4,0,0]]
-        for row in rows: text+='    '+''.join(f'{v:19.12E}' for v in row)+'\n'
+def navigation(systems=('G',)):
+    text=header(f'{"3.05":>9}           N                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
+    text+=header('SYNTHETIC CIRCULAR ORBITS - NOT REAL EPHEMERIDES','COMMENT')+header('','END OF HEADER')
+    for system in systems:
+        a,mu,omega,toe,lead,offset=orbit(system)
+        for prn in range(6 if system=='C' else 1,30 if system=='C' else 25):
+            plane,index=divmod(prn-(6 if system=='C' else 1),4)
+            stamp=START-timedelta(seconds=lead+(14 if system=='C' else 0))
+            week=int((stamp-datetime(2006,1,1)).total_seconds()//604800) if system=='C' else WEEK
+            text+=f'{system}{prn:02d} {stamp:%Y %m %d %H %M %S}'+''.join(f'{0.:19.12E}' for _ in range(3))+'\n'
+            rows=[[1,0,0,index*math.pi/2+plane*.23],[0,0,0,math.sqrt(a)],
+                [toe,0,plane*math.pi/3+offset,0],[math.radians(55),0,0,0],
+                [0,517 if system=='E' else 1,week,0],[1,0,0,0 if system=='C' else 1],[toe,4,0,0]]
+            for row in rows: text+='    '+''.join(f'{v:19.12E}' for v in row)+'\n'
     return text
 
 
-def create(folder,moving=False):
+def create(folder,moving=False,systems=('G',),calibrated=False):
     """Create a new explicit synthetic project; never append to a user's network."""
+    if not systems or 'G' not in systems or any(s not in ('G','E','C') for s in systems) or (calibrated and tuple(systems)!=('G',)):raise ValueError('Unsupported synthetic profile.')
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=False)
-    project=n.new_project(); project.update(name='SYNTHETIC '+('moving PPK' if moving else 'static GPS')+' integration example',
+    project=n.new_project(); project.update(name='SYNTHETIC '+('moving PPK' if moving else 'static')+' '+''.join(systems)+(' ANTEX' if calibrated else '')+' integration example',
         synthetic=True,crs='EPSG:25832',height_datum='ELLIP',epoch='2026-10-18',
-        notes='Constructed circular GPS orbits and ideal signals; no atmosphere or antenna patterns. Software test only. Coordinates are not national controls.')
+        notes='Constructed circular '+''.join(systems)+' orbits; no atmosphere. '+('Invented ANTEX PCO/PCV and H/E/N offsets.' if calibrated else 'Zero antenna patterns and offsets.')+' Software test only; coordinates are not national controls.')
     project['points']=[dict(n.point(),id='SIM_BASE'),dict(n.point(),id='SIM_ROVER')]
-    project['sessions']=[dict(n.session(),id='SIM01',start='2026-10-18T08:00:00Z',end='2026-10-18T08:10:00Z',instrument='SYNTHETIC GPS',corrections='Constructed GPS-UTC = 18 s; no atmosphere.')]
-    for name,text,role,point in (('base',observations(moving,True),'BASE','SIM_BASE'),('rover',observations(moving),'ROVER','SIM_ROVER'),('navigation',navigation(),'NAV','')):
+    project['sessions']=[dict(n.session(),id='SIM01',start='2026-10-18T08:00:00Z',end='2026-10-18T08:10:00Z',instrument='SYNTHETIC GNSS',corrections='Constructed GPS-UTC = 18 s, BDT = GPST - 14 s; no atmosphere.')]
+    for name,text,role,point in (('base',observations(moving,True,systems,calibrated),'BASE','SIM_BASE'),('rover',observations(moving,False,systems,calibrated),'ROVER','SIM_ROVER'),('navigation',navigation(systems),'NAV','')):
         path=folder/(name+'.rnx'); path.write_text(text,encoding='ascii',newline='\n')
         project=r.plan_import(project,r.read_source(path),r.ImportReview(role=role,point=point,session='SIM01' if point else '',
             utc_offset_seconds=18 if point else None,time_evidence='Constructed GPS minus UTC = 18 seconds.',
-            antenna_evidence='SYNTHETIC zero antenna offsets/patterns; simulated electrical endpoints.',
+            antenna_evidence='SYNTHETIC invented ANTEX and marker-to-ARP offsets.' if calibrated else 'SYNTHETIC zero antenna offsets/patterns; simulated electrical endpoints.',
             note='Ideal constructed software test, not field measurements.',synthetic=True,confirmed=True))
     n.save_project(folder/'example.sanet.json',project)
+    if calibrated:
+        payload=antenna.subset([('SIM_BASEANT     NONE',synthetic_model(True)),('SIM_ROVERANT    NONE',synthetic_model(False))])
+        (folder/'synthetic.atx').write_bytes(payload.replace(header('','END OF HEADER').encode('ascii'),(header('SYNTHETIC INVENTED MODELS - NOT REAL ANTENNA CALIBRATION','COMMENT')+header('','END OF HEADER')).encode('ascii'),1))
     (folder/'truth.json').write_text(json.dumps(dict(synthetic=True,moving=moving,base_xyz=BASE,
-        rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),
+        rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),systems=list(systems),calibrated=calibrated,
         caution='Ideal synthetic integration fixture; cannot establish field accuracy.'),indent=2)+'\n',encoding='utf-8')
     return project

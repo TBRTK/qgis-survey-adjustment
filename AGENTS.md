@@ -20,6 +20,10 @@ Do not reimplement import audit/fingerprint checks in a raw-processing module.
 See docs/GNSS_SOLUTIONS_AND_VRS.txt for the agreed scope. This direction does not
 mean arbitrary raw engines or VRS are supported. Version 0.9.0 adds the raw
 catalogue; 0.10.0 adds explicitly reviewed RTKLIB EX 2.5.1 GPS relative processing.
+0.11.0 extends that flow with GPS/Galileo/BeiDou and strict GPS-only ANTEX 1.4
+receiver models. Never apply GPS patterns to other constellations. Require exact
+antenna/radome/serial/generic/validity selection; no engine fallback. Preserve
+original and selected calibration hashes, H/E/N and every constellation used.
 The pinned BSD-2-Clause external binary remains separate from the GPL plugin.
 Preserve original engine POS/covariance, raw occupation identity, base coordinates,
 antenna offsets and processing audit. Static/PPK epochs are correlated; no
@@ -33,7 +37,7 @@ Keep external source files, raw catalogue projects and source paths private.
 
 The user requires a clear AS IS / no-warranty / liability-limitation notice in
 every version posted on GitHub. Preserve this in README, NOTICE, and release
-notes, qualified by GPLv3 sections 15–17 and applicable law. Retain GPL-3.0-only,
+notes, qualified by GPLv3 sections 15â€“17 and applicable law. Retain GPL-3.0-only,
 the license file, and correct attribution. Do not imply official SALSA/Emlid
 endorsement. Engine binaries and dependencies are not part of this plugin ZIP.
 Keep the user's Support and License footer at the end of both root and packaged

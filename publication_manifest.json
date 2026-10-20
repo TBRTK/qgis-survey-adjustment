@@ -26,6 +26,7 @@
     "survey_adjustment/NOTICE.txt",
     "survey_adjustment/README.txt",
     "survey_adjustment/__init__.py",
+    "survey_adjustment/antenna.py",
     "survey_adjustment/baseline_ui.py",
     "survey_adjustment/baselines.py",
     "survey_adjustment/coordinate_job.py",
@@ -70,6 +71,7 @@
     "survey_adjustment/rinex.py",
     "survey_adjustment/rinex_ui.py",
     "survey_adjustment/version.py",
+    "tests/test_antenna.py",
     "tests/test_baseline_qgis.py",
     "tests/test_baselines.py",
     "tests/test_coordinate_job.py",
@@ -77,6 +79,7 @@
     "tests/test_delivery.py",
     "tests/test_delivery_qgis.py",
     "tests/test_engine.py",
+    "tests/test_gnss_multisystem.py",
     "tests/test_gnss_processing.py",
     "tests/test_gnss_processing_qgis.py",
     "tests/test_mixed_survey.py",
@@ -148,7 +151,8 @@
     "survey_adjustment/gnss_processing.py": "survey_adjustment/gnss_processing.py",
     "survey_adjustment/gnss_processing_ui.py": "survey_adjustment/gnss_processing_ui.py",
     "survey_adjustment/gnss_demo.py": "survey_adjustment/gnss_demo.py",
-    "survey_adjustment/PPK_STATIC.txt": "docs/PPK_STATIC.txt"
+    "survey_adjustment/PPK_STATIC.txt": "docs/PPK_STATIC.txt",
+    "survey_adjustment/antenna.py": "survey_adjustment/antenna.py"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {

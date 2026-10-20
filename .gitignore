@@ -61,3 +61,7 @@ output/
 release_audit/
 local_settings.json
 .gitleaks.json
+
+# Local receiver antenna calibration datasets
+*.atx
+*.ATX

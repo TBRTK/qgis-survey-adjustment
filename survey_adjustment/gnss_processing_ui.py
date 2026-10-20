@@ -26,7 +26,7 @@ class ProcessingDialog(QDialog):
         self.process=None;self.folder=None;self.result=None;self.source=None;self.layers={};self.aborted=False;self.preparing=False
         self.setWindowTitle('GNSS PPK / static — external RTKLIB job');self.resize(1120,850)
         layout=QVBoxLayout(self)
-        label=QLabel('Process existing RINEX links locally. GPS broadcast L1/L2 first profile. PPK produces a trajectory; static produces correlated filter states. Nothing is imported automatically. Base coordinates must be independently documented.')
+        label=QLabel('Process existing RINEX links locally: GPS, optional Galileo E1/E5b and BeiDou B1I/B2I. Receiver ANTEX calibration is GPS-only in this engine. PPK trajectories and static filter states are correlated; review one stationary occupation through the existing baseline import.')
         label.setWordWrap(True);layout.addWidget(label)
         page=QWidget();form=QGridLayout(page);self.controls=page
         self.executable=QLineEdit(str(QSettings().value('SurveyAdjustment/rtklib_ex251','')))
@@ -40,26 +40,40 @@ class ProcessingDialog(QDialog):
         form.addWidget(QLabel('Fixed base ECEF XYZ'),5,0);form.addWidget(self.base_xyz,5,1,1,4)
         self.frame=combo({'':'Select documented ECEF frame','EPSG:4978':'WGS84 ECEF — no realisation/epoch transform','EPSG:4936':'ETRS89 ECEF — requires independent evidence'})
         form.addWidget(QLabel('Declared frame'),6,0);form.addWidget(self.frame,6,1,1,4)
-        self.frequency=combo({1:'GPS L1',2:'GPS L1+L2'},2)
+        self.frequency=combo({1:'First frequency slot',2:'Two frequency slots'},2)
         self.atmosphere=combo({'broadcast/saas':'Broadcast ionosphere / Saastamoinen','ideal-synthetic':'SYNTHETIC ONLY — no atmosphere'})
         form.addWidget(self.frequency,7,0,1,2);form.addWidget(self.atmosphere,7,2,1,3)
         self.elevation=QDoubleSpinBox();self.elevation.setRange(10,45);self.elevation.setValue(15)
         self.ratio=QDoubleSpinBox();self.ratio.setRange(3,10);self.ratio.setValue(3)
         form.addWidget(QLabel('Elevation mask °'),8,0);form.addWidget(self.elevation,8,1)
         form.addWidget(QLabel('AR ratio threshold'),8,2);form.addWidget(self.ratio,8,3)
-        self.antenna_note=QLineEdit();self.antenna_note.setPlaceholderText('Header H/E/N offsets are applied to marker endpoints. Review ARP/mark and missing antenna PCV/PCO calibration.')
+        self.antenna_note=QLineEdit();self.antenna_note.setPlaceholderText('Review marker-to-ARP H/E/N, antenna installation/orientation and the selected PCO/PCV model or its explicit absence.')
         self.model_note=QLineEdit();self.model_note.setPlaceholderText('Base provenance/uncertainty, coordinate epoch, broadcast model limits, dependence and intended use. FIX is not accuracy.')
         form.addWidget(QLabel('Antenna / endpoints'),9,0);form.addWidget(self.antenna_note,9,1,1,4)
         form.addWidget(QLabel('Model / frame evidence'),10,0);form.addWidget(self.model_note,10,1,1,4)
+        self.systems={s:QCheckBox(p.SYSTEMS[s][0]) for s in p.SYSTEMS}
+        self.systems['G'].setChecked(True);self.systems['G'].setEnabled(False)
+        system_row=QHBoxLayout()
+        for field in self.systems.values():system_row.addWidget(field)
+        form.addWidget(QLabel('Satellite systems'),11,0);form.addLayout(system_row,11,1,1,4)
+        self.calibration=combo({'none':'Explicitly uncalibrated — header H/E/N only','antex':'Receiver ANTEX PCO + NOAZI PCV — GPS only'})
+        form.addWidget(QLabel('Receiver calibration'),12,0);form.addWidget(self.calibration,12,1,1,4)
+        self.antex=QLineEdit();self.antex.setPlaceholderText('Local absolute ANTEX 1.4; exact antenna + radome, serial/generic model, entire occupation valid')
+        choose_antex=QPushButton('Choose ANTEX …');choose_antex.clicked.connect(self.choose_antex)
+        form.addWidget(QLabel('ANTEX file'),13,0);form.addWidget(self.antex,13,1,1,3);form.addWidget(choose_antex,13,4)
+        self.calibration_note=QLineEdit();self.calibration_note.setPlaceholderText('Source/version and usage rights; verify antenna serial, radome, mounting, north orientation and ARP height')
+        form.addWidget(QLabel('Calibration evidence'),14,0);form.addWidget(self.calibration_note,14,1,1,4)
+        hint=QLabel('Slots: GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I. GPS is required. Other bands and GLONASS are excluded. ANTEX: absolute DAZI=0, zenith 0–90° in 5° steps. Mixed-system calibration is blocked because this engine would reuse GPS patterns. No antenna/radome fallback or model download.')
+        hint.setWordWrap(True);form.addWidget(hint,15,0,1,5)
         self.reference_help=QLabel()
-        self.reference_help.setWordWrap(True);form.addWidget(self.reference_help,11,0,1,5)
+        self.reference_help.setWordWrap(True);form.addWidget(self.reference_help,16,0,1,5)
         self.base_review=QCheckBox('I verified the fixed base coordinates, physical point, frame and coordinate epoch')
-        self.antenna_review=QCheckBox('I reviewed header H/E/N, marker endpoints and the absence of antenna calibration')
+        self.antenna_review=QCheckBox('I verified header H/E/N, marker endpoints and the selected antenna model or its explicit absence')
         self.model_review=QCheckBox('I reviewed model limits and dependence; FIX/formal covariance are not absolute accuracy')
         self.license_review=QCheckBox('I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
-        for row,field in enumerate((self.base_review,self.antenna_review,self.model_review,self.license_review),12):form.addWidget(field,row,0,1,5)
+        for row,field in enumerate((self.base_review,self.antenna_review,self.model_review,self.license_review),17):form.addWidget(field,row,0,1,5)
         link=QLabel('<a href="'+p.ENGINE_LICENSE+'">RTKLIB licence</a> · <a href="'+p.ENGINE_RELEASE+'">Reviewed engine release</a> — engine binary is not part of the plugin ZIP')
-        link.setOpenExternalLinks(True);form.addWidget(link,16,0,1,5)
+        link.setOpenExternalLinks(True);form.addWidget(link,21,0,1,5)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);scroll.setMaximumHeight(400);layout.addWidget(scroll)
         row=QHBoxLayout();self.example_button=QPushButton('New synthetic example for selected mode …');self.example_button.clicked.connect(self.example)
         self.run_button=QPushButton('Run local PPK / static …');self.run_button.clicked.connect(self.start)
@@ -84,14 +98,15 @@ class ProcessingDialog(QDialog):
         self.handoff=QPushButton('Review solution through existing baseline import …');self.handoff.setEnabled(False);self.handoff.clicked.connect(self.review_baseline);layout.addWidget(self.handoff)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.stop)
-        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note):field.textChanged.connect(self.invalidate)
-        for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere):field.currentIndexChanged.connect(self.invalidate)
+        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note):field.textChanged.connect(self.invalidate)
+        for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere,self.calibration):field.currentIndexChanged.connect(self.invalidate)
+        for field in self.systems.values():field.toggled.connect(self.invalidate)
         for field in (self.elevation,self.ratio):field.valueChanged.connect(self.invalidate)
         for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.toggled.connect(self.invalidate)
         self.populate()
 
     def populate(self):
-        self.reference_help.setText('Network coordinate epoch: '+(self.project['epoch'] or 'MISSING')+'. Fixed base uncertainty is excluded. Header H/E/N is applied; antenna calibration and tides are not. Frame selection is a declaration, never a transformation. Keep originals and this local result folder together.')
+        self.reference_help.setText('Network coordinate epoch: '+(self.project['epoch'] or 'MISSING')+'. Fixed base uncertainty is excluded. Header H/E/N is applied separately from ANTEX. Tides and satellite calibration are excluded. Frame selection is a declaration, never a transformation. Keep originals and this local result folder together.')
         for combo_,role in ((self.base,'BASE'),(self.rover,'ROVER'),(self.navigation,'NAV')):
             combo_.clear();combo_.addItem('Select existing '+role+' source','')
             for source in self.project.get('raw_sources',[]):
@@ -105,6 +120,8 @@ class ProcessingDialog(QDialog):
             mode=self.mode.currentData(),base_xyz=coordinates,frame=self.frame.currentData(),epoch=self.project['epoch'],
             frequencies=self.frequency.currentData(),elevation=self.elevation.value(),ratio=self.ratio.value(),atmosphere=self.atmosphere.currentData(),
             antenna_note=self.antenna_note.text().strip(),model_note=self.model_note.text().strip(),
+            systems=tuple(s for s,field in self.systems.items() if field.isChecked()),calibration=self.calibration.currentData(),
+            antex_path=self.antex.text().strip(),calibration_note=self.calibration_note.text().strip(),
             base_reviewed=self.base_review.isChecked(),antenna_reviewed=self.antenna_review.isChecked(),model_reviewed=self.model_review.isChecked(),license_reviewed=self.license_review.isChecked())
 
     def invalidate(self,*_):
@@ -117,18 +134,27 @@ class ProcessingDialog(QDialog):
         path,_=QFileDialog.getOpenFileName(self,'Choose reviewed RTKLIB EX 2.5.1','','RTKLIB (rnx2rtkp.exe)')
         if path:self.executable.setText(path)
 
+    def choose_antex(self):
+        path,_=QFileDialog.getOpenFileName(self,'Choose local absolute receiver ANTEX','','ANTEX (*.atx *.ATX)')
+        if path:self.antex.setText(path)
+
     def example(self):
         if not self.owner.maybe_leave():return False
-        parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW constructed GPS example')
+        systems=tuple(s for s,field in self.systems.items() if field.isChecked());calibrated=self.calibration.currentData()=='antex'
+        if calibrated and systems!=('G',):
+            self.status.setText('Select GPS only for the ANTEX example. This engine cannot apply constellation-specific receiver patterns.');return False
+        parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW constructed GNSS example')
         if not parent:return False
         try:
-            folder=Path(parent)/('Synthetic_GPS_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
-            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic')
+            folder=Path(parent)/('Synthetic_GNSS_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic',systems=systems,calibrated=calibrated)
             self.owner.replace_project(self.project,folder/'example.sanet.json');self.populate()
             self.base_xyz.setText(' '.join(f'{v:.8f}' for v in demo.BASE));self.frame.setCurrentIndex(self.frame.findData('EPSG:4978'))
             self.atmosphere.setCurrentIndex(self.atmosphere.findData('ideal-synthetic'))
-            self.antenna_note.setText('SYNTHETIC electrical endpoints; zero H/E/N and antenna patterns.')
-            self.model_note.setText('SYNTHETIC circular GPS orbits, ideal signals, no atmosphere; WGS84 ellipsoid test coordinates only. Not field accuracy.')
+            self.antenna_note.setText('SYNTHETIC marker endpoints; base/rover H=1/2 m; invented PCO and NOAZI PCV.' if calibrated else 'SYNTHETIC electrical endpoints; zero H/E/N and antenna patterns.')
+            self.antex.setText(str(folder/'synthetic.atx') if calibrated else '')
+            self.calibration_note.setText('Own invented ANTEX models, no real receiver calibration. Constructed north-oriented antenna offsets for this integration test.' if calibrated else '')
+            self.model_note.setText('SYNTHETIC circular '+''.join(systems)+' orbits, ideal signals, no atmosphere; WGS84 ellipsoid test coordinates only. Not field accuracy.')
             for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.setChecked(False)
             self.status.setText('Constructed example created in the existing network. Review fields and confirmations before running. Original user project was not overwritten.')
             return True
@@ -204,7 +230,11 @@ class ProcessingDialog(QDialog):
             layer.renderer().setSymbol(QgsMarkerSymbol.createSimple({'name':'circle','color':'#177e89','size':'2'}))
             self.layers={'points':layer};self.canvas.setLayers([layer]);self.canvas.setExtent(layer.extent().buffered(.0001));self.canvas.show();self.canvas.refresh()
             esc=lambda value:html.escape(str(value))
-            self.report.setHtml('<h3>'+esc(p.ENGINE_VERSION)+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p><ul>'+''.join('<li>'+esc(s)+'</li>' for s in p.WARNINGS)+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
+            used=self.result.get('used_satellites',{});calibration=self.result.get('calibration')
+            audit='<p>Valid engine residuals: '+esc('; '.join(s+': '+', '.join(ids) for s,ids in used.items()))+'</p>'
+            if calibration:
+                audit+='<p>Applied receiver ANTEX: '+esc('; '.join(key+': '+calibration[key]['type']+' ('+calibration[key]['selection']+')' for key in ('base','rover')))+'. Original SHA256 '+esc(calibration['original_sha256'])+'.</p>'
+            self.report.setHtml('<h3>'+esc(p.ENGINE_VERSION)+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
             self.open_button.setEnabled(True);self.handoff.setEnabled(self.result['eligible_fix']>0)
             self.status.setText('Engine completed: '+str(self.result['epochs'])+' epochs; '+str(self.result['eligible_fix'])+' eligible FIX. Input/output integrity checked; review limitations. No baseline added.')
         except (ValueError,OSError) as error:

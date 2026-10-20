@@ -65,6 +65,27 @@ class ProcessingQgisTests(unittest.TestCase):
         self.dialog.model_note.setText('Changed review');self.assertIsNone(self.dialog.result)
         self.assertFalse(self.dialog.layers);self.assertTrue(self.dialog.canvas.isHidden());self.assertFalse(self.dialog.handoff.isEnabled())
 
+    def test_multisystem_example_reuses_existing_project_and_qprocess_with_used_satellites(self):
+        dialog=self.dialog
+        for s in ('E','C'):dialog.systems[s].setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        self.assertEqual(dialog.options().systems,('G','E','C'));self.assertFalse(dialog.base_review.isChecked())
+        self.fill();self.start()
+        self.assertEqual(set(dialog.result['used_satellites']),{'G','E','C'})
+        self.assertIn('E02',dialog.report.toPlainText());self.assertIn('C07',dialog.report.toPlainText())
+        self.assertEqual(len(self.owner.project['raw_sources']),3);self.assertFalse(self.owner.project['observations'])
+
+    def test_antex_example_calibration_report_height_and_mixed_system_block(self):
+        from survey_adjustment.coordinate_job import llh
+        dialog=self.dialog;dialog.calibration.setCurrentIndex(dialog.calibration.findData('antex'))
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        for field in (dialog.base_review,dialog.antenna_review,dialog.model_review,dialog.license_review):self.assertFalse(field.isChecked());field.setChecked(True)
+        self.start();self.assertIn('Applied receiver ANTEX',dialog.report.toPlainText())
+        self.assertAlmostEqual(llh(dialog.source['rows'][-1]['values'],'EPSG:4979')[2],llh(d.rover_at(600,False),'EPSG:4979')[2],delta=.04)
+        dialog.systems['E'].setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory') as picker:self.assertFalse(dialog.start());self.assertFalse(picker.called)
+        self.assertIn('multiple systems',dialog.status.text());self.assertFalse(dialog.handoff.isEnabled())
+
     def test_cancelled_or_closed_job_is_marked_aborted(self):
         with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertTrue(self.dialog.start())
         deadline=time.monotonic()+10
