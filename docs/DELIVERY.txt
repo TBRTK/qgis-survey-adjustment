@@ -1,0 +1,141 @@
+NORWEGIAN REFERENCE REVIEW AND TRACEABLE LOCAL DELIVERY
+Survey Adjustment 0.8.0 / QGIS 4
+
+Open Network project -> Norwegian reference review / delivery package.
+Or open Norwegian reference review / delivery after a verified GNSS-network
+or mixed-survey SALSA calculation. A preview without SALSA is not accepted.
+Use the separately installed, unchanged solver used for the calculation.
+Opening a completed run validates hashes, independently reproduces the model
+and checks SALSA output without executing the solver or rewriting the run.
+
+QUICK START
+1. Finish a GNSS-network or mixed-survey calculation with Run SALSA and verify.
+2. Open the delivery workflow; select the completed folder's quality.json.
+3. Declare the actual input height basis. Legacy NN2000 requires an explicit
+   NN2000:2018 or NN2000:2025 choice, supported by project documentation.
+4. Choose the output UTM 31-36 or NTM 5-30 projection and height reference.
+5. Fill the reference evidence, reviewer, recipient/specification, purpose,
+   uncertainty review and manual change/exclusion log. Help appears beside
+   each field. The reviewer field records a statement, not a certification.
+6. For a height conversion choose the required local, reviewed HREF GeoTIFF(s).
+   Retaining a height reference applies no HREF at all.
+7. Read and select the explicit review confirmation. Check references / preview
+   delivery shows source, adjusted and delivered coordinates, acquisition
+   times, reference choices, operations, offsets and limitations.
+8. Create local delivery package in a selected existing parent folder.
+   Every delivery uses a new folder. Original inputs/results are preserved.
+9. Check an existing delivery package verifies file hashes, CSV contents,
+   PointZ coordinates/heights and horizontal/vertical reference metadata.
+
+REFERENCE EVIDENCE
+Input E/N must already be in the national EUREF89 realisation. This workflow
+does not turn a WGS84/ITRF label into EUREF89, or prove reference identity from
+coordinate magnitudes. Document the control source and any prior transformation.
+The original CRS identifier and full calculation provenance remain unchanged.
+UTM/NTM output uses explicit GRS80 inverse/forward projection formulas, never
+an automatically selected frame-shift operation. E/N are always Easting then
+Northing, metres. Z is point/mark height, positive upward, in the stated basis.
+
+The coordinate epoch is the date recorded in the original calculation snapshot.
+Explain its source in Epoch evidence. Acquisition-session times are recorded
+separately in UTC. An observation date, a receiver filename and a reference-
+frame anchor epoch are not interchangeable. No deformation/time-dependent
+transformation or coordinate re-epoching is implemented here. If the original
+epoch is wrong, correct a separate network snapshot with documented evidence
+and recalculate; do not relabel a completed run as another epoch.
+
+Document antenna/mark reference points and reductions in Height evidence.
+An NN2000 input is not an ellipsoidal input; do not subtract HREF twice.
+NN54 and LOCAL heights may be retained, but cannot be converted in this profile.
+LOCAL heights have explicit attributes; no national vertical CRS is assigned.
+
+HREF MODEL SELECTION
+Kartverket's guidance reviewed 2026-10-20 identifies HREF2025A as official from
+2026-10-14, with the output label NN2000:2025. HREF2018B produces NN2000:2018.
+The change affects parts of western/southern Norway. Established projects may
+need their existing model for continuity; document the recipient's selection.
+Do not switch models silently. Guidance and coverage:
+https://www.kartverket.no/til-lands/posisjon/href-hoydereferansemodeller-og-transformasjonsmodeller
+
+Only these exact reviewed OSGeo PROJ-data GeoTIFF versions are accepted:
+NN2000:2018: no_kv_HREF2018B_NN2000_EUREF89.tif
+SHA256 112a42506e079a9c3f7a7a134729e4160494b101f5a9a8bcd6f5e99852b52275
+NN2000:2025: no_kv_HREF2025A_NN2000_EUREF89.tif
+SHA256 6005c5bfb7c6b87e4dbb4c4f75fa589bd8fbceef71b711220bf173fab5fbb9f7
+Source revision: OSGeo/PROJ-data cdab44864a36a9f3c3e90a36637c5d8a86e624c6
+https://github.com/OSGeo/PROJ-data/tree/cdab44864a36a9f3c3e90a36637c5d8a86e624c6/no_kv
+Attribution: Kartverket (Norwegian Mapping Authority), GeoTIFF conversion via
+OSGeo PROJ-data. License: Creative Commons Attribution 4.0:
+https://creativecommons.org/licenses/by/4.0/
+
+Obtain models separately from the official source; choose local files in the
+dialog. Some QGIS installations include the exact 2018 model in share/proj.
+No model is bundled with the plugin ZIP and the plugin never downloads one.
+A matching filename or a user-entered hash cannot approve unknown model bytes.
+Supporting another conversion/version requires a reviewed code/registry update.
+
+For each required model PROJ uses a mandatory, exact local vgridshift operation.
+The correction is independently checked by GDAL bilinear raster interpolation.
+H = h - N; h = H + N. Conversion between the two NN2000 versions goes through
+ellipsoidal height using both models at the same horizontal position.
+Missing/changed grids, no-data corners, points outside interpolation coverage,
+non-finite results or disagreement stop export. There is no constant offset,
+optional-grid, network-grid or ballpark fallback. Mainland profile bounds do
+not prove coverage; the individual grid is checked too. Svalbard and offshore
+extrapolation are not supported. Roundtrip agreement is a transfer check,
+not independent proof of a model's field accuracy.
+
+The installed CRS database may predate EPSG:11394. The exporter supplies an
+explicit vertical WKT for NN2000:2025 (EPSG:11394 / datum EPSG:1454) in that
+case. It does not substitute NN2000:2018. Actual conversion always uses the
+selected hash-verified grid. Full source/output projection formulas, model
+identity and runtime versions are retained in the delivery metadata.
+
+CONTENTS AND AUDIT SCOPE
+delivery.json: declarations, acquisition times, coordinate epoch, full review,
+manual change log, model sources/hashes, runtime versions, operations, exact
+source/adjusted/delivered coordinates, warnings and synthetic/real classification.
+coordinates.csv: the three coordinate stages with explicit source/output CRS,
+height references, coordinate epoch, synthetic flag and uncertainty limitation.
+coordinates.gpkg: source_points, adjusted_points, delivery_points, all PointZ;
+height/epoch metadata remain attached. A held-out CHECK without an adjusted
+position stays outside the delivery-point layer, never promoted to a fitted point.
+calculation/: the original, unchanged recorded source snapshot, measurements,
+weights/covariance, settings, exclusions and reasons, engine/input/output evidence
+and reports. The solver executable and its dependencies are not copied.
+models/: the exact HREF files used, for local reproducibility, with attribution
+and license links in delivery.json. No model is copied if none is applied.
+delivery.txt/html: readable review, scope and limitations.
+checksums.json: exact members and SHA256; added/missing/changed files are rejected.
+LICENSE, NOTICE.txt, DISCLAIMER.txt: plugin rights and qualified AS IS notice.
+
+The package is created under a new .incomplete directory and is renamed only
+after readback succeeds. Failed output must remain marked incomplete. Reopening
+a package for integrity checking never executes a solver or arbitrary content.
+Checksums are not signatures: someone able to rewrite every file and manifest
+can create another internally consistent package. Verification does not prove
+authorship, chain of custody, recipient acceptance or professional survey approval.
+The manual change log complements the saved snapshot; historical edits predating
+that snapshot cannot be reconstructed or independently verified by this plugin.
+
+UNCERTAINTY
+The original report preserves the full fitted covariance and stated assumptions.
+Delivered-coordinate covariance is NOT propagated through projection/HREF, and
+model uncertainty is not guessed. No output sigma/accuracy is manufactured.
+Assess model/reference/epoch/control errors and dependence separately before
+professional use. A successful conversion and matching file readback do not
+certify positional accuracy. Statistical warnings in the original report remain.
+
+PRIVACY AND LICENSE
+All processing is local. A package may contain precise real coordinates, source
+paths and reviewer/project information. It is not a GitHub release artifact.
+Only reviewed plugin source/docs and constructed examples may be published.
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. The plugin is independent of Kartverket, QGIS and SALSA.
+
+Additional primary references:
+https://kartverket.github.io/transformasjoner/_pages/epsg_codes
+https://proj.org/en/stable/operations/transformations/vgridshift.html
+https://pyproj4.github.io/pyproj/stable/api/transformer.html

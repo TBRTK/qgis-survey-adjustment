@@ -39,3 +39,14 @@ horizontal/vertical intervals are separate marginal regions. Preserve original
 records/provenance, unmapped/excluded visibility and read-only run comparison.
 Never infer significance from correlated alternative-run coordinate differences.
 Real map packages/screenshots remain local, outside the publication allowlist.
+
+Norwegian delivery review is a separate local snapshot workflow. Require evidence
+for national EUREF89, coordinate epoch versus acquisition times, explicit height
+version and model/uncertainty assumptions. Preserve original and adjusted points.
+HREF conversion accepts only reviewed official hashes and mandatory local grids;
+never auto-approve another model, download grids, select ballpark fallback or infer
+frame/epoch shifts. Preserve NN2000:2018/2025 distinction and project continuity.
+Keep real delivery folders and HREF binaries outside public distribution. Preserve
+model attribution/license in local packages. Output-coordinate covariance is not
+propagated in this profile: do not present original sigmas as transformed accuracy.
+Checksums/readback are integrity checks, not authenticity or delivery certification.

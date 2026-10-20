@@ -56,6 +56,8 @@ class NetworkQualityDialog(QDialog):
         layout.addLayout(row)
         self.map_button=QPushButton('Network map / confidence ellipses …'); self.map_button.setEnabled(False)
         self.map_button.clicked.connect(self.open_map); layout.addWidget(self.map_button)
+        self.delivery_button=QPushButton('Norwegian reference review / delivery …'); self.delivery_button.setEnabled(False)
+        self.delivery_button.clicked.connect(self.open_delivery); layout.addWidget(self.delivery_button)
         self.status=QLabel('Review the model, then preview. No calculation has been run.'); self.status.setWordWrap(True); layout.addWidget(self.status)
         self.tabs=QTabWidget(); layout.addWidget(self.tabs,1)
         self.overview=QTextBrowser(); self.tabs.addTab(self.overview,'Overview / warnings')
@@ -88,6 +90,7 @@ class NetworkQualityDialog(QDialog):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning: self.stop()
         self.result=self.preview_analysis=None; self.open_button.setEnabled(False)
         self.map_button.setEnabled(False)
+        self.delivery_button.setEnabled(False)
         self.status.setText('Settings changed. Preview or run again; earlier displayed tables are not current results.')
         for table in (self.point_table,self.residual_table,self.check_table): table.setRowCount(0)
         self.overview.clear()
@@ -151,10 +154,17 @@ class NetworkQualityDialog(QDialog):
             if n.dumps_project(self.owner.snapshot())!=n.dumps_project(self.project):
                 raise ValueError('Network changed during calculation. Reopen this workflow; current project has no verified result.')
             self.result=q.inspect_network_result(self.folder,exit_code,self.program)
+            self.delivery_button.setEnabled(True)
             self.show_report(self.result); self.open_button.setEnabled(True); self.map_button.setEnabled(True)
             self.status.setText('SALSA VERIFIED against independent coordinates, covariance and statistics. Review warnings and held-out checks. Local report: '+str(self.folder))
         except Exception as error:
             self.result=None; self.open_button.setEnabled(False); self.map_button.setEnabled(False); self.status.setText('No verified result: '+str(error))
+
+    def open_delivery(self):
+        if self.result and self.result.get('engine_confirmation') and self.folder:
+            from .delivery_ui import DeliveryDialog
+            dialog=DeliveryDialog(self,self,self.folder/'quality.json')
+            dialog.exec(); dialog.deleteLater()
 
     def stop(self):
         self.aborted=True; self.result=None; self.open_button.setEnabled(False)

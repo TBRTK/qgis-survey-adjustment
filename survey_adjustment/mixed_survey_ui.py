@@ -68,6 +68,8 @@ class MixedSurveyDialog(QDialog):
         for button in (self.preview_button,self.run_button,self.stop_button,self.map_button,self.folder_button): row.addWidget(button)
         layout.addLayout(row)
         self.status=QLabel('Load an example or open a survey CSV, review the model, then calculate.'); self.status.setWordWrap(True); layout.addWidget(self.status)
+        self.delivery_button=QPushButton('Norwegian reference review / delivery …'); self.delivery_button.setEnabled(False)
+        self.delivery_button.clicked.connect(self.open_delivery); layout.addWidget(self.delivery_button)
         self.tabs=QTabWidget(); layout.addWidget(self.tabs,1)
         self.overview=QTextBrowser(); self.tabs.addTab(self.overview,'Overview / model warnings')
         self.source_table=NetworkQualityDialog.table(['ID','Kind','Session','From / station','To','Backsight','Value','Unit','1-sigma','HI','HT','Back HT','Use / enabled'])
@@ -107,6 +109,7 @@ class MixedSurveyDialog(QDialog):
     def invalidate(self,*_):
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning: self.stop()
         self.result=None; self.dirty=True; self.map_button.setEnabled(False); self.folder_button.setEnabled(False)
+        self.delivery_button.setEnabled(False)
         self.overview.clear()
         for table in (self.point_table,self.residual_table,self.check_table): table.setRowCount(0)
         self.status.setText('Settings changed. Check the CSV or calculate again; old results are no longer current.')
@@ -232,6 +235,7 @@ class MixedSurveyDialog(QDialog):
             if self.aborted: raise ValueError('Calculation stopped; do not use partial results.')
             if m.dumps(self.current_job())!=m.dumps(self.job): raise ValueError('Settings changed during calculation; run again.')
             self.result=m.inspect_result(self.folder,exit_code,self.program); self.show_report(self.result)
+            self.delivery_button.setEnabled(True)
             self.map_button.setEnabled(True); self.folder_button.setEnabled(True)
             self.status.setText('SALSA verified against the independent model. Read warnings and held-out checks; this is not survey approval.')
         except Exception as error:
@@ -287,6 +291,12 @@ class MixedSurveyDialog(QDialog):
             self.host.iface.setActiveLayer(point_layer); canvas.setExtent(extent); canvas.refresh()
             return True
         except Exception as error: self.status.setText('Cannot show mixed snapshot: '+str(error)); return False
+
+    def open_delivery(self):
+        if self.result and self.result.get('engine_confirmation') and self.folder:
+            from .delivery_ui import DeliveryDialog
+            dialog=DeliveryDialog(self,self,self.folder/'quality.json')
+            dialog.exec(); dialog.deleteLater()
 
     def open_folder(self):
         if self.result and self.folder: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.folder)))

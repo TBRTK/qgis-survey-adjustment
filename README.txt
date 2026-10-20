@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.7.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.8.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,30 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.7.0
+WHAT CHANGED IN 0.8.0
+Adds Norwegian reference review and traceable local delivery from completed,
+verified GNSS-network and mixed-survey SALSA runs. Frame/coordinate-epoch/
+height evidence, recipient/specification, purpose, reviewer, uncertainty review
+and manual change/exclusion log are mandatory. Acquisition-session timestamps
+are separate from coordinate epoch. Original calculations are never rewritten.
+
+Explicit same-frame EUREF89 UTM/NTM projection and HREF2018B/HREF2025A height
+conversion preserve source, adjusted and delivered coordinates separately.
+Choose NN2000:2018 or NN2000:2025; no automatic model switch. Exact reviewed
+local GeoTIFF hashes, independent raster interpolation and coverage/no-data
+checks prevent missing-grid or ballpark fallback. Models are obtained separately,
+not bundled in the plugin. The plugin performs no network download or upload.
+
+A new local delivery folder contains unchanged calculation evidence, selected
+models with attribution/license, explicit references/epoch, CSV, three PointZ
+GeoPackage layers, readable reports and exact checksums. Coordinate, Z and CRS
+readback is checked before accepting the folder. A separate package checker
+reproduces the recorded coordinate operation; checksums are not signatures or
+survey approval. Output-coordinate uncertainty is NOT propagated. Original
+covariance remains in the calculation report. See docs/DELIVERY.txt in source,
+or DELIVERY.txt / Help and model references in the installed English dialog.
+
+FEATURES FROM 0.7.0
 Adds a receiver-neutral CSV workflow for mixed total-station/GNSS observations
 and a separate 1D levelling workflow. Open Network project -> Mixed survey /
 total station and levelling. Read MIXED_SURVEY.txt (docs/MIXED_SURVEY.txt in
@@ -46,7 +69,7 @@ available. The plugin remains separate from SOSI Survey.
 
 INSTALLATION
 In QGIS 4: Plugins > Manage and Install Plugins > Install from ZIP.
-Select survey_adjustment-0.7.0.zip and enable the plugin. The Python package
+Select survey_adjustment-0.8.0.zip and enable the plugin. The Python package
 is survey_adjustment. SOSI Survey remains a separate plugin.
 Select the separately installed SALSA lsasolver on tab 3. Keep the full SALSA
 folder with its own DLLs; a standalone lsasolver.exe is usually insufficient.
@@ -503,7 +526,7 @@ professional approval of the measurements.
 
 LIMITS AND FURTHER VALIDATION
 No raw RINEX processing, VRS synthesis, automatic raw direction-set/face decoding,
-cross-observation/session covariance, geoid/NN2000/datum/epoch transformation
+cross-observation/session covariance, general datum/epoch transformation or DOV correction
 or professional delivery approval is implemented. Baseline import is limited
 to the documented processed POS/relative-vector CSV profiles. Actual Emlid
 Studio FIX/FLOAT/SINGLE files were tested locally; this does not validate every

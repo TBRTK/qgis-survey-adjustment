@@ -496,7 +496,7 @@ def prepare(folder, job, program):
     return report
 
 
-def inspect_result(folder, exit_code, program):
+def inspect_result(folder, exit_code, program, write=True):
     folder=Path(folder); program=engine.solver_program(program)
     source=(folder/'mixed.samix.json').read_bytes(); data=(folder/'input.dat').read_bytes()
     metadata=json.loads((folder/'input_metadata.json').read_text(encoding='utf-8'))
@@ -543,7 +543,7 @@ def inspect_result(folder, exit_code, program):
         maximum_position_difference_m=maximum,covariance_comparison='Rounded SALSA text checked within 1% or 1e-11 m2; no APV rescaling.',
         source_sha256=digest(source),input_sha256=digest(data),engine_sha256=engine.sha256(program),output_sha256=engine.sha256(output))
     report['engine_warnings']=[line.strip() for line in text.splitlines() if re.match(r'^\s*Warning\b',line,re.I)]
-    write_results(folder,report)
+    if write: write_results(folder,report)
     return report
 
 

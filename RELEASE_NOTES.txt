@@ -1,3 +1,44 @@
+Survey Adjustment 0.8.0 - Norwegian reference review and traceable delivery
+
+Adds mandatory delivery reference evidence and separate coordinate/acquisition
+epoch recording. Completed GNSS-network or mixed SALSA runs are checked read-only
+against the independent model and recorded engine. Original data/results persist.
+
+Supports explicit same-frame EUREF89 UTM31-36 / NTM5-30 output and local reviewed
+HREF2018B/HREF2025A conversions between ELLIP and NN2000:2018/2025. The two NN2000
+versions can be converted via ellipsoidal height using both models. Hashes,
+mandatory local grids, no-data/coverage rejection and independent GDAL raster
+interpolation prevent substitution/fallback. No model download or global setting
+change is performed. Models are not included in the plugin ZIP.
+
+Local delivery preserves original/adjusted/delivered coordinates, full original
+calculation evidence, model attribution, review/change log, reports and checksums.
+Three PointZ GeoPackage layers and CSV carry explicit CRS/height/coordinate-epoch
+metadata. Readback and operation reproduction are required. Failed exports remain
+marked incomplete; each successful export creates a new folder.
+
+Validation: 157 functional tests in QGIS 4.0.0, including actual SALSA runs,
+Kartverket height benchmarks, both HREF grids, model-switch inverse checks,
+independent QGIS NTM projection, no-data/coverage and wrong-grid rejection,
+read-only old run inspection, held-out roles, CSV/PointZ/CRS readback, tampering,
+reference review, stale/cancelled actions and original-evidence preservation.
+Nine publication/privacy tests. Native installation/test scope is recorded
+locally separately from offscreen QGIS runtime tests.
+
+Limits: no ITRF/WGS84 frame shift, coordinate re-epoching, NN54/LOCAL height
+conversion, uncertainty propagation through output operations or professional
+delivery certification. Original covariance is retained, not relabelled as
+transformed accuracy. Manual history predating a saved run cannot be recreated.
+Checksums are not digital signatures or proof of authenticity. Actual field
+reference evidence and recipient requirements still require professional review.
+The profile is mainland Norway within actual model coverage; no extrapolation.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. No official Kartverket, QGIS or SALSA endorsement.
+
+Previous release:
 Survey Adjustment 0.7.0 - mixed total-station and levelling CSV
 
 Adds a receiver-neutral documented CSV profile, with field help in the English

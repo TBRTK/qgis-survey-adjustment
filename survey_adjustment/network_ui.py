@@ -271,6 +271,8 @@ class NetworkPanel(QWidget):
         quality_row.addWidget(quality_example); quality_row.addWidget(quality_run); layout.addLayout(quality_row)
         mixed=QPushButton('Mixed survey / total station and levelling …')
         mixed.clicked.connect(self.mixed_survey); layout.addWidget(mixed)
+        delivery=QPushButton('Norwegian reference review / delivery package …')
+        delivery.clicked.connect(self.delivery); layout.addWidget(delivery)
         self.summary = QTextBrowser()
         self.summary.setMaximumHeight(125)
         layout.addWidget(self.summary)
@@ -511,6 +513,12 @@ class NetworkPanel(QWidget):
             dialog.exec()
         except Exception as error:
             self.error('Cannot open GNSS network quality: '+str(error))
+
+    def delivery(self):
+        from .delivery_ui import DeliveryDialog
+        dialog=DeliveryDialog(self,self.host)
+        dialog.exec()
+        dialog.deleteLater()
 
     def mixed_survey(self):
         try:
