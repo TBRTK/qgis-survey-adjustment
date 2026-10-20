@@ -1,24 +1,33 @@
-SURVEY ADJUSTMENT 0.2.2 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.6.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+DEVELOPMENT CHECKPOINT: mixed total-station/levelling CSV work is unfinished.
+See docs/MIXED_SURVEY_DEVELOPMENT.txt for scope, validation and remaining work.
 Author: Tore Berthelsen – https://www.3dmapper.no
-Date: 2026-10-18
+Date: 2026-10-19
 Project: https://github.com/TBRTK/qgis-survey-adjustment
 
 The software is provided “AS IS”, without warranty. Disclaimers and limitations
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.2.2
-The plugin interface, help, validation messages, map results and generated
-reports are in English. Norwegian source-column aliases remain supported.
-New repeatability reports use check.json, check.txt, check.html, means.csv,
-residuals.csv and sha256.json. Output status values are WITHIN TOLERANCE,
-OUTSIDE TOLERANCE and INCONCLUSIVE. SALSA results retain REVIEW REQUIRED.
-Generated layer fields also use English names, for example control_id,
-height_datum and assessment. Existing files and layers are not rewritten.
+WHAT CHANGED IN 0.6.0
+Adds a linked local GNSS network map/table workspace: actual 3D points and
+baseline endpoints, full-covariance horizontal 95% ellipses, sigma-U labels,
+residual/coordinate-change arrows and read-only original-record/import details.
+Explicit display enlargement never changes true attributes or source heights.
+Inspect weak/excluded/check connections and compare completed SALSA runs.
+Add snapshot layers to QGIS or save a local GeoPackage/style/manifest package.
+
+The versioned Network project stores points, sessions, observations and import
+audits separately from the QGIS map. GNSS network adjustment through SALSA is
+verified against an independent full-covariance model. Unknown, weighted known,
+fixed and held-out check roles are supported. This profile requires compatible
+ETRS89 vectors and ellipsoidal point heights. Raw RINEX/VRS and mixed-observation
+processing remain future work. Existing coordinate/repeatability workflows stay
+available. The plugin remains separate from SOSI Survey.
 
 INSTALLATION
 In QGIS 4: Plugins > Manage and Install Plugins > Install from ZIP.
-Select survey_adjustment-0.2.2.zip and enable the plugin. The Python package
+Select survey_adjustment-0.6.0.zip and enable the plugin. The Python package
 is survey_adjustment. SOSI Survey remains a separate plugin.
 Select the separately installed SALSA lsasolver on tab 3. Keep the full SALSA
 folder with its own DLLs; a standalone lsasolver.exe is usually insufficient.
@@ -29,6 +38,306 @@ All calculations run locally. No measurement file is uploaded online.
 Native QGIS/operating-system dialogs and number formatting follow the host
 application settings; this plugin does not change QGIS's language globally.
 
+GNSS NETWORK ADJUSTMENT AND QUALITY (TAB 5)
+Practice: Load GNSS quality example, then GNSS adjustment / quality. The example
+contains five invented points, seven independent full-covariance GNSS vectors,
+one weighted coordinate prior and one independent held-out check. It is also
+included as examples/gnss_quality.sanet.json. It is mathematical training data,
+not a receiver export. Never mix training observations with field projects.
+
+For your own data, create/open a documented network, enter the control points
+and sessions, and import eligible processed baselines or enter documented
+measured ECEF vectors. Check project structure first. Each connected component
+needs fixed or weighted control. Approximate unknown coordinates only initialize
+the model; they do not constrain its solution. Independent check points and
+observations remain outside the fit.
+
+This profile requires EUREF89/UTM zones 31-36, ELLIP point heights, a documented
+coordinate epoch and ETRS89 ECEF (EPSG:4936) vectors. Grid coordinates convert
+within that frame for calculation, with original coordinates retained in the
+snapshot. No datum/epoch/geoid/antenna transformation is inferred. Imported
+epochs must match the network epoch. Nonzero instrument/target heights are
+rejected: vectors must already refer to the intended physical points. Blank
+height fields are not a correction and require explicit endpoint review.
+Active slope distances, height differences and WGS84 vectors are rejected,
+not silently omitted. First-profile limits: 50 points and 200 active vectors.
+
+Document uncertainty sources, common base/control errors, independence and
+endpoint reductions in Model review. Explicitly confirm frame/epoch/heights,
+physical endpoints and the independent covariance-block assumptions. Separate
+session labels do not establish independence. Shared errors are not modelled.
+Optional H95 and sigma-U limits are user warning settings, not standards.
+Significance alpha defaults to 0.05; the weak-direction redundancy threshold
+defaults to 0.10. Both are recorded with the result.
+
+Preview model / network quality calculates the independent model only and is
+clearly labelled SALSA has not run. Run SALSA and verify creates a new local
+folder and runs the engine without blocking QGIS. Stop, timeout, failure,
+changed settings/input or disagreement with the independent calculation do not
+produce a verified result. Changing settings clears displayed results. A saved
+report belongs to its immutable snapshot, not subsequent edits of the project.
+
+Read the results together:
+- Point uncertainty: geodetic E/N/U one-sigma values, horizontal 95% ellipse
+  semi-axes and vertical 95% halfwidth. They are separate marginal regions,
+  conditional on the stated model, not a combined 3D accuracy guarantee.
+  A fixed point's zero model covariance is an assumption, not measured accuracy.
+- Residuals / redundancy: observed-minus-calculated ECEF residuals, standardized
+  with residual covariance. Local component and block tests use a Bonferroni
+  correction. Redundancy fraction is internal control, not percentage accuracy;
+  its weakest direction is in the tooltip/report. No/low redundancy is flagged
+  even when residuals are zero. Weighted coordinate priors have their own rows.
+- Overview: global two-sided chi-square, degrees of freedom, a posteriori
+  variance factor (APV), rank and model warnings. Both excessive and unusually
+  small scatter require review. With zero degrees of freedom fit is NOT_TESTABLE;
+  determined coordinates do not imply a successful statistical quality test.
+- Independent checks: observation and estimated/reference-coordinate uncertainty
+  are combined, including joint fitted-point covariance. Undocumented independent
+  reference uncertainty is INCONCLUSIVE; it is never replaced by zero. These
+  checks are useful only when actually independent of the fitted observations.
+
+Coordinate priors propagate the recorded diagonal grid E/N/H uncertainty through
+the projection Jacobian, including convergence and scale. SALSA receives these
+as explicitly tagged coordinate constraints using a numerical translation
+origin, distinct from measured GNSS baselines. They are not field observations
+from an invented physical base. Within-vector covariance and between-point
+parameter covariance are retained. Cross-observation/session covariance is not
+supported. No automatic deletion, robust estimation or APV rescaling is applied.
+
+Verified local outputs: network.sanet.json, input.dat, input_metadata.json,
+preflight.json, solution.out/bin, console.txt, quality.json/txt/html, points.csv,
+residuals.csv, checks.csv and SHA256 checksums. The source, solver executable and
+input hashes are checked. Full report covariance comes from the independent
+model; SALSA's rounded text covariance is compared within its output precision.
+Final ECEF positions must agree within 0.000002 m, and degrees of freedom/APV
+must match. This verifies model transfer/calculation, not survey assumptions.
+CSV text IDs starting with =, +, - or @ receive an apostrophe for spreadsheet
+safety; original IDs remain exact in the JSON snapshot and report.
+
+NumPy and SciPy are required by this analysis (tested in QGIS 4.0.0 with NumPy
+2.4.2 and SciPy 1.17.0); SALSA 1.17.0 is installed separately. The plugin does
+not download an engine or dependencies. Network maps, ellipses and comparison
+of completed runs are available through Network map / confidence ellipses. See
+docs/GNSS_SOLUTIONS_AND_VRS.txt in the source repository for the separate
+GNSS Solutions design-reference/VRS investigation.
+
+NETWORK MAP / CONFIDENCE ELLIPSES
+After preview or SALSA verification, choose Network map / confidence ellipses.
+The English workspace links map selection and Points/Observations tables, with
+read-only originals, adjusted E/N/ellipsoidal height, uncertainty, residuals and
+import provenance. Preview stays labelled SALSA NOT RUN. Verified means model
+transfer agreement, not survey approval. Global test status/dof stay visible.
+
+Choose Inspect (optionally restrict the record type), Pan, Fit network or Zoom
+selected. Coincident repeated baselines are separately selectable in the table.
+Layer checkboxes control ellipses, residuals, coordinate changes, originals and
+excluded data. Blue links are adjustment observations, amber weak control, red
+residual review, purple dashed independent checks and grey dotted exclusions.
+Fixed points use triangles and a held-exact label, not a claim of zero error.
+
+Horizontal 95% ellipses come from full fitted covariance transformed to the
+project grid, including convergence, projection scale and height reduction.
+Sigma-U labels/vertical intervals describe height uncertainty separately.
+Ellipse and displacement display factors default to 500 for visibility; choose
+1 for actual map size. DISPLAY ONLY appears in the banner, names, attributes
+and export manifest. True axes/deltas remain unscaled. Decorative arrows hold
+Z at their origin; actual dH remains an attribute. Actual point/baseline Z and
+original source coordinates are unchanged. Do not measure enlarged graphics as
+survey geometry. All uncertainties remain conditional on the stated model.
+
+Compare saved run opens quality.json from a completed original SALSA result
+folder. Checksums, source/input/output and the independent model are reviewed
+read-only, using the matching separate engine binary without rerunning SALSA.
+Same network/CRS/epoch/height metadata are required. Differences are CURRENT
+MINUS COMPARISON in E/N/H, with unmatched/unestimated points labelled. Shared
+data/errors mean these coordinate changes are not a significance test.
+
+Add to QGIS creates a separate group of read-only temporary snapshot layers,
+preserving existing project layers. It uses the canvas CRS after QGIS initializes
+any blank project from its first layer. Save map creates a new LOCAL folder:
+network_map.gpkg (Z retained), layer QML styles, original network snapshot,
+quality/optional comparison JSON and a checksum/display/AS IS manifest. Load
+the matching QML for an exported layer's style. This derived map package is
+separate from the original complete SALSA report needed for rerun comparison.
+See docs/NETWORK_MAP.txt in the source repository for full definitions.
+
+MEASURED BASELINE IMPORT (TAB 5)
+Create/open the correct network, add the physical base/rover point IDs and a
+documented UTC acquisition session. Choose Import measured baseline, open the
+processed source, select one eligible FIX row and select the matching endpoints,
+session, ECEF reference frame, coordinate epoch and intended use. Document the
+processor's antenna/ARP/tilt/point-height treatment and covariance assumptions.
+Verify that the processing-base coordinates shown in the dialog belong to the
+selected physical base point. No projection/geoid check of that association is
+performed here. Confirm all three review statements, Preview selected baseline,
+review the full vector and covariance, then Add baseline. Save the network
+explicitly. Cancelling, invalid input or source changes after preview add nothing.
+
+Emlid Studio / RTKLIB POS:
+- Supports complete, single-header RTKLIB-style relative static/kinematic POS
+  with a processing mode, ref pos, UTC or GPST calendar time, units, quality Q,
+  satellite count and all six covariance fields in the documented column order.
+- If a producer omits pos mode (including some Emlid Studio exports), load the
+  file, then explicitly select its documented Static or Kinematic processing
+  workflow in POS processing mode. This declaration is added to the local
+  import audit alongside the original file checksum. It never overrides a
+  conflicting header and resets when opening another source. Receiver motion
+  alone does not establish processing mode. Original source bytes are retained.
+- LLH requires decimal latitude/longitude and explicitly ellipsoidal heights.
+  The ECEF baseline is computed from this processed rover solution minus its
+  documented processing-base position. This is not a baseline fabricated by
+  subtracting arbitrary independently surveyed points. Single/PPP/moving-base,
+  DMS, geoid heights, missing metadata and partial covariance are rejected.
+- Absolute XYZ POS is likewise differenced against its processing base.
+  ENU-baseline POS is rotated at the base. LLH covariance is rotated at the
+  rover. The full 3x3 covariance, including signed off-diagonal terms, is kept.
+  RTKLIB sdxy/sdyz/sdzx, sdne/sdeu/sdun and sden/sdnu/sdue are signed square
+  roots of cross-covariances, not correlation coefficients or RMS values.
+- Only Q=1 with positive-definite full covariance is eligible. Other epochs
+  remain visible as excluded. No missing covariance is replaced with zeros.
+- Prefer an explicitly documented static/occupation solution (for example a
+  suitable One Best output). Selecting an arbitrary FIX epoch is not a static
+  session adjustment. No averaging or sigma/sqrt(n) reduction is performed.
+  One baseline per endpoint pair/acquisition session prevents loading a whole
+  correlated track as independent repeats. Session labels alone prove nothing.
+- GPST stays GPST in the audit; it is not relabelled UTC or compared with UTC
+  session bounds. Calendar timestamps support at most six fractional digits.
+  UTC source observations are checked against documented session bounds.
+- The POS output label WGS84 does not establish the actual correction-service
+  datum/realisation. Select and document the real frame and coordinate epoch.
+  Native LLH and LLH ref-pos are decoded on RTKLIB's WGS84 ellipsoid, including
+  when the separately documented processing coordinates are ETRS89. Selecting
+  the ECEF frame label does not change that native decoding or transform datum.
+  No automatic datum, epoch, antenna, tilt or geoid corrections are performed.
+
+Vendor-neutral processed-baseline CSV:
+Use the exact header below, with comma, semicolon or tab separation. Decimal
+comma is supported only with semicolon/tab. Every row is an already processed
+relative vector to minus from in ECEF metres, with full covariance in m².
+Point/session/observation IDs must match the source; no implicit renaming.
+Use FIX and a timezone-aware time_utc. A final coordinate list or an Emlid Flow
+corrected point CSV is not this baseline exchange format.
+
+baseline_id,from_point,to_point,session,dx_m,dy_m,dz_m,cxx_m2,cxy_m2,cxz_m2,cyy_m2,cyz_m2,czz_m2,status,time_utc
+
+Import audit and limitations:
+Show import audit lists the source basename, SHA256, selected line/original row,
+native values/covariance, time system, processing-base position, documented
+frame/epoch/assumptions and converted ECEF vector/covariance. Original source
+files are never modified or uploaded. Keep the original processor output with
+your project; the audit does not embed every source header or the whole file.
+Measured values, covariance, endpoint IDs, session and imported observation ID
+are locked. Notes, enabled status and intended use may be reviewed. Removing
+an observation retains its historical audit and duplicate protection. Correct a
+wrong endpoint/source association in a separate or restored pre-import network.
+Repeated source imports, renamed
+copies and equivalent same-epoch re-exports are blocked. A changed processing
+base (>1 mm in the same documented frame/epoch) requires review/reprocessing.
+The audit is not a digital signature or a professional quality approval.
+
+ECEF delta-Z is not an elevation or an NN2000 height difference. Existing point
+heights are retained unchanged. Coordinate conversions rotate vectors/covariance
+only; no GNSS point coordinates are automatically added or overwritten. Formal
+POS precision is conditional on the processor's fixed base/model. Base-position,
+datum, antenna and shared errors and cross-observation covariances are not added.
+Import alone does not run SALSA. Compatible ETRS89 vectors can now be analysed
+with the separate, explicitly reviewed GNSS adjustment / quality action above.
+Raw RINEX processing is not added.
+Emlid Studio 1.10 exports have been checked locally: an eligible FIX epoch was
+imported through the QGIS dialog/panel, structure-checked, saved and reopened
+with original vectors, covariance, audit and heights retained. Actual FLOAT
+and SINGLE (Q=5) rows were read and excluded, including blocked import attempts
+and a disabled Add button; empty events sources were rejected. No excluded
+position was stored as a baseline. Missing processing mode requires
+explicit declaration. These are technical software tests; coordinate epoch,
+physical endpoint reduction, independence and survey accuracy need separate
+verification. This does not validate every exporter variant. Other required
+headers must be present; units, height declaration and covariance are not guessed.
+
+Schema 1 network files and recovery drafts are upgraded to schema 2 in memory,
+adding an empty import audit. Original files are changed only on explicit Save.
+Schema 2 saves include provenance and cannot be opened by the older 0.3.0 plugin.
+Other/unknown schema fields are rejected rather than silently dropped.
+
+Synthetic practice: Load synthetic network, then Import measured baseline and
+Load synthetic POS. Select the first FIX row, REF0 -> P01, session S01, ETRS89
+ECEF and coordinate epoch 2026-10-18; enter the synthetic assumptions and make
+the three explicit confirmations and the explicit synthetic-source checkbox.
+The examples are mathematically constructed,
+not receiver exports. Files: examples/synthetic_baseline_llh.pos,
+synthetic_baseline_xyz.pos, synthetic_baseline_enu.pos and
+synthetic_measured_baseline.csv. Do not mix these with real survey projects.
+
+Format references (reviewed 2026-10-19; implementations are independent):
+https://github.com/tomojitakasu/RTKLIB/blob/master/src/solution.c
+https://www.rtklib.com/prog/manual_2.4.2.pdf
+https://docs.emlid.com/emlid-studio/static-processing-workflow/
+https://docs.emlid.com/emlid-studio/stop-n-go-with-ef-workflow/
+
+NETWORK PROJECT INVENTORY (TAB 5)
+Use New, select the documented point CRS and height datum, and enter a name.
+The inventory stores more observation types than the first GNSS solver supports;
+the explicit GNSS adjustment / quality action validates its narrower profile.
+Point CRS options are EUREF89 / UTM zones 31-36; E/N/Z are metres. Coordinates
+are preserved when storing/importing. The separate GNSS calculation converts
+a snapshot within ETRS89. Point height datum is NN2000, NN54, ELLIP or LOCAL.
+Missing CRS/height metadata can be saved explicitly as a draft; Check project
+structure reports it as undocumented. Coordinate epoch is recorded only.
+
+Points:
+- Unknown / estimate: optional approximate E/N/Z; all blank is allowed.
+- Known with uncertainty: E/N/Z and three positive coordinate standard
+  deviations in the project E/N/Z axes. The draft stores a diagonal coordinate
+  uncertainty model; it is not automatically reinterpreted as geodetic ENU.
+- Fixed / held exact: E/N/Z, with a required explanation in Notes. Choosing
+  this role holds the point exact in the GNSS model; it is not proof of error-free
+  control.
+- Independent check only: E/N/Z; optional uncertainty. Enabled observations
+  touching a check point must be marked Independent check only, not Adjustment.
+  Checks are held out of the fit. The GNSS quality profile reports supported
+  held-out vectors; statistical checks also require reference uncertainty.
+
+Sessions: unique ID, start/end with Z or a UTC offset, instrument/receiver,
+corrections/base information and Notes. No receiver brand is required. Session
+labels and dates alone do not establish measurement independence.
+
+Observation inventory: manual entry of ECEF XYZ GNSS vectors, slope distances
+and signed height differences (to minus from), with existing point/session IDs,
+intended use and an enabled flag. GNSS vectors require the documented ECEF
+frame EPSG:4936 or EPSG:4978, positive sigmas and valid component correlations;
+the full symmetric 3x3 covariance is stored in m². Other values/sigmas are metres.
+New observations have no assumed sigma value. Do not invent measured baselines
+by differencing RTK point coordinates. Import measured baseline is described above.
+Instrument/target heights are stored only: blank means undocumented; zero
+means a point-to-point value. No height, curvature, grid or geoid reduction is
+applied. No cross-observation/session covariance or total-station angle model
+is implemented. The GNSS solver validates compatibility before use.
+
+Double-click or Edit selected to edit a record. Referenced IDs cannot be renamed
+or removed if observations would become orphaned; change dependent records
+explicitly first. Disabled observations remain stored and need a reason.
+Check project structure validates IDs, links, roles, units and covariance shape;
+it does not assess network geometry, redundancy, field quality or solve a network.
+
+Save / Save as write versioned JSON atomically, preserving numeric values and
+heights. Original files are never silently rewritten. Unsupported schemas,
+unknown fields and duplicate JSON keys are rejected rather than discarded.
+External changes to the opened file prevent Save; use a different filename or
+open the changed file. The draft limit is 20 MB and 10000 records per collection.
+Unsaved drafts are retained locally in QGIS settings, separately per project.
+Recover unsaved draft restores records and unfinished metadata, requiring a
+new Save as. Normal Close offers Save / Discard / Cancel. Disabling the plugin
+retains an unsaved recovery draft. Local QGIS settings contain project data;
+they are not included in a release or sent online. A saved file is still needed
+for reliable project backup and transfer.
+
+Load synthetic network provides a constructed training inventory with all
+four point roles, one session and four stored scalar observations. It is not
+field data and is not an adjusted network. The same inventory is included as
+examples/network_inventory.sanet.json. This example is separate from the
+existing GNSS coordinate examples. Its scalar observations are not accepted by
+the first GNSS solver; Load GNSS quality example supplies a compatible network.
+
 CALCULATIONS
 1. Tab 1 checks repeated final E/N/Z coordinates. This is an unweighted check
    of spread and offsets from reference points, calculated inside the plugin.
@@ -37,6 +346,9 @@ CALCULATIONS
 3. Tab 4 adjusts repeated absolute coordinate observations through SALSA,
    using explicit ellipsoidal point heights and a documented 1σ model.
    It does not process raw GNSS observations or measured baselines.
+4. Tab 5 explicitly adjusts a compatible GNSS vector network, including weighted
+   coordinate priors, then reports conditional uncertainty, redundancy, global
+   and local tests, and independent held-out checks.
 
 TRY THE REPEATABILITY EXAMPLE
 - Open Plugins > Survey Adjustment > Survey Adjustment – GNSS and SALSA.
@@ -170,11 +482,17 @@ producing a lower-bound chi-squared warning. A completed calculation is not
 professional approval of the measurements.
 
 LIMITS AND FURTHER VALIDATION
-No RINEX processing, measured-baseline import, full network adjustment with
-cross-covariance, or geoid/NN2000/datum/epoch transformation is implemented.
-Real anonymised receiver exports have not yet been validated. Before field use,
-check your columns, units, reference/height datum, corrections, antenna/tilt
-settings, times and how 1σ is determined. This is not delivery-approved software.
+No raw RINEX processing, VRS synthesis, mixed total-station/levelling solver,
+cross-observation/session covariance, geoid/NN2000/datum/epoch transformation
+or professional delivery approval is implemented. Baseline import is limited
+to the documented processed POS/relative-vector CSV profiles. Actual Emlid
+Studio FIX/FLOAT/SINGLE files were tested locally; this does not validate every
+exporter variant or field assumptions. Network quality was tested with
+constructed full-covariance networks, independent analytic cases and actual
+SALSA runs, including gross errors, weak bridges and zero redundancy. Common
+errors may remain invisible even with small residuals and an acceptable global
+test. Check columns, units, frames/heights, antenna/tilt settings, epochs,
+independence and the uncertainty model before practical use.
 
 LICENSING AND DISTRIBUTION
 The plugin's own source and synthetic examples are GPL-3.0-only. See LICENSE.

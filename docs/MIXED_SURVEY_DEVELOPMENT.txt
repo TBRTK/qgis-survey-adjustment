@@ -1,0 +1,39 @@
+MIXED SURVEY CSV - DEVELOPMENT CHECKPOINT (2026-10-20)
+
+This source checkpoint continues the 0.6.0 GNSS/map work with an unfinished
+total-station and levelling prototype. It is not a completed mixed-survey release.
+Do not interpret the package version as evidence of field validation.
+
+Access: Network project -> Mixed survey / total station and levelling.
+The English dialog reads a documented receiver-neutral CSV template.
+It combines GNSS vectors, slope distances, clockwise horizontal angles, zenith
+angles and ELLIP height differences in a 3D snapshot. A separate LEVEL_1D profile
+retains the project height datum (including NN2000) and does not adjust E/N.
+Constructed examples are generated locally; no real measurements are included.
+
+The original network and source CSV remain in the separate .samix.json snapshot.
+An independent solution is compared with the separately installed SALSA engine.
+Reports and Z-enabled map layers are generated locally, outside publication.
+
+Validation at this checkpoint: 128 functional tests passed in QGIS 4.0.0,
+including actual SALSA 1.17.0 runs, mixed observations with nonzero instrument/
+target heights, degree/gon equivalence, independent NN2000 levelling, held-out
+checks and source/input tamper rejection. No native desktop installation test
+or real manufacturer CSV validation has been completed for this addition.
+
+Known work before a completed release:
+- Preserve disabled legacy non-GNSS inventory records in the exclusion report.
+- Restore all saved options, including significance alpha, in the dialog.
+- Revalidate the derived report before adding map layers.
+- Harden numeric/CSV edge cases and complete user-facing CSV field help.
+- Complete reviewed example files, final versioning and package validation.
+
+Angles require documented ELLIPSOID_NORMAL reduction. No gravity/DOV, prism,
+face, atmosphere or geoid correction is inferred. Assessed sigma must include
+centring, height and prior reduction uncertainty. Cross-observation/common
+errors are not modelled. NN2000 height differences cannot directly enter the
+ELLIP mixed 3D model. Statistical tests are not survey/delivery approval.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE. No official SALSA or receiver endorsement.

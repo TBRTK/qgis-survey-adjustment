@@ -16,6 +16,8 @@ from .engine import solver_program,environment,prepare_demo,command,inspect_resu
 from .layers import result_layers,make_layer
 from .reporting import text_report,save_bundle
 from .coordinate_ui import CoordinatePanel
+from .network_ui import NetworkPanel
+from .version import VERSION
 
 PACKAGE = Path(__file__).parent
 
@@ -33,7 +35,10 @@ class SurveyAdjustmentPlugin:
         self.dialog.activateWindow()
     def unload(self):
         if self.dialog:
+            if not self.dialog.network_panel.stash_recovery():
+                raise RuntimeError('Unsaved network recovery could not be stored. The plugin remains active. Save the network to a file before disabling it.')
             self.dialog.stop_engine()
+            self.dialog._unloading = True
             self.dialog.close()
             self.dialog.deleteLater()
         self.iface.removePluginMenu('Survey Adjustment',self.action)
@@ -44,7 +49,7 @@ class SurveyDialog(QDialog):
     def __init__(self,iface):
         super().__init__(iface.mainWindow())
         self.iface = iface
-        self.setWindowTitle('Survey Adjustment 0.2.2 – GNSS / SALSA prototype')
+        self.setWindowTitle(f'Survey Adjustment {VERSION} – GNSS / SALSA prototype')
         self.resize(1080,760)
         self.table,self.reference_table,self.result,self.engine_result = None,None,None,None
         self.process = None
@@ -149,12 +154,14 @@ class SurveyDialog(QDialog):
         self.tabs.addTab(page,'3. SALSA engine')
         self.coordinate_panel = CoordinatePanel(self)
         self.tabs.addTab(self.coordinate_panel,'4. GNSS → SALSA')
+        self.network_panel = NetworkPanel(self)
+        self.tabs.addTab(self.network_panel,'5. Network project')
         page = QDialog()
         docs_layout = QVBoxLayout(page)
         docs = QTextBrowser()
         docs.setPlainText((PACKAGE/'README.txt').read_text(encoding='utf-8') if (PACKAGE/'README.txt').exists() else 'See the documentation in the plugin folder.')
         docs_layout.addWidget(docs)
-        self.tabs.addTab(page,'5. Help and licensing')
+        self.tabs.addTab(page,'6. Help and licensing')
         self.status = QLabel('Choose example data or your own CSV files.')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -165,6 +172,21 @@ class SurveyDialog(QDialog):
         for widget in (self.confirm,self.only_fix): widget.toggled.connect(self.invalidate)
         for widget in (self.h_tol,self.v_tol): widget.valueChanged.connect(self.invalidate)
         self.rebuild_mappings()
+
+    def closeEvent(self,event):
+        if not getattr(self,'_unloading',False):
+            if not self.network_panel.maybe_leave():
+                event.ignore()
+                return
+            if self.network_panel.has_changes():
+                # Discard was selected; reopening the persistent dialog must not resurrect that draft.
+                try:
+                    path=self.network_panel.path
+                    from .network import load_project,new_project
+                    self.network_panel.replace_project(load_project(path) if path else new_project(),path)
+                except (OSError,ValueError):
+                    self.network_panel.replace_project(new_project())
+        super().closeEvent(event)
 
     def error(self,error): QMessageBox.warning(self,'Survey Adjustment',str(error))
     def invalidate(self,*_):
@@ -255,7 +277,7 @@ class SurveyDialog(QDialog):
             refs = references(self.reference_table,self.mappings(2)) if self.reference_table else {}
             result = analyze(observations(self.table,self.mappings(1)),refs,options)
             result['synthetic'] = self.synthetic
-            result['plugin_version'] = '0.2.2'
+            result['plugin_version'] = VERSION
             result['sources'] = [{k:table[k] for k in ('path','sha256','encoding','delimiter')} for table in (self.table,self.reference_table) if table]
             result['mappings'] = {'observations':self.mappings(1),'references':self.mappings(2)}
             self.result = result

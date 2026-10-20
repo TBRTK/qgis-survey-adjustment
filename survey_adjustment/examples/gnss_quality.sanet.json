@@ -1,0 +1,309 @@
+{
+  "format": "survey-adjustment-network",
+  "schema_version": 2,
+  "project_id": "00000000-0000-4000-8000-000000000050",
+  "name": "SYNTHETIC GNSS network quality",
+  "crs": "EPSG:25832",
+  "height_datum": "ELLIP",
+  "epoch": "2026-10-18",
+  "notes": "SYNTHETIC mathematically constructed training network. Independent Gaussian vector blocks with full covariance; no actual receiver/base data.",
+  "synthetic": true,
+  "points": [
+    {
+      "id": "REF0",
+      "role": "FIXED",
+      "coordinates": [
+        291000.0,
+        6701000.0,
+        80.0
+      ],
+      "sigma": null,
+      "notes": "SYNTHETIC exact anchor for this mathematical example only."
+    },
+    {
+      "id": "REF1",
+      "role": "CONSTRAINED",
+      "coordinates": [
+        291120.006,
+        6701000.009,
+        79.992
+      ],
+      "sigma": [
+        0.02,
+        0.02,
+        0.03
+      ],
+      "notes": "SYNTHETIC independent coordinate prior; diagonal covariance in project grid E/N/H."
+    },
+    {
+      "id": "P01",
+      "role": "UNKNOWN",
+      "coordinates": [
+        291030.05,
+        6701049.97,
+        82.02
+      ],
+      "sigma": null,
+      "notes": "SYNTHETIC approximate initial position; not a constraint."
+    },
+    {
+      "id": "P02",
+      "role": "UNKNOWN",
+      "coordinates": null,
+      "sigma": null,
+      "notes": "SYNTHETIC unknown; initial position derived from measured vectors."
+    },
+    {
+      "id": "CHECK1",
+      "role": "CHECK",
+      "coordinates": [
+        291070.0,
+        6701090.0,
+        81.25
+      ],
+      "sigma": [
+        0.015,
+        0.02,
+        0.03
+      ],
+      "notes": "SYNTHETIC independent reference kept outside the fit."
+    }
+  ],
+  "sessions": [
+    {
+      "id": "S01",
+      "start": "2026-10-18T08:00:00Z",
+      "end": "",
+      "instrument": "SYNTHETIC mathematical source",
+      "corrections": "No real receiver or correction service.",
+      "notes": "SYNTHETIC independent errors by construction; session labels alone do not establish field independence."
+    },
+    {
+      "id": "S02",
+      "start": "2026-10-18T10:00:00Z",
+      "end": "",
+      "instrument": "SYNTHETIC mathematical source",
+      "corrections": "No real receiver or correction service.",
+      "notes": "SYNTHETIC independent errors by construction; session labels alone do not establish field independence."
+    },
+    {
+      "id": "CHECK",
+      "start": "2026-10-18T12:00:00Z",
+      "end": "",
+      "instrument": "SYNTHETIC mathematical source",
+      "corrections": "No real receiver or correction service.",
+      "notes": "SYNTHETIC independent errors by construction; session labels alone do not establish field independence."
+    }
+  ],
+  "observations": [
+    {
+      "id": "V01",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF0",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -46.18199698663579,
+        22.94287538215738,
+        27.262061018252243
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V02",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF1",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -29.320045684203166,
+        -95.77666130339735,
+        23.853737646434887
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V03",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "P01",
+      "to_point": "P02",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -33.97021857037178,
+        55.310278328708264,
+        16.95368543674764
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V04",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF0",
+      "to_point": "P02",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -80.12649104399517,
+        78.31130564424255,
+        44.23723245854371
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V05",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF1",
+      "to_point": "P02",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -63.27006559799373,
+        -40.4416846409716,
+        40.77418378399417
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V06",
+      "session": "S01",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF0",
+      "to_point": "REF1",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -16.856457340374025,
+        118.73781606459164,
+        3.342125491345707
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V07",
+      "session": "S02",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF0",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        -46.16341354268469,
+        22.956014728345554,
+        27.26379443254143
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    },
+    {
+      "id": "V08",
+      "session": "CHECK",
+      "kind": "GNSS_VECTOR",
+      "from_point": "REF0",
+      "to_point": "CHECK1",
+      "use": "CHECK",
+      "enabled": true,
+      "values": [
+        -86.51874206288123,
+        57.06699368049282,
+        47.46521439041476
+      ],
+      "covariance": [
+        0.000144,
+        3.6e-05,
+        -3.0000000000000004e-05,
+        0.000225,
+        5.625e-05,
+        0.0006250000000000001
+      ],
+      "frame": "EPSG:4936",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC independent processed point-to-point vector, not a receiver export."
+    }
+  ],
+  "imports": []
+}

@@ -115,7 +115,8 @@ class QgisTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(self.iface.actions,['Survey Adjustment'])
         plugin.run()
-        self.assertIn('0.2.2',plugin.dialog.windowTitle())
+        from survey_adjustment.version import VERSION
+        self.assertIn(VERSION,plugin.dialog.windowTitle())
         plugin.unload()
         self.assertEqual(self.iface.actions,[])
 

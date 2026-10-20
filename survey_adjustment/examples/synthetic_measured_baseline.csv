@@ -1,0 +1,2 @@
+baseline_id,from_point,to_point,session,dx_m,dy_m,dz_m,cxx_m2,cxy_m2,cxz_m2,cyy_m2,cyz_m2,czz_m2,status,time_utc
+SYNTHETIC_B01,REF0,P01,S01,-80.43436940945685,37.784273536584806,45.87169175688177,0.0004,-0.000016,0.000025,0.0001,-0.000009,0.0009,FIX,2026-10-18T08:00:00Z

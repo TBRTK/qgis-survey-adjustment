@@ -1,3 +1,163 @@
+Survey Adjustment 0.6.0 - linked GNSS maps and confidence ellipses
+
+Adds a local map/table workspace from an explicit calculation snapshot. Actual
+PointZ and baseline endpoints retain coordinates/heights; original input points
+remain separate. Full fitted covariance produces grid-oriented horizontal 95%
+PolygonZ ellipses. Height uncertainty is shown separately. Display factors,
+true semi-axes, residuals/deltas, stage and source identity are explicit.
+Fixed points are labelled held exact. Weak/review/excluded/check connections
+have distinct styles. Map/table selection opens read-only originals, results
+and import provenance. Unlocated records remain visible as unmapped.
+
+Compare completed SALSA runs read-only after checksums/model verification;
+show current-minus-comparison coordinate changes without inferring significance.
+Add a separate snapshot group to QGIS or save a new local Z-enabled GeoPackage,
+QML styles, source snapshot, reports and checksum/display/notice manifest.
+No original measurements, project layers or coordinates are overwritten.
+No basemap/network upload, raw RINEX processing or VRS synthesis is added.
+
+Validation: 115 functional tests and 8 release/privacy tests, including analytic
+ellipse axes/orientation/confidence boundary, independent projection factors,
+unscaled XYZ/covariance preservation, Z readback through OGR, linked map picks,
+local exports, cancelled actions, imported provenance and actual SALSA run
+comparison/tamper checks and first-layer canvas CRS initialization. Native QGIS installation/visual test is recorded in
+the local validation receipt separately from automated offscreen checks.
+
+Observed development-session limitation: one native QGIS session became
+unresponsive with increasing memory after multiple in-process plugin reloads
+and the final inspection/cleanup. The cause was not isolated. All synthetic
+inputs/results were already saved. A fresh QGIS start was tested without hot
+reloading: open verified map, add layers to a blank project, close map/console,
+resize the main canvas and collapse the layer group. That sequence remained
+responsive. This does not establish the cause or prove every reload is safe.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE. No official GNSS Solutions/SALSA endorsement.
+
+Previous release:
+Survey Adjustment 0.5.0 - GNSS network adjustment and quality
+
+Adds GNSS adjustment / quality on the Network project tab, with a constructed
+five-point example. Explicit ETRS89/UTM, ellipsoidal point-height, coordinate
+epoch, endpoint and independent-block-model review precedes calculation.
+Compatible GNSS vectors retain full covariance; fixed/weighted controls anchor
+each component. Coordinate priors are separate, tagged constraints. Checks do
+not enter the fit. Unsupported active types/frames/reductions are rejected.
+
+English overview and read-only point uncertainty, residual/redundancy and
+independent-check tables identify weak/no internal control, standardized
+residual flags and global two-sided chi-square warnings. Zero degrees of
+freedom is NOT_TESTABLE. Fixed zero covariance is a model assumption. No
+automatic outlier removal or APV covariance rescaling. All uncertainty remains
+conditional on the stated model; common/cross-observation errors are unmodelled.
+
+Preview is explicitly independent analysis with SALSA not run. The nonblocking
+SALSA action creates local immutable snapshots and reports with ellipsoidal
+heights, full parameter covariance and checksums. Verify source/input/solver
+hashes, convergence, positions, rounded covariance, degrees of freedom and APV
+against the independent calculation. Cancel/stop/failure/input changes never
+accept partial results. Original network point coordinates are not overwritten.
+
+Validation: 99 functional tests and 8 release/privacy tests pass in the QGIS
+4.0.0 environment, including actual SALSA 1.17.0 runs, analytic covariance,
+weighted controls without fixed control, gross errors, zero degrees of freedom,
+weak bridges, held-out checks and stale-result/cancellation protection. UI was
+tested in a separate offscreen QGIS instance; the user's installed plugin was
+not replaced in this milestone. Only constructed synthetic data are packaged.
+No raw RINEX engine, VRS generation, map ellipses or mixed-observation solver is
+added. docs/GNSS_SOLUTIONS_AND_VRS.txt records the separate VRS investigation.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE. No official SALSA/GNSS Solutions endorsement.
+
+Previous release:
+Survey Adjustment 0.4.0 - measured relative GNSS baseline import
+
+Adds one-baseline-at-a-time import on Network project (tab 5), separate from
+the existing repeatability and SALSA absolute-coordinate workflows.
+Complete RTKLIB/Emlid-style relative static/kinematic POS supports LLH, XYZ
+and ENU, Q=1, full covariance and documented processing-base coordinates.
+A strict vendor-neutral ECEF delta-vector CSV profile is also included.
+No arbitrary coordinate differences are passed off as measured baselines.
+Producers omitting pos mode require an explicit operator Static/Kinematic
+declaration retained in the import audit. Conflicting headers cannot be
+overridden. The declaration resets for each opened source.
+
+Preview, explicit endpoint/frame/epoch/antenna/model review and source checksum
+verification precede adding data. Source rows, native covariance, full rotation,
+time system and assumptions are kept in schema-2 import audit. Existing schema-1
+files/recovery are upgraded in memory; originals change only on explicit Save.
+Point coordinates/heights are not overwritten. ECEF delta-Z is not an elevation.
+Imported measurements are locked; notes/use/exclusion remain reviewable.
+Duplicate source rows, equivalent re-exports and correlated same-session epochs
+are blocked. UTC session bounds and processing-base consistency are checked.
+GPST is retained without silently guessing a UTC offset. No missing uncertainty
+is filled with zeros. Cancel/failure/source changes do not partly import data.
+
+Validation: 76 functional tests and 8 release/privacy tests pass in the QGIS
+4.0.0 environment. Includes source parsing, signed
+cross-covariance, independent known-axis rotation, QGIS/PROJ ECEF comparison,
+height preservation, full import/check/save/open, immutable source measurements,
+failure/cancel/duplicate protection and old-schema/recovery compatibility.
+Only constructed synthetic examples are distributed. Local Emlid Studio 1.10
+sources verified a technical FIX import/check/save/open flow, preservation of
+heights and full covariance, duplicate protection, and rejection of actual
+FLOAT/SINGLE observations and empty events data. SINGLE source fields are
+retained for preview; no baseline is added and the existing network is unchanged.
+This is software validation, not verification of survey
+accuracy, coordinate epoch or physical endpoint reduction. Other exporter
+variants still require validation. No raw RINEX processing or general network solver is
+added; imported network observations are not yet passed to SALSA. Formal
+precision is not absolute accuracy; shared/cross-observation errors remain.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE. No official SALSA/RTKLIB/Emlid endorsement.
+
+Previous release:
+Survey Adjustment 0.3.0 - network project inventory
+
+Adds an English Network project tab for points, acquisition sessions and
+observations, stored separately from the QGIS map in versioned .sanet.json.
+Point roles: Unknown, Known with uncertainty, Fixed and Independent check.
+Known coordinates require assessed standard deviations; fixed points require
+a reason. Enabled adjustment observations cannot include independent checks.
+
+Manual observation inventory: ECEF GNSS vectors with full 3x3 component
+covariance, slope distances and signed height differences. No manufacturer
+format is required. Instrument/target heights are documented, not applied.
+No network solver/importer, RINEX, cross-session covariance, reduction or
+geoid/datum/epoch transformation has been added in this milestone.
+
+Checks reject duplicate IDs, broken links, invalid covariance and unsupported
+schemas. Failed saves preserve the existing file. External file changes prevent
+accidental overwrite. Closing offers Save/Discard/Cancel; disabling retains
+per-project recovery drafts in QGIS settings, including unfinished metadata.
+Network projects must still be saved explicitly for transfer and backup.
+
+A synthetic training inventory is included and clearly marked as unadjusted.
+Existing repeatability and SALSA coordinate workflows retain their behaviour.
+Help is now tab 6. The interface remains English. Author, website, repository,
+GPL-3.0-only licence and optional support footer remain included.
+
+Validation: 48 tests pass in the QGIS 4.0.0 environment, including actual SALSA
+runs for the existing workflows and new network editing/save/open/recovery
+checks. Height precision, correlated vector components and independent check
+roles survive round trips. Bergen coordinates projected into UTM zone 33 keep
+their negative Easting, with a zone-range note rather than silent alteration.
+Network inventory and vector-editor screenshots were visually reviewed.
+Live QGIS review also corrected long binary-decimal displays without changing
+stored precision, and keeps help and point fields together at the top of editors.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply to the extent permitted by GPLv3 sections 15-17 and applicable
+law. See LICENSE. This remains an experimental prototype, not delivery approved.
+Real receiver exports still need validation. SALSA is installed separately and
+is not bundled. QGIS/operating-system dialogs retain the host language.
+
+Previous release:
 Survey Adjustment 0.2.2 – English interface, help and reports
 
 - All plugin-owned menus, tabs, field help, validation errors and status

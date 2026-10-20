@@ -5,11 +5,12 @@ import hashlib
 import html
 import json
 from pathlib import Path
+from .version import VERSION
 
 
 def text_report(report):
     options = report['options']
-    lines = ['Survey Adjustment 0.2.2 – repeatability check',
+    lines = [f'Survey Adjustment {VERSION} – repeatability check',
              'SYNTHETIC EXAMPLE DATA' if report.get('synthetic') else 'Coordinate check – not raw observation adjustment',
              report['method'],
              f"{options['crs']}, {options['height']}, coordinates and tolerances in metres.",

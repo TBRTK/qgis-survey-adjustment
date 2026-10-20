@@ -1,0 +1,125 @@
+GNSS NETWORK MAP - SURVEY ADJUSTMENT 0.6.0
+
+WORKFLOW
+On tab 5, Load GNSS quality example or open a compatible network. Check its
+structure, open GNSS adjustment / quality, document the model and confirm the
+reviews. Preview or run SALSA and verify. Choose Network map / confidence
+ellipses. The map always belongs to that separate calculation snapshot. Inputs
+are never edited through the map. PREVIEW - SALSA NOT RUN remains explicit;
+verified means model transfer/calculation agreement, not survey approval. The
+global model-test status and degrees of freedom remain visible above the map.
+
+The independent map/table workspace uses local layers only. No basemap, tile
+service or measurement upload is requested. Use the wheel to zoom, Pan to move,
+Fit network for the overview and Zoom selected for a selected record. Inspect
+chooses the nearest point/connection within a nine-pixel radius. The inspect
+type list restricts the search. Overlapping repeated baselines are individually
+available in the Observations table; a map hit alone cannot distinguish all
+coincident observations.
+
+Select a record in the map or table to highlight its related features. The
+read-only detail view shows its original record, calculated result and, for an
+imported baseline, original import provenance. Point results include actual
+E/N/ellipsoidal height and conditional height uncertainty. Points without a
+documented or estimated position remain in the table and are explicitly listed
+as unmapped. No coordinate is invented to place them on the map.
+
+LAYERS AND MEANING
+- Adjusted / reference PointZ: actual calculated grid coordinates, or the
+  original independent/unadjusted reference when no fitted position exists.
+  Triangle = fixed by model; diamond = known with uncertainty; circle = unknown
+  estimate; cross = independent check. Fixed points are labelled held exact;
+  zero model covariance does not demonstrate error-free control.
+- Original / approximate PointZ: unchanged original input coordinates. These
+  may be starting approximations, not independently measured comparisons.
+- Network LineStringZ: actual located endpoint coordinates, not a drawing of
+  observed delta-Z as elevation. Observed vectors/full covariance stay in the
+  attributes. Blue = adjustment; amber = weak internal control; red = residual
+  review; purple dashed = independent check; grey dotted = disabled/excluded.
+  Baseline identifiers label the connections where space permits.
+- Horizontal 95% PolygonZ ellipses: full fitted ECEF point covariance is
+  transformed to the project grid with a central-difference Jacobian. This
+  includes convergence, projection scale and the height-to-ellipsoid reduction.
+  Eigenvectors/eigenvalues of the horizontal covariance give orientation and
+  semi-axes using the 2D chi-square 0.95 factor. Grid azimuth is clockwise from
+  grid north, modulo 180 degrees. Each polygon uses 96 segments, with Z held
+  at the point's actual ellipsoidal height. Fixed points receive no ellipse.
+  Amber ellipses flag weak control or a user uncertainty warning limit.
+- Residual arrows: observed minus calculated GNSS vector at its target,
+  transformed to project grid differences. Actual dE/dN/dH and dX/dY/dZ remain
+  in the attributes. Coordinate-change arrows show original/approximate to
+  adjusted coordinates, where an original coordinate exists.
+
+DISPLAY ENLARGEMENT
+The default ellipse and displacement display factors are both 500. Choose 1
+for true map size, or an explicitly labelled enlargement. Layer names, banner,
+attributes, custom properties and export manifest record these factors. True
+uncertainty axes and displacement values in the attributes are NOT multiplied.
+Decorative displacement geometry scales horizontal offsets and holds Z at its
+origin; actual dH is a separate attribute. These DISPLAY ONLY geometries must
+not be treated as field boundaries, measured lines or altered point heights.
+
+Horizontal ellipse axes in the map use GRID metres; the quality report's ENU
+axes use geodetic tangent metres. They need not be numerically identical. Point
+labels show sigma-U (one standard deviation) in mm. Horizontal 95% ellipses and
+vertical 95% intervals are separate marginal regions, not a combined 3D region.
+All uncertainty is conditional on the recorded independent-block model. Common
+base/datum/antenna errors and cross-observation covariance remain unmodelled.
+
+COMPARING ALTERNATIVE RUNS
+First save complete SALSA results from two reviewed calculations of the same
+network. Exclusion/editing takes place explicitly in the network editor, with
+reasons, followed by a new calculation. In a verified map, Compare saved run
+opens the previous calculation folder's quality.json. The comparison loader
+reads checksums, original snapshot/input/output and recomputes their model
+verification without writing to that folder or launching another process. It
+requires the matching separately installed SALSA binary. Choose an original
+SALSA report folder, not the derived map-only export described below.
+
+Network identity, CRS, coordinate epoch, height datum and synthetic/private type
+must match. Confirm that point IDs still represent the same physical points.
+The Comparison table and magenta arrows show CURRENT MINUS COMPARISON E/N/H.
+Points estimated in only one run are explicitly labelled. These are coordinate
+differences; no statistical significance is inferred because runs commonly
+share observations and correlated errors. Checksums protect against accidental
+changes; they are not a digital signature or professional approval.
+
+QGIS PROJECT AND LOCAL EXPORT
+Add to QGIS creates a separate snapshot group with read-only memory layers and
+current visibility settings. It preserves other project layers and does not
+explicitly change the project CRS. QGIS can initialize a blank project's CRS
+from its first layer; the resulting canvas CRS is used for fitting. These
+memory layers are temporary; a QGIS map project alone does not persist them.
+
+Save map creates a new local timestamped folder with network_map.gpkg, six
+layers (seven with comparison), per-layer QML styles, unchanged network input
+snapshot, quality report, optional comparison report, and map_manifest.json.
+The manifest records source identity, reference information, stage, display
+factors, unmapped records, meaning and SHA256 hashes. The GeoPackage retains Z.
+Open a GeoPackage layer in QGIS and load its matching QML to restore the style.
+Map export includes display graphics as explicitly labelled derived layers; it
+is not a recipient-specific survey delivery format or a complete SALSA rerun
+package. A failed export without its final manifest is incomplete.
+
+All real inputs, output packages, reports, projects and screenshots remain local
+and must not be uploaded to the plugin repository. Only the separately reviewed
+constructed training fixture is distributed with the plugin.
+
+NATIVE TEST LIMITATION (2026-10-19)
+One development QGIS session became unresponsive with increasing memory after
+several in-process plugin reloads and final inspection/cleanup. Cause not
+isolated; saved synthetic source/results were retained. Opening/adding/closing
+the verified map and resizing/collapsing the main view were then tested after
+a fresh QGIS start without hot reloads and remained responsive. Do not treat
+this successful fresh-start sequence as a diagnosis of the previous failure.
+
+The software is provided AS IS, without warranty. Disclaimers and limitations
+of liability apply to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE.
+
+IMPLEMENTATION REFERENCES
+Original QGIS implementation using documented PyQGIS 4 interfaces:
+https://api.qgis.org/api/4.0/classQgsMapCanvas.html
+https://api.qgis.org/api/4.0/classQgsVectorFileWriter.html
+https://github.com/qgis/QGIS/blob/master/tests/src/python/test_qgsarrowsymbollayer.py
+GNSS Solutions was a workflow reference only; see GNSS_SOLUTIONS_AND_VRS.txt.

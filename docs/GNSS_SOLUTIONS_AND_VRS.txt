@@ -1,0 +1,107 @@
+GNSS SOLUTIONS AS A WORKFLOW REFERENCE; VRS INVESTIGATION
+Survey Adjustment 0.6.0 - reviewed 2026-10-19
+
+STATUS
+This is a design/investigation note, not a claim that raw GNSS processing or
+VRS generation exists in Survey Adjustment. The plugin is an independent
+implementation. It does not include GNSS Solutions code, engine, installer,
+manual, icons or proprietary project formats. No affiliation is claimed.
+
+WORKFLOW IDEAS
+The manufacturer's GNSS Solutions Reference Manual describes coordinated
+project/workbook, survey map and observation time views. Selecting data in
+context and inspecting processing results is a useful design reference.
+
+For an independent QGIS workflow, the practical progression is:
+1. Existing 0.5.0 foundation: immutable network snapshots, explicit controls and
+   observation roles, full-covariance GNSS adjustment, local quality reports,
+   point uncertainty, residual/redundancy tables and held-out checks.
+2. Implemented in 0.6.0 (original roadmap point 4): linked QGIS point/baseline layers and record
+   selection; horizontal confidence ellipses, height uncertainty and residual
+   graphics with explicit scales. Show raw, adjusted, excluded and check roles
+   clearly; distinguish user warnings from statistical model tests. Links must
+   open the original record and provenance. Compare saved alternative runs
+   without silently updating the underlying measurements or control points.
+   See NETWORK_MAP.txt for the actual profile, display scaling and limitations.
+3. A later raw-processing workspace: local file catalogue, station/antenna and
+   epoch review, time coverage/overlap, satellite/observation availability and
+   a job queue for a separately reviewed processing engine. Final coordinates
+   and processed baseline vectors must remain different data products.
+
+VRS IN GNSS SOLUTIONS
+The manufacturer's manual, chapter 14, printed pages 231-237 (PDF pages
+245-251), describes postprocessed VRS as synthesizing a virtual base raw-data
+file for a chosen location or observation file from simultaneous surrounding
+reference-station recordings. That product requires at least three stations.
+Its distance guidance and station-selection defaults are product-specific,
+not universal modern GNSS accuracy limits. The manual also explains that an
+apparently short virtual baseline does not remove dependence on the physical
+network's geometry and errors.
+
+This is more than averaging station coordinates or exporting a nearby virtual
+point. A usable synthetic carrier-phase observation stream requires a suitable
+network observation/error model and independently validated output. The current
+SALSA interface consumes processed observations; it supplies no VRS synthesis
+in this plugin.
+
+Separate two potential products:
+- Offline virtual-reference observations: read simultaneous local RINEX files,
+  synthesize an observation file at an explicitly chosen position, then process
+  the rover against it. This is the most relevant research target for an
+  office/QGIS workflow with locally held recordings.
+- Real-time network corrections: continuous multi-station processing and a
+  correction stream/NTRIP service. This also needs service operation, latency,
+  protocol and access management. It is a separate engineering scope; an NTRIP
+  client or a calculated virtual point alone is not such a service.
+
+INPUTS TO REVIEW BEFORE AN OFFLINE VRS PROTOTYPE
+- Time-overlapping raw reference observations from a surrounding network and
+  the rover, with enough common satellites/signals and documented time systems.
+  Design around three or more reference stations for the initial investigation;
+  adequacy still depends on geometry, data and the chosen engine/model.
+- Trusted physical station coordinates, reference frame/realisation and epoch,
+  ellipsoidal heights, antenna identities, reference-point heights/offsets and
+  applicable calibration models. Do not infer a coordinate epoch from file date.
+- Required navigation/ephemeris and other products supported by the engine,
+  with their provenance and permitted use. Remote products may be acquired
+  only through an explicit separate workflow; measurements remain local.
+- Virtual station location, requested time interval/interval spacing, desired
+  output format and all model choices. Missing required information must stop
+  a final calculation rather than silently receive default precision values.
+
+ENGINE AND VALIDATION WORK STILL REQUIRED
+Select an engine only after checking actual multi-station/VRS capabilities,
+license, dependency redistribution, active maintenance and reproducible test
+outputs. No engine has been selected or bundled for this purpose. A normal
+single-base RTK/PPK solver must not be labelled a VRS engine without evidence.
+
+Start with synthetic and permitted public benchmark observations. Compare
+with a trusted independent implementation and held-out physical stations;
+examine time gaps, cycle slips, ambiguity behaviour, geometry and atmosphere.
+Propagate/model shared network dependence: rover baselines made from one VRS
+are not automatically independent observations for least-squares adjustment.
+Verify antenna/reference points, frame/epoch, timing, units, RINEX metadata and
+round-trip readback. Record engine/model/input checksums and all exclusions.
+Do not claim improved field accuracy from a successful file-generation test.
+
+PRIVACY AND DISTRIBUTION
+Keep real observation files, station coordinates, generated VRS data, results,
+credentials and personal paths in ignored local project folders. Published
+examples must be independently constructed and hash-reviewed. A disclaimer
+does not replace scientific validation or third-party license compliance.
+
+The software is provided AS IS, without warranty. Disclaimers and limitations
+of liability apply to the extent permitted by GPLv3 sections 15-17 and
+applicable law. See LICENSE.
+
+PRIMARY REFERENCES
+GNSS Solutions Reference Manual, manufacturer-authored manual mirrored by a
+survey-equipment distributor. Chapter 2 (views), chapter 4 (import workflow),
+chapter 12 (documents), chapter 14 (postprocessed VRS):
+https://www.ecomexico.net/proyectos/soporte/ASHTECH%20-%20SPECTRA/GNSS/manuals/GNSSSolutions_RM_D_en.pdf
+
+Spectra Geospatial Origin help, GNSS surveys (network RTK/VRS context):
+https://help.spectrageospatial.com/origin/latest/en/gnss-surveys.htm
+
+SALSA User Manual, June 2025 (processed observation adjustment):
+https://www.arlut.utexas.edu/salsa/pdfs/SalsaUserManual-6-2025.pdf

@@ -1,7 +1,7 @@
 [general]
 name=Survey Adjustment – SALSA prototype
-description=Repeatability checks and SALSA adjustment of documented GNSS coordinate observations from different receivers.
-version=0.2.2
+description=Linked GNSS network maps, confidence ellipses, verified SALSA adjustment, full-covariance baseline import and quality checks.
+version=0.6.0
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Tore Berthelsen
@@ -9,7 +9,7 @@ email=
 homepage=https://www.3dmapper.no
 repository=https://github.com/TBRTK/qgis-survey-adjustment
 tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
-about=Independent prototype. Repeatability checks and your CSV in SALSA with ellipsoidal height and an explicit 1σ model. No raw GNSS/RINEX processing. Not an official SALSA or receiver product.
+about=Independent prototype. ETRS89 GNSS network adjustment through a separately installed SALSA engine, checked against an independent full-covariance solution. Linked maps and tables, 95% confidence ellipses, height uncertainty, residuals, redundancy, held-out checks and saved-run comparison. Explicit display enlargement; local GeoPackage map export. Processed GNSS baseline import with source audit, versioned network projects, repeatability and coordinate workflows. No raw RINEX, VRS, mixed survey solver or NN2000 transformation. Not an official SALSA or receiver product.
 category=Vector
 experimental=True
 hasProcessingProvider=False

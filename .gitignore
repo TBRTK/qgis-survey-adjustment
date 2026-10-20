@@ -34,7 +34,14 @@ local_settings.json
 *.qgs~
 *.gpkg-*
 *.sanet.json
+*.samix.json
 !survey_adjustment/examples/network_inventory.sanet.json
+!survey_adjustment/examples/gnss_quality.sanet.json
+*.pos
+*.pos.stat
+!survey_adjustment/examples/synthetic_baseline_llh.pos
+!survey_adjustment/examples/synthetic_baseline_xyz.pos
+!survey_adjustment/examples/synthetic_baseline_enu.pos
 .venv/
 private_data/
 customer_data/

@@ -1,0 +1,9 @@
+% SYNTHETIC training solution, mathematically constructed; not an Emlid/RTKLIB receiver export.
+% Frame documented separately: ETRS89/GRS80; REF0 to P01, session S01, coordinate epoch 2026-10-18.
+% pos mode  : static
+% ref pos   : 60.391219105858816 5.206704379586145 79.99992083292454
+% (e/n/u-baseline=WGS84,Q=1:fix,2:float)
+% UTC e-baseline(m) n-baseline(m) u-baseline(m) Q ns sde(m) sdn(m) sdu(m) sden(m) sdnu(m) sdue(m) age(s) ratio
+2026/10/18 08:00:00.000 44.92771511690964 89.3255549014785 1.9992172317099828 1 16 0.02 0.01 0.03 -0.004 0.005 -0.003 0.0 10.0
+2026/10/18 08:00:01.000 44.92771511690964 89.3255549014785 1.9992172317099828 2 16 0.02 0.01 0.03 -0.004 0.005 -0.003 0.0 10.0
+2026/10/18 08:00:02.000 44.92771511690964 89.3255549014785 1.9992172317099828 1 16 0.02 0.01 0.03 -0.004 0.005 -0.003 0.0 10.0

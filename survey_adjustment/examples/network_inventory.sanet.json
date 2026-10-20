@@ -1,0 +1,149 @@
+{
+  "format": "survey-adjustment-network",
+  "schema_version": 1,
+  "project_id": "a2a3747d-ba6e-4e8c-b10c-0ac3dcea77d7",
+  "name": "SYNTHETIC construction network inventory",
+  "crs": "EPSG:25832",
+  "height_datum": "ELLIP",
+  "epoch": "2026-10-18",
+  "notes": "Constructed training inventory, not field data. Observations are stored only; no network has been adjusted.",
+  "synthetic": true,
+  "points": [
+    {
+      "id": "REF0",
+      "role": "FIXED",
+      "coordinates": [
+        291000.0,
+        6701000.0,
+        80.0
+      ],
+      "sigma": null,
+      "notes": "SYNTHETIC anchor chosen exact only for this training inventory."
+    },
+    {
+      "id": "REF1",
+      "role": "CONSTRAINED",
+      "coordinates": [
+        291100.0,
+        6701000.0,
+        80.0
+      ],
+      "sigma": [
+        0.015,
+        0.015,
+        0.025
+      ],
+      "notes": "SYNTHETIC known coordinates with assessed uncertainty."
+    },
+    {
+      "id": "P01",
+      "role": "UNKNOWN",
+      "coordinates": null,
+      "sigma": null,
+      "notes": "SYNTHETIC unknown point; initial coordinates intentionally blank."
+    },
+    {
+      "id": "CHECK1",
+      "role": "CHECK",
+      "coordinates": [
+        291050.0,
+        6701120.0,
+        81.23456789
+      ],
+      "sigma": [
+        0.02,
+        0.02,
+        0.03
+      ],
+      "notes": "SYNTHETIC independent check; excluded from adjustment."
+    }
+  ],
+  "sessions": [
+    {
+      "id": "S01",
+      "start": "2026-10-18T08:00:00Z",
+      "end": "2026-10-18T09:00:00Z",
+      "instrument": "SYNTHETIC instrument, no manufacturer",
+      "corrections": "Synthetic data; no actual correction service.",
+      "notes": ""
+    }
+  ],
+  "observations": [
+    {
+      "id": "O01",
+      "session": "S01",
+      "kind": "DISTANCE",
+      "from_point": "REF0",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        100.02
+      ],
+      "covariance": [
+        0.0004
+      ],
+      "frame": "",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC point-to-point inventory value; no field corrections applied."
+    },
+    {
+      "id": "O02",
+      "session": "S01",
+      "kind": "DISTANCE",
+      "from_point": "REF1",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        100.02
+      ],
+      "covariance": [
+        0.0004
+      ],
+      "frame": "",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC point-to-point inventory value; no field corrections applied."
+    },
+    {
+      "id": "O03",
+      "session": "S01",
+      "kind": "HEIGHT_DIFFERENCE",
+      "from_point": "REF0",
+      "to_point": "P01",
+      "use": "ADJUSTMENT",
+      "enabled": true,
+      "values": [
+        2.0
+      ],
+      "covariance": [
+        0.0004
+      ],
+      "frame": "",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC point-to-point inventory value; no field corrections applied."
+    },
+    {
+      "id": "C01",
+      "session": "S01",
+      "kind": "DISTANCE",
+      "from_point": "REF0",
+      "to_point": "CHECK1",
+      "use": "CHECK",
+      "enabled": true,
+      "values": [
+        130.005861
+      ],
+      "covariance": [
+        0.0004
+      ],
+      "frame": "",
+      "instrument_height": 0.0,
+      "target_height": 0.0,
+      "notes": "SYNTHETIC point-to-point inventory value; no field corrections applied."
+    }
+  ]
+}

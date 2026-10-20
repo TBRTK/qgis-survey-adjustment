@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_SUFFIXES = {'.csv', '.tsv', '.sos', '.sosi', '.sanet.json'}
+DATA_SUFFIXES = {'.csv', '.tsv', '.sos', '.sosi', '.pos', '.sanet.json'}
 BLOCKED_SUFFIXES = {'.pem', '.key', '.p12', '.pfx', '.kdbx', '.sqlite', '.db',
     '.qgs', '.qgz', '.gpkg', '.rinex', '.obs', '.nav', '.ubx', '.rtcm', '.rtcm3',
     '.bag', '.pcap', '.pcapng', '.las', '.laz', '.exe', '.dll', '.msi', '.bin', '.zip'}
