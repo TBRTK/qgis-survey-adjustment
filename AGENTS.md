@@ -25,6 +25,13 @@ receiver models. Never apply GPS patterns to other constellations. Require exact
 antenna/radome/serial/generic/validity selection; no engine fallback. Preserve
 original and selected calibration hashes, H/E/N and every constellation used.
 The pinned BSD-2-Clause external binary remains separate from the GPL plugin.
+0.12.0 adds a separate experimental Survey SA1 engine contract with per-system
+receiver arrays, GLONASS FDMA coverage validation and correction-application audit.
+Keep engine variants/hash identities explicit; upstream v1/v2 contracts unchanged.
+No GPS-pattern, E5a/E5b, C01/C02 or antenna/radome fallback. GLONASS AR stays off.
+No combined engine/compiler/upstream source or real calibration data in releases.
+Full RS4 Pro support is not claimed: official azimuth/band model is outside this
+limited profile. See docs/SYSTEM_ENGINE.txt and docs/RS4_PRO_SUPPORT.txt.
 Preserve original engine POS/covariance, raw occupation identity, base coordinates,
 antenna offsets and processing audit. Static/PPK epochs are correlated; no
 automatic averaging, coordinate updates or independent baseline insertion.

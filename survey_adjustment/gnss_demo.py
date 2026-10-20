@@ -8,6 +8,7 @@ No RTKLIB source is copied. All carrier ambiguities are constructed integers.
 from datetime import datetime,timedelta
 from pathlib import Path
 import math,random,json
+from functools import lru_cache
 from .coordinate_job import xyz
 from . import network as n,rinex as r,antenna
 
@@ -19,12 +20,43 @@ TOE=(START-GPS0).total_seconds()-WEEK*604800
 BASE=xyz(60.4,5.2,80.,'EPSG:4979')
 
 
+def glo_initial(prn):
+    plane,k=divmod(prn-1,8);angle=k*math.pi/4+plane*.2;node=plane*2*math.pi/3+.3
+    radius=25471000.;speed=math.sqrt(3.9860044e14/radius);inc=math.radians(64.8)
+    rotate=lambda x,y:[x*math.cos(node)-y*math.cos(inc)*math.sin(node),x*math.sin(node)+y*math.cos(inc)*math.cos(node),y*math.sin(inc)]
+    pos=rotate(radius*math.cos(angle),radius*math.sin(angle));vel=rotate(-speed*math.sin(angle),speed*math.cos(angle))
+    return tuple(pos+[vel[0]+OMEGA*pos[1],vel[1]-OMEGA*pos[0],vel[2]])
+
+
+def glo_step(state,seconds):
+    """Independent J2 + rotating-Earth dynamics; fourth-order integration."""
+    def derivative(s):
+        x,y,z,vx,vy,vz=s;r2=x*x+y*y+z*z;radius=math.sqrt(r2)
+        gravity=3.9860044e14/(radius**3);j2=1.5*1.0826257e-3*3.9860044e14*6378136.**2/(radius**5)
+        flatten=5*z*z/r2;w=7.292115e-5
+        return [vx,vy,vz,(-gravity-j2*(1-flatten)+w*w)*x+2*w*vy,
+            (-gravity-j2*(1-flatten)+w*w)*y-2*w*vx,(-gravity-j2*(3-flatten))*z]
+    a=derivative(state);b=derivative([v+seconds*q/2 for v,q in zip(state,a)])
+    c=derivative([v+seconds*q/2 for v,q in zip(state,b)]);e=derivative([v+seconds*q for v,q in zip(state,c)])
+    return tuple(v+seconds*(aa+2*bb+2*cc+ee)/6 for v,aa,bb,cc,ee in zip(state,a,b,c,e))
+
+
+@lru_cache(maxsize=4096)
+def glo_grid(prn,index):
+    return glo_initial(prn) if index==0 else glo_step(glo_grid(prn,index-1),15.)
+
+
+def glo_channel(prn):return (prn-1)%14-7
+
+
 def orbit(system):
     return {'G':(A,MU,OMEGA,TOE,0.,0.),'E':(29600000.,3.986004418e14,OMEGA,TOE-60,60.,.4),
             'C':(27800000.,3.986004418e14,7.292115e-5,TOE-74,60.,.8)}[system]
 
 
 def position(prn,seconds,system='G'):
+    if system=='R':
+        index=max(0,int(seconds//15));return list(glo_step(glo_grid(prn,index),seconds-index*15)[:3])
     a,mu,omega,toe,lead,offset=orbit(system)
     plane,index=divmod(prn-(6 if system=='C' else 1),4)
     u=index*math.pi/2+plane*.23+math.sqrt(mu/a**3)*(seconds+lead)
@@ -56,6 +88,17 @@ def synthetic_model(base):
         noazi_mm=[round((5. if base else 15.)*(z/90)**2,4) for z in range(0,91,5)]) for f in ('G01','G02')})
 
 
+def multi_model(base,systems):
+    model=synthetic_model(base)
+    for system in systems:
+        if system=='G':continue
+        for index,freq in enumerate(antenna.SYSTEM_FREQUENCIES[system]):
+            offset={'E':80.,'C':-65.,'R':120.}[system]*(1 if base else -1)*(1+index*.2)
+            model['frequencies'][freq]=dict(neu_mm=[20.+offset/3,-30.+offset/4,200.+offset],
+                noazi_mm=[round((30.+offset/5)*(z/90)**2,4) for z in range(0,91,5)])
+    return model
+
+
 def observations(moving,base=False,systems=('G',),calibrated=False):
     rng=random.Random(100 if base else 101)
     receiver=BASE if base else rover_at(0,moving)
@@ -68,7 +111,7 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
     text+=header(''.join(f'{v:14.4f}' for v in receiver),'APPROX POSITION XYZ')
     text+=header(''.join(f'{v:14.4f}' for v in ((1. if base else 2.,0.,0.) if calibrated else (0.,0.,0.))),'ANTENNA: DELTA H/E/N')
     for system in systems:
-        text+=header({'G':'G    4 C1C L1C C2W L2W','E':'E    4 C1C L1C C7Q L7Q','C':'C    4 C2I L2I C7I L7I'}[system],'SYS / # / OBS TYPES')
+        text+=header({'G':'G    4 C1C L1C C2W L2W','E':'E    4 C1C L1C C7Q L7Q','C':'C    4 C2I L2I C7I L7I','R':'R    4 C1C L1C C2C L2C'}[system],'SYS / # / OBS TYPES')
     text+=header(f'{5.:10.3f}','INTERVAL')
     for stamp,label in ((START,'TIME OF FIRST OBS'),(START+timedelta(seconds=600),'TIME OF LAST OBS')):
         text+=header(f'{stamp.year:6d}{stamp.month:6d}{stamp.day:6d}{stamp.hour:6d}{stamp.minute:6d}{stamp.second:13.7f}     GPS',label)
@@ -86,17 +129,19 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
         text+=f'> {stamp:%Y %m %d %H %M} {stamp.second:10.7f}  0{len(sats):3d}\n'
         for system,prn in sats:
             rho=distance(prn,seconds,receiver,system)
+            corrections=[0.,0.]
             if calibrated:
                 sat=position(prn,seconds,system); los=[a-b for a,b in zip(sat,receiver)]; norm=math.sqrt(sum(v*v for v in los)); los=[v/norm for v in los]
                 east=[-math.sin(lam),math.cos(lam),0.];north=[-math.sin(phi)*math.cos(lam),-math.sin(phi)*math.sin(lam),math.cos(phi)]
-                model=synthetic_model(base)['frequencies']['G01'];nn,ee,uu=[v/1000 for v in model['neu_mm']]
-                offset=[nn*a+ee*b+(uu+(1. if base else 2.))*c for a,b,c in zip(north,east,up)]
                 zen=math.degrees(math.acos(sum(a*b for a,b in zip(los,up))));i=min(17,int(zen/5));f=zen/5-i
-                rho+=-sum(a*b for a,b in zip(offset,los))+(model['noazi_mm'][i]*(1-f)+model['noazi_mm'][i+1]*f)/1000
-            f1,f2={'G':(1575.42e6,1227.60e6),'E':(1575.42e6,1207.14e6),'C':(1561.098e6,1207.14e6)}[system]
-            code1=rho+rng.gauss(0,.02); code2=rho+rng.gauss(0,.02)
-            phase1=(rho+rng.gauss(0,.001))/(C/f1)+100000+prn*100+(0 if base else 50)
-            phase2=(rho+rng.gauss(0,.001))/(C/f2)+80000+prn*80+(0 if base else 30)
+                for slot,freq in enumerate(antenna.SYSTEM_FREQUENCIES[system]):
+                    model=multi_model(base,systems)['frequencies'][freq];nn,ee,uu=[v/1000 for v in model['neu_mm']]
+                    offset=[nn*a+ee*b+(uu+(1. if base else 2.))*c for a,b,c in zip(north,east,up)]
+                    corrections[slot]=-sum(a*b for a,b in zip(offset,los))+(model['noazi_mm'][i]*(1-f)+model['noazi_mm'][i+1]*f)/1000
+            f1,f2=(1602e6+glo_channel(prn)*.5625e6,1246e6+glo_channel(prn)*.4375e6) if system=='R' else {'G':(1575.42e6,1227.60e6),'E':(1575.42e6,1207.14e6),'C':(1561.098e6,1207.14e6)}[system]
+            code1=rho+corrections[0]+rng.gauss(0,.02); code2=rho+corrections[1]+rng.gauss(0,.02)
+            phase1=(rho+corrections[0]+rng.gauss(0,.001))/(C/f1)+100000+prn*100+(0 if base else 50)
+            phase2=(rho+corrections[1]+rng.gauss(0,.001))/(C/f2)+80000+prn*80+(0 if base else 30)
             text+=f'{system}{prn:02d}'+''.join(f'{v:14.3f}07' for v in (code1,phase1,code2,phase2))+'\n'
     return text
 
@@ -105,6 +150,15 @@ def navigation(systems=('G',)):
     text=header(f'{"3.05":>9}           N                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
     text+=header('SYNTHETIC CIRCULAR ORBITS - NOT REAL EPHEMERIDES','COMMENT')+header('','END OF HEADER')
     for system in systems:
+        if system=='R':
+            for prn in range(1,25):
+                state=glo_initial(prn);stamp=START-timedelta(seconds=18)
+                text+=f'R{prn:02d} {stamp:%Y %m %d %H %M %S}'+''.join(f'{v:19.12E}' for v in (0.,0.,28800.))+'\n'
+                for axis in range(3):
+                    row=[state[axis]/1000,state[axis+3]/1000,0.,glo_channel(prn) if axis==1 else 0.]
+                    text+='    '+''.join(f'{v:19.12E}' for v in row)+'\n'
+                text+='    '+''.join(f'{0.:19.12E}' for _ in range(4))+'\n'
+            continue
         a,mu,omega,toe,lead,offset=orbit(system)
         for prn in range(6 if system=='C' else 1,30 if system=='C' else 25):
             plane,index=divmod(prn-(6 if system=='C' else 1),4)
@@ -120,7 +174,7 @@ def navigation(systems=('G',)):
 
 def create(folder,moving=False,systems=('G',),calibrated=False):
     """Create a new explicit synthetic project; never append to a user's network."""
-    if not systems or 'G' not in systems or any(s not in ('G','E','C') for s in systems) or (calibrated and tuple(systems)!=('G',)):raise ValueError('Unsupported synthetic profile.')
+    if not systems or 'G' not in systems or any(s not in ('G','E','C','R') for s in systems):raise ValueError('Unsupported synthetic profile.')
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=False)
     project=n.new_project(); project.update(name='SYNTHETIC '+('moving PPK' if moving else 'static')+' '+''.join(systems)+(' ANTEX' if calibrated else '')+' integration example',
         synthetic=True,crs='EPSG:25832',height_datum='ELLIP',epoch='2026-10-18',
@@ -135,7 +189,7 @@ def create(folder,moving=False,systems=('G',),calibrated=False):
             note='Ideal constructed software test, not field measurements.',synthetic=True,confirmed=True))
     n.save_project(folder/'example.sanet.json',project)
     if calibrated:
-        payload=antenna.subset([('SIM_BASEANT     NONE',synthetic_model(True)),('SIM_ROVERANT    NONE',synthetic_model(False))])
+        payload=antenna.subset([('SIM_BASEANT     NONE',multi_model(True,systems)),('SIM_ROVERANT    NONE',multi_model(False,systems))])
         (folder/'synthetic.atx').write_bytes(payload.replace(header('','END OF HEADER').encode('ascii'),(header('SYNTHETIC INVENTED MODELS - NOT REAL ANTENNA CALIBRATION','COMMENT')+header('','END OF HEADER')).encode('ascii'),1))
     (folder/'truth.json').write_text(json.dumps(dict(synthetic=True,moving=moving,base_xyz=BASE,
         rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),systems=list(systems),calibrated=calibrated,

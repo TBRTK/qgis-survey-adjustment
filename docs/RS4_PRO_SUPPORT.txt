@@ -1,0 +1,52 @@
+EMLID REACH RS4 PRO — SUPPORT STATUS, SURVEY ADJUSTMENT 0.12.0
+
+Full device support is NOT claimed. The plugin is receiver independent and
+processes documented exports, not a direct connection to the receiver. It does
+not implement receiver firmware, radios, camera/visual survey, IMU tilt or AR.
+Processed coordinate/CSV review and raw RINEX processing are different workflows.
+Final exported ground heights must not have antenna height subtracted again.
+
+Emlid recommends RINEX 3.03 for RS4/RS4 Pro logging when the required version is
+unknown. This is within the existing 2.11/3.02-3.05 parser profile. Format support
+does not prove actual device/header/signal/antenna correctness; user observations
+and independent control are needed for receiver-specific end-to-end validation.
+Firmware version alone is not such validation. UBX, NMEA and RTCM are not raw
+input formats in this profile; an external documented conversion may be needed.
+
+The official NGS catalogue reviewed on 2026-10-20 lists distinct models
+EML_REACH_RS4 NONE and EML_REACH_RS4P NONE. They must never be substituted.
+The RS4P model has DAZI=5 and G01/G02/G05, E01/E05, R01/R02, C01/C06 plus
+other constellation frequency records. The tested SA1 profile accepts DAZI=0
+and G01/G02, E01/E07, C02/C07, R01/R02. Therefore the official RS4 Pro model
+cannot be accepted unchanged for complete four-system calibration in 0.12.0.
+It is deliberately rejected rather than silently dropping azimuth variation,
+borrowing GPS patterns, relabelling C01/C02, or substituting E5a for E5b.
+Azimuth-aware calibration, additional reviewed band selection and unambiguous
+legacy BeiDou ANTEX frequency conventions are further work. Do not edit the
+official model merely to bypass these checks. A reduced model is not full support.
+
+Emlid distinguishes pole/mark-to-ARP height from ARP-to-phase-centre offset.
+Its Flow app applies a receiver-dependent offset, while the published Studio
+workflow currently describes manual handling. That Studio-specific 95 mm example
+must not become a universal addition in this plugin. Review actual RINEX H/E/N,
+antenna name and whether height already contains PCO. The plugin applies H/E/N
+and exact reviewed frequency-specific PCO/PCV separately. Ambiguous endpoints
+must be documented/resolved using preserved originals before processing.
+
+For device validation: preserve paired base/rover OBS, matching NAV, firmware and
+logging/export settings, exact antenna/radome/header, pole/ARP evidence, session
+times/UTC offset, reference frame/epoch, independently known base and check point.
+Keep real data and calibration files private. The included/generated examples are
+invented software tests; they cannot establish accuracy or full RS4 Pro support.
+
+PRIMARY REFERENCES
+https://docs.emlid.com/reachrs4/ppk-quickstart/how-to-record-and-download-logs/ppk-logging/
+https://docs.emlid.com/reachrs4/ppk-quickstart/antenna-height-ppk/
+https://docs.emlid.com/reachrs4/specifications/specs/
+https://www.ngs.noaa.gov/ANTCAL/
+https://www.ngs.noaa.gov/ANTCAL/LoadFile?file=ngs20.atx
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE.

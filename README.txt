@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.11.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.12.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,35 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.11.0
+WHAT CHANGED IN 0.12.0
+Extends the existing PPK/static flow with GLONASS G1/G2 and per-constellation
+receiver ANTEX through a separate experimental Survey SA1 engine. GPS remains
+required; GLONASS ambiguities remain float. Navigation must supply valid FDMA
+channels and cover every observed GLONASS epoch. Each selected G/E/C/R system
+must actually contribute valid engine residuals. No second import or store.
+
+Survey SA1 is a locally built, hash-pinned extension of RTKLIB EX 2.5.1, not an
+official upstream release. It stores separate receiver patterns for each system
+and frequency; the adapter verifies the engine's correction-application audit.
+Exact antenna/radome/serial/generic/validity, original/subset calibration hashes,
+H/E/N, full POS covariance, map, reports, height export and baseline gates reuse
+the established workflow. Historical upstream v1/v2 jobs stay readable.
+
+Calibration scope: absolute ANTEX 1.4, DAZI=0, zenith 0/90/5, GPS L1/L2,
+Galileo E1/E5b, BeiDou B1I/B2I, GLONASS G1/G2. Missing bands/models fail; no GPS
+fallback or automatic 95 mm offset. Full Emlid RS4 Pro support is NOT claimed:
+its official RS4P model has azimuth variation and different frequency coverage.
+Actual receiver exports, height semantics and independent controls still need
+validation. See RS4_PRO_SUPPORT.txt and SYSTEM_ENGINE.txt (docs/ in source).
+
+Own plugin/extension/builder source remains GPL-3.0-only. Upstream BSD/SOFA
+notices are retained. No combined engine binary, compiler, external source or
+real calibration/observations are distributed. The source builder verifies
+inputs and produces a separate local executable. Constructed four-system
+static/moving examples have distinct invented PCO/PCV, known trajectories and
+GLONASS FDMA channels; they establish integration behaviour, not field accuracy.
+
+FEATURES FROM 0.11.0
 Extends the existing PPK/static processing flow with explicitly selected GPS
 L1/L2, Galileo E1/E5b and BeiDou B1I/B2I. GPS is required for this reviewed
 initialisation profile. Engine residuals must confirm every selected system

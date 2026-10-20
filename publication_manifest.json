@@ -21,6 +21,8 @@
     "docs/PPK_STATIC.txt",
     "docs/PUBLISHING.md",
     "docs/RINEX.txt",
+    "docs/RS4_PRO_SUPPORT.txt",
+    "docs/SYSTEM_ENGINE.txt",
     "publication_manifest.json",
     "survey_adjustment/LICENSE",
     "survey_adjustment/NOTICE.txt",
@@ -93,9 +95,13 @@
     "tests/test_qgis.py",
     "tests/test_rinex.py",
     "tests/test_rinex_qgis.py",
+    "tests/test_system_engine.py",
+    "tools/RTKLIB_LICENSE.txt",
+    "tools/build_system_engine.py",
     "tools/check_release.py",
     "tools/run_secret_scan.py",
     "tools/safe_push.py",
+    "tools/system_pcv.c",
     "tools/test_release_safety.py"
   ],
   "package_files": {
@@ -152,7 +158,9 @@
     "survey_adjustment/gnss_processing_ui.py": "survey_adjustment/gnss_processing_ui.py",
     "survey_adjustment/gnss_demo.py": "survey_adjustment/gnss_demo.py",
     "survey_adjustment/PPK_STATIC.txt": "docs/PPK_STATIC.txt",
-    "survey_adjustment/antenna.py": "survey_adjustment/antenna.py"
+    "survey_adjustment/antenna.py": "survey_adjustment/antenna.py",
+    "survey_adjustment/SYSTEM_ENGINE.txt": "docs/SYSTEM_ENGINE.txt",
+    "survey_adjustment/RS4_PRO_SUPPORT.txt": "docs/RS4_PRO_SUPPORT.txt"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {

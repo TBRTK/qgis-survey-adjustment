@@ -2,7 +2,7 @@
 """Strict receiver ANTEX selection before the external engine's permissive reader.
 
 ANTEX 1.4 absolute, non-azimuth-dependent 0:5:90 degree receiver patterns only.
-The reviewed engine supports GPS receiver patterns, not per-system PCV arrays.
+Upstream EX supports GPS receiver patterns; Survey SA1 has per-system arrays.
 Original files stay local; a minimal, uniquely named engine subset prevents its
 radome/serial/validity fallback and preserves the selected numerical values.
 """
@@ -12,6 +12,11 @@ import hashlib,math,re
 from . import rinex as r
 
 MAX_BYTES=32*1024*1024
+SYSTEM_FREQUENCIES={'G':('G01','G02'),'R':('R01','R02'),'E':('E01','E07'),'C':('C02','C07')}
+
+
+def required(systems,frequencies):
+    return tuple(code for system in systems for code in SYSTEM_FREQUENCIES[system][:frequencies])
 
 
 def _numbers(text,count):
@@ -93,7 +98,7 @@ def read(path):
     return dict(sha256=hashlib.sha256(payload).hexdigest(),entries=entries)
 
 
-def select(catalogue,metadata,frequencies):
+def select(catalogue,metadata,frequencies,systems=('G',)):
     """Exact type+radome, serial-specific before generic, entire occupation valid."""
     name=metadata['antenna']; serial=metadata['antenna_serial']
     if len(name)<20 or not name[16:20].strip():
@@ -110,21 +115,23 @@ def select(catalogue,metadata,frequencies):
     if chosen['dazi']!=0 or chosen['zenith']!=[0.,90.,5.]:
         raise ValueError('Reviewed engine profile supports only DAZI=0 and ZEN1/ZEN2/DZEN=0/90/5. Azimuth patterns or another grid are not silently approximated.')
     if chosen['count']!=len(chosen['frequencies']): raise ValueError('ANTEX frequency count differs from its blocks.')
-    for freq in ('G01','G02')[:frequencies]:
+    needed=required(systems,frequencies)
+    for freq in needed:
         values=chosen['frequencies'].get(freq,{})
         if set(values)!={'neu_mm','noazi_mm'} or len(values['noazi_mm'])!=19:
             raise ValueError('Selected antenna lacks complete '+freq+' PCO and 19 NOAZI PCV samples.')
         if any(not math.isfinite(v) or abs(v)>limit for key,limit in (('neu_mm',10000),('noazi_mm',1000)) for v in values[key]):
             raise ValueError('Nonfinite or implausible ANTEX correction.')
-    chosen['frequencies']={f:chosen['frequencies'][f] for f in ('G01','G02')[:frequencies]}
+    chosen['frequencies']={f:chosen['frequencies'][f] for f in needed}
     chosen['selection']='serial-specific' if specific else 'generic type/radome'
     return chosen
 
 
 def subset(models):
-    """Write only the selected GPS records under noncolliding engine aliases."""
+    """Keep actual constellation/frequency IDs under unique receiver aliases."""
     line=lambda value,label:f'{value:<60}{label:<20}\n'
-    text=line('     1.4            G','ANTEX VERSION / SYST')+line('A','PCV TYPE / REFANT')+line('','END OF HEADER')
+    systems={f[0] for _,model in models for f in model['frequencies']}
+    text=line('     1.4            '+('G' if systems=={'G'} else 'M'),'ANTEX VERSION / SYST')+line('A','PCV TYPE / REFANT')+line('','END OF HEADER')
     for alias,model in models:
         text+=line('','START OF ANTENNA')+line(f'{alias:<20}','TYPE / SERIAL NO')
         text+=line('     0.0','DAZI')+line('     0.0  90.0   5.0','ZEN1 / ZEN2 / DZEN')

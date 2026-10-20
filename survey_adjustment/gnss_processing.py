@@ -10,6 +10,7 @@ from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from uuid import uuid4
 import csv,gzip,hashlib,io,json,math,os,re,subprocess
+from bisect import bisect_left
 from . import network as n,rinex as r,baselines as b,engine,antenna
 
 ENGINE_SHA256='e3dcb3d7ebc57ed8fb3d48f6be2de70c0744b6ad56913846e4b303297a348926'
@@ -18,7 +19,10 @@ ENGINE_RELEASE='https://github.com/rtklibexplorer/RTKLIB/releases/tag/v2.5.1'
 ENGINE_LICENSE='https://github.com/rtklibexplorer/RTKLIB/blob/v2.5.1/license.txt'
 PROFILE='rtklib-ex251-gps-relative-v1'
 MULTI_PROFILE='rtklib-ex251-gec-relative-v2'
-SYSTEMS={'G':('GPS',1,('1','2')),'E':('Galileo',8,('1','7')),'C':('BeiDou B1I/B2I',32,('2','7'))}
+SYSTEM_PROFILE='rtklib-survey-sa1-relative-v3'
+SYSTEM_ENGINE_SHA256='744273e50daaf8d7653dfe67b67613c36f0abcf2eb64adb12ddafa278e5230d1'
+SYSTEM_ENGINE_VERSION='RTKLIB EX 2.5.1-SA1 — experimental Survey PCV extension'
+SYSTEMS={'G':('GPS',1,('1','2')),'E':('Galileo',8,('1','7')),'C':('BeiDou B1I/B2I',32,('2','7')),'R':('GLONASS G1/G2',4,('1','2'))}
 CONTEXT_KEYS={'profile','job_id','project_id','occupation_sha256','engine_sha256','configuration_sha256',
     'inputs','base','rover','session','frame','epoch','mode','base_xyz','antenna_note','model_note','job_directory'}
 WARNINGS=[
@@ -53,10 +57,15 @@ class ProcessingOptions:
     calibration: str='none'
     antex_path: str=''
     calibration_note: str=''
+    engine_variant: str='upstream'
 
 
 def warnings(options):
-    return WARNINGS+(['GPS receiver PCO/NOAZI PCV from the exact selected ANTEX entries; header H/E/N remains a separate marker-to-ARP offset.']
+    notes=list(WARNINGS)
+    if options.get('engine_variant')=='survey-sa1':
+        notes[-1]='Selected GPS/Galileo/BeiDou/GLONASS signals only. GLONASS ambiguity fixing is disabled; FDMA channels come from reviewed navigation. QZSS/SBAS/NavIC excluded.'
+        notes+=['Experimental local engine extension, not an official RTKLIB release. Separate per-constellation/frequency receiver arrays; no GPS-pattern fallback.']
+    return notes+(['Receiver PCO/NOAZI PCV from the exact selected ANTEX constellation/frequency entries; header H/E/N remains a separate marker-to-ARP offset.']
         if options['calibration']=='antex' else ['No receiver PCO/PCV calibration applied. Header H/E/N alone does not calibrate an antenna.'])
 
 
@@ -64,8 +73,8 @@ def calibration_review(options,base,rover):
     if options.calibration=='none':return None
     catalogue=antenna.read(options.antex_path)
     return dict(original_sha256=catalogue['sha256'],evidence=options.calibration_note,
-        base=antenna.select(catalogue,base['metadata'],options.frequencies),
-        rover=antenna.select(catalogue,rover['metadata'],options.frequencies),
+        base=antenna.select(catalogue,base['metadata'],options.frequencies,options.systems),
+        rover=antenna.select(catalogue,rover['metadata'],options.frequencies,options.systems),
         engine_file='receiver.atx',engine_sha256='')
 
 
@@ -73,8 +82,8 @@ def program(path):
     path=Path(path).expanduser().resolve()
     if path.name.lower()!='rnx2rtkp.exe' or not path.is_file() or path.is_symlink():
         raise ValueError('Select the separately installed, reviewed RTKLIB EX 2.5.1 rnx2rtkp.exe.')
-    if path.stat().st_size>20*1024*1024 or engine.sha256(path)!=ENGINE_SHA256:
-        raise ValueError('Unreviewed engine binary. This profile requires the exact RTKLIB EX 2.5.1 Windows executable; no other version is run.')
+    if path.stat().st_size>20*1024*1024 or engine.sha256(path) not in (ENGINE_SHA256,SYSTEM_ENGINE_SHA256):
+        raise ValueError('Unreviewed engine binary. Select the exact reviewed upstream EX 2.5.1 or separate experimental Survey SA1 executable.')
     return path
 
 
@@ -83,7 +92,7 @@ def _navigation_check(source,systems=('G',)):
     lines=source['metadata']['header']; count=len(lines)
     path=Path(source['path']); payload=path.read_bytes()
     if payload.startswith(b'\x1f\x8b'): payload=gzip.decompress(payload)
-    body=payload.decode('ascii').splitlines()[count:]; counts={s:0 for s in systems}; i=0; v2=source['metadata']['version']=='2.11'
+    body=payload.decode('ascii').splitlines()[count:]; counts={s:0 for s in systems}; glo={}; i=0; v2=source['metadata']['version']=='2.11'
     while i<len(body):
         line=body[i]; i+=1
         if not line.strip(): continue
@@ -92,12 +101,27 @@ def _navigation_check(source,systems=('G',)):
         if sat not in systems: continue
         prefix=3 if v2 else 4
         values=[[r.real(row[prefix+j*19:prefix+(j+1)*19]) if row[prefix+j*19:prefix+(j+1)*19].strip() else 0. for j in range(4)] for row in records]
+        if sat=='R':
+            if v2:raise ValueError('Reviewed GLONASS processing requires mixed RINEX 3 navigation.')
+            if not records[1][prefix+3*19:prefix+4*19].strip():
+                raise ValueError('Missing GLONASS FDMA channel; a blank field must not become channel zero.')
+            position=[values[j][0]*1000 for j in range(3)];velocity=[values[j][1]*1000 for j in range(3)]
+            channel=values[1][3]
+            if not 19000000<math.sqrt(sum(v*v for v in position))<30000000 or math.sqrt(sum(v*v for v in velocity))>6000:
+                raise ValueError('Nonphysical GLONASS position/velocity.')
+            if channel!=int(channel) or not -7<=channel<=6:raise ValueError('GLONASS FDMA channel must be an explicit integer -7 through +6 in navigation; no wavelength is inferred.')
+            tick=r.epoch(line[4:23].split());satellite=line[:3]
+            records=glo.setdefault(satellite,{})
+            if tick in records and records[tick]!=int(channel):raise ValueError('Conflicting GLONASS channels at one navigation epoch.')
+            records[tick]=int(channel)
+            counts[sat]+=1;continue
         eccentricity,sqrt_a=values[1][1],values[1][3]
         if not 0<=eccentricity<.2 or not 4500<sqrt_a<(7000 if sat=='C' else 6000):
             raise ValueError(SYSTEMS[sat][0]+' navigation contains nonphysical/unsupported orbit parameters. The 0.9 parser fixtures cannot be used for positioning.')
         counts[sat]+=1
     if sum(counts.values())<4 or any(v==0 for v in counts.values()):
         raise ValueError('At least four plausible broadcast records in total and navigation for every selected system are required; availability/health/fit are still assessed by the engine.')
+    return glo
 
 
 def validate(project,options,cancelled=lambda:False,preflight=True):
@@ -107,12 +131,14 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
         raise ValueError('Review the fixed base/frame/epoch, antenna endpoints, model/dependence and external-engine licence.')
     if options.mode not in ('static','kinematic') or type(options.frequencies) is not int or options.frequencies not in (1,2):
         raise ValueError('Choose static or PPK kinematic, one or two reviewed frequency slots.')
+    if options.engine_variant not in ('upstream','survey-sa1'):raise ValueError('Select a reviewed engine profile.')
     if (not isinstance(options.systems,(list,tuple)) or not options.systems or len(set(options.systems))!=len(options.systems)
             or any(s not in SYSTEMS for s in options.systems) or 'G' not in options.systems):
-        raise ValueError('Select GPS, optionally Galileo E1/E5b and BeiDou B1I/B2I. GPS is required by the reviewed initialisation profile.')
+        raise ValueError('Select GPS, optionally Galileo E1/E5b, BeiDou B1I/B2I and GLONASS G1/G2. GPS is required by this initialisation profile.')
+    if 'R' in options.systems and options.engine_variant!='survey-sa1':raise ValueError('GLONASS requires the separately reviewed Survey SA1 engine profile; legacy jobs remain unchanged.')
     if options.calibration not in ('none','antex'):raise ValueError('Choose explicit uncalibrated or receiver ANTEX processing.')
     if options.calibration=='antex':
-        if tuple(options.systems)!=('G',):
+        if tuple(options.systems)!=('G',) and options.engine_variant!='survey-sa1':
             raise ValueError('RTKLIB EX 2.5.1 reads GPS receiver calibration only. ANTEX plus multiple systems is blocked to prevent applying GPS patterns to other signals. Select GPS only or explicitly uncalibrated multi-GNSS.')
         n._text(options.calibration_note,'ANTEX source/version, usage rights and antenna installation evidence',required=True)
         if not options.antex_path:raise ValueError('Choose a local receiver ANTEX file.')
@@ -143,7 +169,20 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
     if not preflight:return base,rover,nav,None
     report=r.inspect_catalogue(project,cancelled)
     if report['blockers']: raise ValueError('Raw preflight requires review: '+'; '.join(report['blockers']))
-    _navigation_check(nav,options.systems)
+    glo=_navigation_check(nav,options.systems)
+    if 'R' in options.systems:
+        observed={s for row in (base,rover) for s in row['metadata']['satellites'] if s.startswith('R')}
+        if not observed or observed-set(nav['metadata']['satellites']):
+            raise ValueError('Every observed GLONASS satellite needs its own navigation/FDMA channel record; no default channel or wavelength is accepted.')
+        times={sat:sorted(records) for sat,records in glo.items()}
+        for row in (base,rover):
+            for sample in row['metadata']['samples']:
+                utc=sample[0]-row['utc_offset_seconds']*r.TICK
+                for sat in (s for s in sample[1].split() if s.startswith('R')):
+                    available=times.get(sat,[]);index=bisect_left(available,utc)
+                    nearest=available[max(0,index-1):index+1]
+                    if not nearest or min(abs(t-utc) for t in nearest)>1800*r.TICK:
+                        raise ValueError('GLONASS '+sat+' lacks navigation/FDMA channel coverage within 30 minutes at an observed epoch. No default wavelength is accepted.')
     calibration_review(options,base,rover)
     return base,rover,nav,report
 
@@ -175,11 +214,13 @@ def configuration(options,base,rover):
 
 def prepare(folder,project,options,executable,cancelled=lambda:False):
     executable=program(executable); base,rover,nav,preflight=validate(project,options,cancelled)
+    expected=SYSTEM_ENGINE_SHA256 if options.engine_variant=='survey-sa1' else ENGINE_SHA256
+    if engine.sha256(executable)!=expected:raise ValueError('Selected executable differs from the chosen engine profile.')
     if cancelled():raise ValueError('Job preparation cancelled.')
     folder=Path(folder).resolve(); folder.mkdir(parents=True,exist_ok=False)
-    context=dict(profile=MULTI_PROFILE,job_id=str(uuid4()),project_id=project['project_id'],
+    context=dict(profile=SYSTEM_PROFILE if options.engine_variant=='survey-sa1' else MULTI_PROFILE,job_id=str(uuid4()),project_id=project['project_id'],
         occupation_sha256=b.content_fingerprint([base['fingerprint'],rover['fingerprint']]),
-        engine_sha256=ENGINE_SHA256,configuration_sha256='',inputs=[],base=base['point'],rover=rover['point'],
+        engine_sha256=expected,configuration_sha256='',inputs=[],base=base['point'],rover=rover['point'],
         session=base['session'],frame=options.frame,epoch=options.epoch,mode=options.mode,
         base_xyz=list(options.base_xyz),antenna_note=options.antenna_note,model_note=options.model_note,job_directory=str(folder))
     context.update(systems=list(options.systems),frequencies=options.frequencies,calibration=calibration_review(options,base,rover))
@@ -241,9 +282,10 @@ def load_manifest(folder):
     if context.get('calibration'):
         for name,key in (('receiver.atx','engine_sha256'),('original.atx','original_sha256')):
             if engine.sha256(Path(folder)/name)!=context['calibration'][key]:raise ValueError('Job antenna calibration changed: '+name)
-    if context['profile']==MULTI_PROFILE:
+    if context['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE):
         try: options=ProcessingOptions(**result['options'])
         except (TypeError,ValueError):raise ValueError('Invalid recorded processing options.') from None
+        if (options.engine_variant=='survey-sa1')!=(context['profile']==SYSTEM_PROFILE):raise ValueError('Recorded engine profile differs from options.')
         project=n.load_project(Path(folder)/'network.sanet.json')
         base,rover,_,_=validate(project,options,preflight=False)
         expected=dict(project_id=project['project_id'],base=base['point'],rover=rover['point'],session=base['session'],
@@ -256,31 +298,32 @@ def load_manifest(folder):
         if context['calibration']:
             model=context['calibration'];catalogue=antenna.read(Path(folder)/'original.atx')
             for key,row in (('base',base),('rover',rover)):
-                if antenna.select(catalogue,row['metadata'],options.frequencies)!=model[key]:raise ValueError('Recorded antenna selection differs from the original calibration.')
+                if antenna.select(catalogue,row['metadata'],options.frequencies,options.systems)!=model[key]:raise ValueError('Recorded antenna selection differs from the original calibration.')
             subset=antenna.read(Path(folder)/'receiver.atx')['entries']
             if len(subset)!=2 or model['evidence']!=options.calibration_note:raise ValueError('Engine antenna subset differs from the recorded selection.')
             for entry,key,alias in zip(subset,('base','rover'),('SA_BASE         NONE','SA_ROVER        NONE')):
                 if (entry['type']!=alias or entry['serial'] or entry['dazi']!=0 or entry['zenith']!=[0.,90.,5.]
                         or entry['start'] is not None or entry['end'] is not None
-                        or entry['count']!=options.frequencies or entry['frequencies']!=model[key]['frequencies']):
+                        or entry['count']!=len(antenna.required(options.systems,options.frequencies)) or entry['frequencies']!=model[key]['frequencies']):
                     raise ValueError('Engine antenna subset differs from the recorded selection.')
     return result
 
 
 def validate_context(context):
     if not isinstance(context,dict):raise ValueError('Invalid processing provenance.')
-    modern=context.get('profile')==MULTI_PROFILE
+    modern=context.get('profile') in (MULTI_PROFILE,SYSTEM_PROFILE)
     n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set()),'Raw processing provenance')
-    if context['profile'] not in (PROFILE,MULTI_PROFILE) or context['engine_sha256']!=ENGINE_SHA256 or context['mode'] not in ('static','kinematic'):
+    if context['profile'] not in (PROFILE,MULTI_PROFILE,SYSTEM_PROFILE) or context['engine_sha256']!=(SYSTEM_ENGINE_SHA256 if context['profile']==SYSTEM_PROFILE else ENGINE_SHA256) or context['mode'] not in ('static','kinematic'):
         raise ValueError('Unsupported processing profile or engine identity.')
     if modern:
         systems=context['systems']
         if not isinstance(systems,list) or not systems or 'G' not in systems or len(set(systems))!=len(systems) or any(s not in SYSTEMS for s in systems):raise ValueError('Invalid recorded satellite systems.')
         if type(context['frequencies']) is not int or context['frequencies'] not in (1,2):raise ValueError('Invalid recorded frequencies.')
+        if 'R' in systems and context['profile']!=SYSTEM_PROFILE:raise ValueError('GLONASS is not a legacy processing profile.')
         model=context['calibration']
         if model is not None:
             n._keys(model,{'original_sha256','evidence','base','rover','engine_file','engine_sha256'},'Receiver calibration')
-            if systems!=['G'] or model['engine_file']!='receiver.atx':raise ValueError('Unsupported receiver calibration profile.')
+            if (systems!=['G'] and context['profile']!=SYSTEM_PROFILE) or model['engine_file']!='receiver.atx':raise ValueError('Unsupported receiver calibration profile.')
             for key in ('original_sha256','engine_sha256'):
                 if not re.fullmatch('[0-9a-f]{64}',model[key]):raise ValueError('Invalid ANTEX hash.')
             n._text(model['evidence'],'Calibration evidence',required=True)
@@ -288,7 +331,7 @@ def validate_context(context):
                 m=model[key]
                 n._keys(m,{'type','serial','method','dazi','zenith','start','end','count','frequencies','selection'},'Selected receiver model')
                 if m['selection'] not in ('generic type/radome','serial-specific') or m['dazi']!=0 or m['zenith']!=[0.,90.,5.]:raise ValueError('Unsupported recorded antenna model.')
-                if set(m['frequencies'])!=set(('G01','G02')[:context['frequencies']]):raise ValueError('Invalid recorded antenna frequencies.')
+                if set(m['frequencies'])!=set(antenna.required(systems,context['frequencies'])):raise ValueError('Invalid recorded antenna frequencies.')
                 for values in m['frequencies'].values():
                     n._keys(values,{'neu_mm','noazi_mm'},'Antenna frequency')
                     for name,count,limit in (('neu_mm',3,10000),('noazi_mm',19,1000)):
@@ -316,7 +359,8 @@ def _decode(folder,manifest):
     if (meta['representation'],meta['mode'],meta['time_system'])!=('XYZ',context['mode'],'GPST') or math.dist(meta['reference'],context['base_xyz'])>.0002:
         raise ValueError('Output mode/time/coordinates/base differ from the submitted processing job.')
     text=(folder/'solution.pos').read_text(encoding='ascii')
-    if '% program   : RTKLIB ver.EX 2.5.1' not in text: raise ValueError('Unexpected output engine/version header.')
+    expected_header='% program   : RTKLIB ver.EX '+('2.5.1-SA1' if context['profile']==SYSTEM_PROFILE else '2.5.1')
+    if expected_header not in text.splitlines(): raise ValueError('Unexpected output engine/version header.')
     project=n.load_project(folder/'network.sanet.json'); sources={row['id']:row for row in project['raw_sources']}
     base,rover=[sources[row['source_id']] for row in context['inputs'][:2]]
     low=max(row['metadata']['first_tick'] for row in (base,rover)); high=min(row['metadata']['last_tick'] for row in (base,rover))
@@ -332,6 +376,7 @@ def inspect_result(folder,exit_code,executable):
     folder=Path(folder); manifest=load_manifest(folder)
     if manifest['state']!='PREPARED' or exit_code!=0: raise ValueError('Raw processing failed or this run is no longer pending. Partial results are not accepted.')
     program(executable)
+    if engine.sha256(executable)!=manifest['context']['engine_sha256']:raise ValueError('Engine changed during processing.')
     if (folder/'console.txt').exists() and re.search(r'invalid option|error\s*:',(folder/'console.txt').read_text(encoding='utf-8',errors='replace'),re.I):
         raise ValueError('Engine reported an invalid option or processing error; review the local console log.')
     if not (folder/'solution.pos').is_file() or (folder/'solution.pos').stat().st_size>b.MAX_SOURCE_BYTES: raise ValueError('Missing or oversized engine solution.')
@@ -343,9 +388,10 @@ def inspect_result(folder,exit_code,executable):
         if engine.sha256(original['path'])!=original['source_sha256']: raise ValueError('Original source changed during processing; do not use this result.')
     counts={quality:sum(row['quality']==quality for row in source['rows']) for quality in sorted({row['quality'] for row in source['rows']})}
     result=dict(mode=manifest['context']['mode'],epochs=len(source['rows']),quality_counts=counts,
-        eligible_fix=sum(row['eligible'] for row in source['rows']),warnings=warnings(manifest['options']) if manifest['context']['profile']==MULTI_PROFILE else WARNINGS,
+        engine_version=SYSTEM_ENGINE_VERSION if manifest['context']['profile']==SYSTEM_PROFILE else ENGINE_VERSION,
+        eligible_fix=sum(row['eligible'] for row in source['rows']),warnings=warnings(manifest['options']) if manifest['context']['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE) else WARNINGS,
         first_time=source['rows'][0]['time'],last_time=source['rows'][-1]['time'],time_system='GPST')
-    if manifest['context']['profile']==MULTI_PROFILE:
+    if manifest['context']['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE):
         # Engine residual validity flag proves a constellation contributed; input
         # availability or a navsys mask alone is not evidence of use.
         used={s:set() for s in manifest['context']['systems']}
@@ -357,11 +403,27 @@ def inspect_result(folder,exit_code,executable):
                 if len(values)>10 and values[0]=='$SAT' and values[3][:1] in used and values[9]=='1':used[values[3][0]].add(values[3])
         if any(not ids for ids in used.values()):raise ValueError('A selected satellite system contributed no valid residuals. Review navigation, signals, time overlap and engine log; no silent exclusion is accepted.')
         result.update(systems=manifest['context']['systems'],used_satellites={s:sorted(ids) for s,ids in used.items()},calibration=manifest['context']['calibration'])
+        if manifest['context']['profile']==SYSTEM_PROFILE and manifest['context']['calibration']:
+            console=(folder/'console.txt').read_text(encoding='utf-8',errors='replace')
+            audit={}
+            for match in re.finditer(r'SA_PCV,([^,\r\n]+),([GREC]),([01]),([^\r\n]+)',console):
+                try: values=[float(v) for v in match[4].split(',')]
+                except ValueError:raise ValueError('Invalid engine receiver-calibration audit.') from None
+                audit[(match[1],match[2],int(match[3]))]=values
+            for receiver,alias in (('base','SA_BASE         NONE'),('rover','SA_ROVER        NONE')):
+                for system in manifest['context']['systems']:
+                    for slot,code in enumerate(antenna.SYSTEM_FREQUENCIES[system][:manifest['context']['frequencies']]):
+                        model=manifest['context']['calibration'][receiver]['frequencies'][code]
+                        expected=[model['neu_mm'][1]/1000,model['neu_mm'][0]/1000,model['neu_mm'][2]/1000,model['noazi_mm'][0]/1000,model['noazi_mm'][-1]/1000]
+                        actual=audit.get((alias,system,slot),[])
+                        if len(actual)!=5 or any(not math.isfinite(a) or abs(a-b)>1e-9 for a,b in zip(actual,expected)):
+                            raise ValueError('Engine did not confirm the selected '+receiver+' '+code+' receiver calibration. No fallback is accepted.')
+            result['receiver_calibration_audit']='Every selected receiver/system/frequency confirmed by the engine; original NOAZI values and input hashes retained.'
     with (folder/'epochs.csv').open('w',encoding='utf-8',newline='') as handle:
         from .coordinate_job import llh
         writer=csv.writer(handle);writer.writerow(['Time GPST','X ECEF m','Y ECEF m','Z ECEF m','Latitude WGS84 ellipsoid deg','Longitude deg','h WGS84 ellipsoid m','Q','Baseline eligible','Reason'])
         for row in source['rows']: writer.writerow([row['time'],*row['values'],*llh(row['values'],'EPSG:4979'),row['quality'],row['eligible'],row['reason']])
-    (folder/'report.txt').write_text(ENGINE_VERSION+' — '+result['mode']+'\n'+json.dumps(result,indent=2)+'\n\n'+
+    (folder/'report.txt').write_text(result['engine_version']+' — '+result['mode']+'\n'+json.dumps(result,indent=2)+'\n\n'+
         'Original engine solution and covariance retained in solution.pos. No averaged coordinate or automatic baseline import.\n'+
         'Input originals, copied inputs, configuration and engine SHA256 recorded in processing.json. Hashes establish integrity, not authenticity.\n',encoding='utf-8')
     manifest['state']='COMPLETED';manifest['outputs']={name:engine.sha256(folder/name) for name in ('solution.pos','solution.pos.stat','epochs.csv','report.txt') if (folder/name).exists()}

@@ -4,6 +4,7 @@ import tempfile,time,unittest
 from unittest.mock import patch
 from test_qgis import app,ROOT,Iface
 from test_gnss_processing import ENGINE
+from test_system_engine import SA_ENGINE
 from qgis.PyQt.QtCore import QSettings,QProcess
 from qgis.PyQt.QtWidgets import QFileDialog,QDialog
 from survey_adjustment.plugin import SurveyDialog
@@ -85,6 +86,26 @@ class ProcessingQgisTests(unittest.TestCase):
         dialog.systems['E'].setChecked(True)
         with patch.object(QFileDialog,'getExistingDirectory') as picker:self.assertFalse(dialog.start());self.assertFalse(picker.called)
         self.assertIn('multiple systems',dialog.status.text());self.assertFalse(dialog.handoff.isEnabled())
+
+    @unittest.skipUnless(SA_ENGINE.is_file(),'Separate experimental engine not bundled')
+    def test_survey_engine_qprocess_four_system_example_and_existing_baseline_handoff(self):
+        dialog=self.dialog;dialog.engine_variant.setCurrentIndex(dialog.engine_variant.findData('survey-sa1'))
+        dialog.executable.setText(str(SA_ENGINE));dialog.calibration.setCurrentIndex(dialog.calibration.findData('antex'))
+        for system in ('E','C','R'):dialog.systems[system].setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        self.assertFalse(dialog.license_review.isChecked())
+        for field in (dialog.base_review,dialog.antenna_review,dialog.model_review,dialog.license_review):field.setChecked(True)
+        self.start();self.assertIn('Survey PCV',dialog.report.toPlainText());self.assertIn('R01',dialog.report.toPlainText())
+        self.assertEqual(set(dialog.result['used_satellites']),{'G','E','C','R'})
+        dialog.select_record('processing_epoch',str(dialog.source['rows'][-1]['line']))
+        def execute(review):
+            for check in (review.synthetic,review.relative,review.endpoints,review.covariance,review.occupation):check.setChecked(True)
+            review.occupation_note.setText('Constructed stationary point, selected final correlated state; not a trajectory average.')
+            self.assertTrue(review.preview(),review.review.toPlainText());self.assertTrue(review.finish());return QDialog.DialogCode.Accepted
+        with patch.object(BaselineImportDialog,'exec',execute):self.assertTrue(dialog.review_baseline())
+        self.assertEqual(len(self.owner.project['observations']),1)
+        self.assertEqual(self.owner.project['imports'][0]['processing']['profile'],p.SYSTEM_PROFILE)
+        self.owner.write(self.root/'saved_extended.sanet.json');self.assertEqual(n.load_project(self.root/'saved_extended.sanet.json'),self.owner.snapshot())
 
     def test_cancelled_or_closed_job_is_marked_aborted(self):
         with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertTrue(self.dialog.start())

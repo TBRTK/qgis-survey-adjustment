@@ -1,4 +1,12 @@
-PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.11.0
+PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.12.0
+
+ENGINE PROFILE
+The original upstream EX profile below remains available with its legacy limits.
+For experimental GLONASS and per-system ANTEX, select Survey SA1 in the SAME
+dialog and choose the separately built, exact reviewed executable. Read
+SYSTEM_ENGINE.txt for build/licence, supported bands and application-audit gates.
+RS4_PRO_SUPPORT.txt explains receiver-specific limits; full support is not claimed.
+Both documents are in docs/ in source and in the installed plugin folder.
 
 WORKFLOW / REUSE
 Network project > Raw GNSS / RINEX > PPK / static processing of existing sources.
@@ -47,7 +55,7 @@ workflows, with their frame, covariance and endpoint requirements unchanged.
    do not establish a new independent occupation. The duplicate gate rejects it.
    Keep alternative processing runs as separate results for review/comparison.
 
-REVIEWED PROCESSING PROFILE
+LEGACY UPSTREAM PROCESSING PROFILE (v1/v2)
 Pinned Windows RTKLIB EX 2.5.1, GPS L1/L2, Galileo E1/E5b and BeiDou B1I/B2I
 code and carrier phase, one or two slots, GPS required for initialisation, static
 or kinematic relative forward filtering, continuous ambiguity resolution,
@@ -132,6 +140,8 @@ base/rover H=1/2 m. Applying the matching models recovers physical marker height
 omitting them leaves a measurable bias in this constructed integration test.
 Moving example changes ECEF X by 12 metres over ten minutes. Original 0.9 parser
 fixtures contain nonphysical zero ephemerides and are explicitly refused here.
+Survey SA1 examples also construct GLONASS rotating-Earth/J2 state vectors and
+FDMA carrier frequencies, plus distinct per-system/per-band antenna models.
 No receiver/reference-station or customer data are bundled. Synthetic tests
 demonstrate the engine/GUI/import/export path, not real survey accuracy.
 

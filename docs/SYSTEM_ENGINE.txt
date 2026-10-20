@@ -1,0 +1,100 @@
+SURVEY SA1 — EXPERIMENTAL FOUR-SYSTEM RECEIVER CALIBRATION
+
+Survey Adjustment 0.12.0 extends the existing Raw GNSS > PPK/static dialog.
+There is one raw catalogue, network project, background queue, result/map/export
+flow and baseline handoff. The engine-profile choice changes only processing.
+Upstream EX jobs and their historical v1/v2 audits remain readable.
+
+ENGINE REVIEW / CHOICE — 2026-10-20
+Reviewed upstream RTKLIB EX release 2.5.1 and current main commit
+50886e2fef3da7aa49fe87405cf52ff99972711d: receiver ANTEX reading still skips
+non-GPS records; receiver correction arrays are shared across systems.
+GREAT-PVT at 8bd3d231885ddde7a9268252a0b4fdec28ba4981 is a GPLv3 alternative
+with multi-GNSS RTK/PPP, ANTEX and Windows binaries. It was reviewed as a candidate,
+not integrated or claimed tested here. It uses a different configuration/output
+contract; adopting it requires a separate full-covariance and processing audit.
+
+This release instead builds a separately identified experimental extension of
+pinned RTKLIB EX 2.5.1 commit 62d4677ed8425a4e2748c6d390b500d1afb493fc.
+SA1 adds independent receiver arrays for GPS/GLONASS/Galileo/BeiDou, reads actual
+constellation/frequency IDs and uses the observed satellite system for every
+relative residual. It does not relabel Galileo/BeiDou patterns as GPS. Missing
+receiver/system/frequency models fail. The engine prints an application audit
+for each receiver/system/frequency; the adapter checks this against the selected
+PCO/PCV values. The entire original/subset files and full engine hash are retained.
+Upstream decoding, filtering, ambiguity processing, POS/covariance and downstream
+review are reused. SA1 is not an official RTKLIB release or an independent GNSS
+algorithm validation. The original upstream executable remains supported.
+
+SELECTED PROFILE
+GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I, GLONASS G1/G2. One/two frequencies;
+GPS required for initialisation. GLONASS ambiguities remain float: no unreviewed
+inter-frequency-bias calibration or GLONASS integer fixing. Every observed Rxx
+requires its own plausible navigation state and explicit integer FDMA channel
+-7..+6, with navigation coverage within 30 minutes at every observed epoch.
+The documented GPS-minus-UTC offset is used for the coverage comparison with
+GLONASS navigation UTC. No zero-channel or nominal-wavelength fallback.
+Each selected system must contribute valid engine residuals before acceptance.
+
+Receiver ANTEX remains absolute version 1.4, DAZI=0, zenith 0/90/5. Exact antenna,
+radome, serial-specific/generic selection and whole-occupation validity are
+required for BOTH receivers. Required IDs are G01/G02, E01/E07, C02/C07, R01/R02
+(first ID only in single-frequency mode). No C01/C02, E05/E07, radome or serial
+substitution. Calibration does not repair undocumented header heights. Verify
+H/E/N is marker-to-ARP and does not already include the phase-centre correction.
+No satellite calibration, azimuth model, extra bands, precise products, VRS or
+frame/coordinate-epoch transformation. Static/PPK epochs remain correlated;
+one documented occupation is reviewed through the existing baseline importer.
+
+BUILD / LOCAL EXECUTION
+No compiler, engine binary or upstream source archive is distributed in the
+plugin ZIP. The GUI never downloads/builds an engine. Reviewed source builder:
+tools/build_system_engine.py and tools/system_pcv.c in this source repository.
+Download the exact source archive and official Zig 0.15.2 separately, then run:
+python -B tools/build_system_engine.py --source-zip RTKLIB-source.zip --zig zig.exe --output NEW_LOCAL_FOLDER
+The script verifies source/compiler hashes, preserves upstream/SOFA sources and
+notices, patches a NEW directory and writes build.log and PROVENANCE.json.
+It normalizes only unsigned PE/COFF timestamps and CodeView GUID, not code/data,
+so independent builds produce identical bytes. No signing/authentication implied.
+
+Source ZIP SHA256:
+99d25f03656158be1924beb8e92239ce8138a8f6181d915571831617f4ccc9a1
+Official Zig 0.15.2 Windows archive SHA256:
+3a0ed1e8799a2f8ce2a6e6290a9ff22e6906f8227865911fb7ddedc3cc14cb0c
+Reviewed Zig executable SHA256:
+d408dd38eed3e5204af841bcebf70502a4dbbb8399a3a3262be55059370bc018
+Reviewed local Survey SA1 engine SHA256:
+744273e50daaf8d7653dfe67b67613c36f0abcf2eb64adb12ddafa278e5230d1
+
+RIGHTS / PUBLICATION
+Own plugin, extension and builder source: GPL-3.0-only, as requested. RTKLIB's
+pinned licence is BSD-2-Clause; modification/local use is permitted with its
+copyright, conditions and disclaimer retained. Source patch anchors retain the
+notice in tools/RTKLIB_LICENSE.txt. Upstream SOFA routines have separate terms
+and retained notices. Local private compilation/use is the scope tested here.
+Only own source/build instructions are published: no combined engine binary or
+third-party source bundle. This is not blanket clearance to redistribute a
+combined executable; that would require a complete corresponding-source and
+third-party compatibility/notice review. The separate-process plugin contract
+does not relicense upstream code. GREAT-PVT remains separately GPLv3; its code,
+binary and libraries are not included. Calibration providers retain their terms;
+real ANTEX catalogues are neither bundled nor published. Synthetic models are
+invented integration data, not calibrations of real receivers.
+
+PRIMARY REFERENCES
+https://github.com/rtklibexplorer/RTKLIB/releases/tag/v2.5.1
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/license.txt
+https://github.com/rtklibexplorer/RTKLIB/blob/50886e2fef3da7aa49fe87405cf52ff99972711d/src/rtkcmn.c
+https://github.com/GREAT-WHU/GREAT-PVT/tree/8bd3d231885ddde7a9268252a0b4fdec28ba4981
+https://github.com/GREAT-WHU/GREAT-PVT/blob/8bd3d231885ddde7a9268252a0b4fdec28ba4981/LICENSE
+https://www.iausofa.org/terms-and-conditions
+https://www.gnu.org/licenses/gpl-faq.html#NoDistributionRequirements
+https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip
+https://codeload.github.com/rtklibexplorer/RTKLIB/zip/62d4677ed8425a4e2748c6d390b500d1afb493fc
+https://files.igs.org/pub/data/format/rinex305.pdf
+https://files.igs.org/pub/data/format/antex14.txt
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. No field accuracy or delivery approval is claimed.

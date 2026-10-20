@@ -26,8 +26,12 @@ class ProcessingDialog(QDialog):
         self.process=None;self.folder=None;self.result=None;self.source=None;self.layers={};self.aborted=False;self.preparing=False
         self.setWindowTitle('GNSS PPK / static — external RTKLIB job');self.resize(1120,850)
         layout=QVBoxLayout(self)
-        label=QLabel('Process existing RINEX links locally: GPS, optional Galileo E1/E5b and BeiDou B1I/B2I. Receiver ANTEX calibration is GPS-only in this engine. PPK trajectories and static filter states are correlated; review one stationary occupation through the existing baseline import.')
+        label=QLabel('Process existing RINEX links locally. Upstream EX retains its legacy calibration limits; experimental Survey SA1 adds GLONASS and separate receiver patterns for G/E/C/R. PPK/static states are correlated. Review one stationary occupation through the existing baseline import.')
         label.setWordWrap(True);layout.addWidget(label)
+        profile_row=QHBoxLayout();profile_row.addWidget(QLabel('Engine profile'))
+        self.engine_variant=combo({'upstream':'Upstream EX 2.5.1 — legacy G/E/C, GPS-only ANTEX',
+            'survey-sa1':'Experimental Survey SA1 — G/E/C/R and per-system receiver ANTEX'})
+        profile_row.addWidget(self.engine_variant,1);layout.addLayout(profile_row)
         page=QWidget();form=QGridLayout(page);self.controls=page
         self.executable=QLineEdit(str(QSettings().value('SurveyAdjustment/rtklib_ex251','')))
         choose=QPushButton('Choose RTKLIB …');choose.clicked.connect(self.choose_engine)
@@ -56,19 +60,19 @@ class ProcessingDialog(QDialog):
         system_row=QHBoxLayout()
         for field in self.systems.values():system_row.addWidget(field)
         form.addWidget(QLabel('Satellite systems'),11,0);form.addLayout(system_row,11,1,1,4)
-        self.calibration=combo({'none':'Explicitly uncalibrated — header H/E/N only','antex':'Receiver ANTEX PCO + NOAZI PCV — GPS only'})
+        self.calibration=combo({'none':'Explicitly uncalibrated — header H/E/N only','antex':'Receiver ANTEX PCO + NOAZI PCV — reviewed engine bands'})
         form.addWidget(QLabel('Receiver calibration'),12,0);form.addWidget(self.calibration,12,1,1,4)
         self.antex=QLineEdit();self.antex.setPlaceholderText('Local absolute ANTEX 1.4; exact antenna + radome, serial/generic model, entire occupation valid')
         choose_antex=QPushButton('Choose ANTEX …');choose_antex.clicked.connect(self.choose_antex)
         form.addWidget(QLabel('ANTEX file'),13,0);form.addWidget(self.antex,13,1,1,3);form.addWidget(choose_antex,13,4)
         self.calibration_note=QLineEdit();self.calibration_note.setPlaceholderText('Source/version and usage rights; verify antenna serial, radome, mounting, north orientation and ARP height')
         form.addWidget(QLabel('Calibration evidence'),14,0);form.addWidget(self.calibration_note,14,1,1,4)
-        hint=QLabel('Slots: GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I. GPS is required. Other bands and GLONASS are excluded. ANTEX: absolute DAZI=0, zenith 0–90° in 5° steps. Mixed-system calibration is blocked because this engine would reuse GPS patterns. No antenna/radome fallback or model download.')
+        hint=QLabel('Slots: GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I; Survey SA1 also GLONASS G1/G2 with fixing disabled. GPS required. ANTEX: absolute DAZI=0, zenith 0–90°/5°. Mixed calibration requires SA1. H/E/N must mean marker-to-ARP, without PCO already included. RS4 Pro: do not add a fixed 95 mm or substitute RS4 calibration; other bands and azimuth patterns require another tested profile.')
         hint.setWordWrap(True);form.addWidget(hint,15,0,1,5)
         self.reference_help=QLabel()
         self.reference_help.setWordWrap(True);form.addWidget(self.reference_help,16,0,1,5)
         self.base_review=QCheckBox('I verified the fixed base coordinates, physical point, frame and coordinate epoch')
-        self.antenna_review=QCheckBox('I verified header H/E/N, marker endpoints and the selected antenna model or its explicit absence')
+        self.antenna_review=QCheckBox('I verified H/E/N is marker-to-ARP, without duplicated PCO, and reviewed mounting/model or its explicit absence')
         self.model_review=QCheckBox('I reviewed model limits and dependence; FIX/formal covariance are not absolute accuracy')
         self.license_review=QCheckBox('I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
         for row,field in enumerate((self.base_review,self.antenna_review,self.model_review,self.license_review),17):form.addWidget(field,row,0,1,5)
@@ -100,6 +104,7 @@ class ProcessingDialog(QDialog):
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.stop)
         for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note):field.textChanged.connect(self.invalidate)
         for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere,self.calibration):field.currentIndexChanged.connect(self.invalidate)
+        self.engine_variant.currentIndexChanged.connect(self.profile_changed)
         for field in self.systems.values():field.toggled.connect(self.invalidate)
         for field in (self.elevation,self.ratio):field.valueChanged.connect(self.invalidate)
         for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.toggled.connect(self.invalidate)
@@ -122,6 +127,7 @@ class ProcessingDialog(QDialog):
             antenna_note=self.antenna_note.text().strip(),model_note=self.model_note.text().strip(),
             systems=tuple(s for s,field in self.systems.items() if field.isChecked()),calibration=self.calibration.currentData(),
             antex_path=self.antex.text().strip(),calibration_note=self.calibration_note.text().strip(),
+            engine_variant=self.engine_variant.currentData(),
             base_reviewed=self.base_review.isChecked(),antenna_reviewed=self.antenna_review.isChecked(),model_reviewed=self.model_review.isChecked(),license_reviewed=self.license_review.isChecked())
 
     def invalidate(self,*_):
@@ -131,8 +137,15 @@ class ProcessingDialog(QDialog):
         self.status.setText('Settings changed. A new checked processing job is required.')
 
     def choose_engine(self):
-        path,_=QFileDialog.getOpenFileName(self,'Choose reviewed RTKLIB EX 2.5.1','','RTKLIB (rnx2rtkp.exe)')
+        path,_=QFileDialog.getOpenFileName(self,'Choose reviewed executable for the selected engine profile','','RTKLIB (rnx2rtkp.exe)')
         if path:self.executable.setText(path)
+
+    def profile_changed(self):
+        self.invalidate();self.license_review.setChecked(False)
+        extended=self.engine_variant.currentData()=='survey-sa1'
+        self.license_review.setText('I reviewed experimental Survey SA1 GPLv3 extension and upstream BSD/SOFA notices; separately installed engine' if extended else 'I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
+        key='SurveyAdjustment/rtklib_sa1' if extended else 'SurveyAdjustment/rtklib_ex251'
+        self.executable.setText(str(QSettings().value(key,'')))
 
     def choose_antex(self):
         path,_=QFileDialog.getOpenFileName(self,'Choose local absolute receiver ANTEX','','ANTEX (*.atx *.ATX)')
@@ -141,8 +154,8 @@ class ProcessingDialog(QDialog):
     def example(self):
         if not self.owner.maybe_leave():return False
         systems=tuple(s for s,field in self.systems.items() if field.isChecked());calibrated=self.calibration.currentData()=='antex'
-        if calibrated and systems!=('G',):
-            self.status.setText('Select GPS only for the ANTEX example. This engine cannot apply constellation-specific receiver patterns.');return False
+        if (calibrated and systems!=('G',) or 'R' in systems) and self.engine_variant.currentData()!='survey-sa1':
+            self.status.setText('Select Survey SA1 for GLONASS or mixed-system ANTEX examples. Upstream EX retains its GPS-only calibration contract.');return False
         parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW constructed GNSS example')
         if not parent:return False
         try:
@@ -175,7 +188,7 @@ class ProcessingDialog(QDialog):
             self.folder=Path(parent)/('GNSS_'+options.mode+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
             self.submitted=asdict(options);self.program=executable;self.preparing=True
             self.controls.setEnabled(False);self.example_button.setEnabled(False);self.run_button.setEnabled(False);self.stop_button.setEnabled(True)
-            QSettings().setValue('SurveyAdjustment/rtklib_ex251',str(executable))
+            QSettings().setValue('SurveyAdjustment/rtklib_sa1' if options.engine_variant=='survey-sa1' else 'SurveyAdjustment/rtklib_ex251',str(executable))
             self.status.setText('Checking and copying local raw inputs in the existing background queue …');self.timer.start(120000)
             folder=self.folder;project=deepcopy(self.project)
             def preparation_failed(error):
@@ -234,7 +247,7 @@ class ProcessingDialog(QDialog):
             audit='<p>Valid engine residuals: '+esc('; '.join(s+': '+', '.join(ids) for s,ids in used.items()))+'</p>'
             if calibration:
                 audit+='<p>Applied receiver ANTEX: '+esc('; '.join(key+': '+calibration[key]['type']+' ('+calibration[key]['selection']+')' for key in ('base','rover')))+'. Original SHA256 '+esc(calibration['original_sha256'])+'.</p>'
-            self.report.setHtml('<h3>'+esc(p.ENGINE_VERSION)+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
+            self.report.setHtml('<h3>'+esc(self.result['engine_version'])+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
             self.open_button.setEnabled(True);self.handoff.setEnabled(self.result['eligible_fix']>0)
             self.status.setText('Engine completed: '+str(self.result['epochs'])+' epochs; '+str(self.result['eligible_fix'])+' eligible FIX. Input/output integrity checked; review limitations. No baseline added.')
         except (ValueError,OSError) as error:
