@@ -153,6 +153,8 @@ class RawPanel(QWidget):
         self.example_button=QPushButton('Add synthetic RINEX examples'); self.example_button.clicked.connect(self.load_examples)
         for button in (self.check_button,self.review_button,self.remove_button,self.example_button,self.cancel_button): row.addWidget(button)
         layout.addLayout(row)
+        self.processing_button=QPushButton('PPK / static processing of existing raw sources …')
+        self.processing_button.clicked.connect(self.process_sources);layout.addWidget(self.processing_button)
         self.table=QTableWidget(0,8); self.table.setHorizontalHeaderLabels(['Source','Role / point','Session','Version / type','Time basis','Epochs / records','Gaps / LLI','State'])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows); self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers); self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -172,11 +174,17 @@ class RawPanel(QWidget):
     def busy(self,enabled):
         for button in (self.check_button,self.review_button,self.remove_button,self.example_button,self.owner.import_button): button.setEnabled(not enabled)
         self.cancel_button.setEnabled(enabled)
+        self.processing_button.setEnabled(not enabled)
+
+    def process_sources(self):
+        from .gnss_processing_ui import ProcessingDialog
+        dialog=ProcessingDialog(self.owner)
+        dialog.exec();dialog.deleteLater()
 
     def cancel(self):
         if self.task: self.task.cancel()
 
-    def work(self,label,operation,done):
+    def work(self,label,operation,done,on_error=None):
         if self.task: self.message.setText('Wait for or cancel the current inspection.'); return False
         self.busy(True); self.message.setText(label+' - local read-only inspection …')
         def execute(task): return operation(task.isCanceled)
@@ -184,9 +192,13 @@ class RawPanel(QWidget):
             if sip.isdeleted(self): return
             task=self.task; self.task=None; self.busy(False)
             if error or (task and task.isCanceled()):
-                self.message.setText('Inspection not applied: '+str(error or 'Cancelled')); return
+                self.message.setText('Inspection not applied: '+str(error or 'Cancelled'))
+                if on_error:on_error(error or 'Cancelled')
+                return
             try: done(result)
-            except (ValueError,OSError,KeyError,TypeError) as problem: self.message.setText('Inspection not applied: '+str(problem))
+            except (ValueError,OSError,KeyError,TypeError) as problem:
+                self.message.setText('Inspection not applied: '+str(problem))
+                if on_error:on_error(problem)
         self.task=QgsTask.fromFunction(label,execute,on_finished=finish)
         QgsApplication.taskManager().addTask(self.task); return True
 

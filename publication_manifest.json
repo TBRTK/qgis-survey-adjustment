@@ -18,6 +18,7 @@
     "docs/MIXED_SURVEY.txt",
     "docs/MIXED_SURVEY_DEVELOPMENT.txt",
     "docs/NETWORK_MAP.txt",
+    "docs/PPK_STATIC.txt",
     "docs/PUBLISHING.md",
     "docs/RINEX.txt",
     "publication_manifest.json",
@@ -51,6 +52,9 @@
     "survey_adjustment/examples/synthetic_mixed_survey.csv",
     "survey_adjustment/examples/synthetic_navigation.rnx",
     "survey_adjustment/examples/synthetic_rover.rnx",
+    "survey_adjustment/gnss_demo.py",
+    "survey_adjustment/gnss_processing.py",
+    "survey_adjustment/gnss_processing_ui.py",
     "survey_adjustment/layers.py",
     "survey_adjustment/metadata.txt",
     "survey_adjustment/mixed_survey.py",
@@ -73,6 +77,8 @@
     "tests/test_delivery.py",
     "tests/test_delivery_qgis.py",
     "tests/test_engine.py",
+    "tests/test_gnss_processing.py",
+    "tests/test_gnss_processing_qgis.py",
     "tests/test_mixed_survey.py",
     "tests/test_mixed_survey_qgis.py",
     "tests/test_network.py",
@@ -138,7 +144,11 @@
     "survey_adjustment/RINEX.txt": "docs/RINEX.txt",
     "survey_adjustment/examples/synthetic_base.rnx": "survey_adjustment/examples/synthetic_base.rnx",
     "survey_adjustment/examples/synthetic_rover.rnx": "survey_adjustment/examples/synthetic_rover.rnx",
-    "survey_adjustment/examples/synthetic_navigation.rnx": "survey_adjustment/examples/synthetic_navigation.rnx"
+    "survey_adjustment/examples/synthetic_navigation.rnx": "survey_adjustment/examples/synthetic_navigation.rnx",
+    "survey_adjustment/gnss_processing.py": "survey_adjustment/gnss_processing.py",
+    "survey_adjustment/gnss_processing_ui.py": "survey_adjustment/gnss_processing_ui.py",
+    "survey_adjustment/gnss_demo.py": "survey_adjustment/gnss_demo.py",
+    "survey_adjustment/PPK_STATIC.txt": "docs/PPK_STATIC.txt"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {

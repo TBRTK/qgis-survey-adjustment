@@ -1,3 +1,39 @@
+Survey Adjustment 0.10.0 - explicit local PPK/static GPS and existing baseline handoff
+
+Processes existing RINEX links through separately installed RTKLIB EX 2.5.1,
+using the existing background queue, network inventory and POS/baseline review.
+Exact reviewed Windows binary SHA256, full local input/configuration/result
+integrity receipts and cancellable/nonblocking engine execution. Fixed ECEF
+base/frame/epoch and header H/E/N require explicit review. Header approximate
+XYZ never silently supplies control coordinates. First profile is GPS L1/L2
+with broadcast ephemerides; PCV/PCO calibrations and precise products excluded.
+
+PPK trajectories and static filter epochs retain full engine POS covariance,
+GPST, ECEF XYZ and WGS84-ellipsoid height CSV. QGIS PointZ display/picking reuses
+existing helpers. No automatic coordinate averaging, epoch independence or
+baseline insertion. Existing baseline review requires a documented stationary
+occupation. Processing provenance is retained in the existing import audit;
+repeat processing/modes/epochs cannot become independent baseline observations.
+Legacy projects without processing provenance retain their previous bytes.
+
+New examples construct ideal GPS orbits, code/phase and stationary/moving
+truth locally. No real receiver/reference-station data are bundled. Old 0.9
+parser fixtures remain byte-identical and are rejected for positioning.
+Tests cover real external-engine static/PPK/L1 runs, height offsets, covariance,
+handoff, duplicate occupations, integrity failures, cancellation and stale jobs.
+Native test scope and exact installed ZIP are recorded in local receipts.
+
+The external engine is BSD-2-Clause and is not bundled. Plugin code remains
+GPL-3.0-only. Rights review and primary references: docs/PPK_STATIC.txt.
+No official RTKLIB/GNSS Solutions/receiver/QGIS/SALSA endorsement.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. FIX/formal covariance do not establish field accuracy
+or delivery approval. Support/License footer and original attributions retained.
+
+Previous release:
 Survey Adjustment 0.9.0 - integrated RINEX catalogue, map/timeline and preflight
 
 Extends the existing GNSS/network workflow with one Import GNSS file entry:

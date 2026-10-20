@@ -19,3 +19,13 @@ Names are used descriptively. No example was measured with a real instrument.
 
 QGIS/PyQt and SALSA dependencies have their own copyright and licence notices.
 They are not modified or redistributed in this plugin prototype.
+
+RTKLIB EX 2.5.1 (separate engine, not bundled)
+RTKLIB copyright (c) 2007-2020 T. Takasu and respective contributors.
+RTKLIB EX maintainer: rtklibexplorer / Tim Everett.
+The reviewed engine is BSD-2-Clause. Plugin adapters and constructed orbit/signal
+examples are independent GPL-3.0-only code, not copied engine implementation.
+No official affiliation is claimed. Companion binaries retain their own terms.
+https://github.com/rtklibexplorer/RTKLIB/blob/v2.5.1/license.txt
+https://github.com/rtklibexplorer/RTKLIB/releases/tag/v2.5.1
+See PPK_STATIC.txt for the version/hash/profile and rights review.

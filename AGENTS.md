@@ -18,8 +18,14 @@ solutions and measured relative baselines, including covariance/dependence and
 provenance. A shared entry point must not silently reinterpret one as another.
 Do not reimplement import audit/fingerprint checks in a raw-processing module.
 See docs/GNSS_SOLUTIONS_AND_VRS.txt for the agreed scope. This direction does not
-mean raw positioning/PPK/VRS processing is already implemented. Version 0.9.0
-adds a read-only RINEX catalogue/preflight in the same network, not a solver.
+mean arbitrary raw engines or VRS are supported. Version 0.9.0 adds the raw
+catalogue; 0.10.0 adds explicitly reviewed RTKLIB EX 2.5.1 GPS relative processing.
+The pinned BSD-2-Clause external binary remains separate from the GPL plugin.
+Preserve original engine POS/covariance, raw occupation identity, base coordinates,
+antenna offsets and processing audit. Static/PPK epochs are correlated; no
+automatic averaging, coordinate updates or independent baseline insertion.
+Use the existing background queue, POS review and baseline gate. Never relabel
+a raw occupation through another session/mode/epoch as a new independent vector.
 Keep legacy schema-2 serialization unchanged; raw links opt the project into
 schema 3. Do not infer UTC offsets or turn header approximate XYZ into controls.
 Only the three hash-reviewed synthetic .rnx parser fixtures may be published.

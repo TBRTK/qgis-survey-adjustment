@@ -47,6 +47,8 @@ class ImportOptions:
     endpoints_confirmed: bool = False
     covariance_confirmed: bool = False
     synthetic: bool = False
+    stationary_confirmed: bool = False
+    occupation_note: str = ''
 
 
 def finite(text, line):
@@ -294,6 +296,12 @@ def parse_source(payload, name, *, processing_mode=None):
 
 
 def read_source(path, *, processing_mode=None):
+    from .gnss_processing import source_for_import
+    processed=source_for_import(path)
+    if processed is not None:
+        if processing_mode and processing_mode!=processed['metadata']['mode']:
+            raise ValueError('Processing mode conflicts with the verified raw job.')
+        return processed
     with Path(path).open('rb') as handle:
         data = handle.read(MAX_SOURCE_BYTES+1)
     return parse_source(data, Path(path).name, processing_mode=processing_mode)
@@ -326,6 +334,8 @@ def imported_snapshot(project, identifier):
 def plan_import(project, source, line, options):
     """Return a new project; no source/project is modified, even on a late failure."""
     n.validate_project(project)
+    from .gnss_processing import validate_handoff
+    validate_handoff(project,source,options)
     if not isinstance(options, ImportOptions) or not all(type(v) is bool and v for v in (options.relative_confirmed, options.endpoints_confirmed, options.covariance_confirmed)):
         raise ValueError('Confirm the relative solution, physical endpoints/height treatment and covariance/dependence review.')
     for key in ('frame','epoch','origin','target','session','identifier','use'):
@@ -388,6 +398,9 @@ def plan_import(project, source, line, options):
                  uncertainty_note=options.uncertainty_note+('\n'+declaration if declaration else ''), synthetic=options.synthetic,
                  metadata=deepcopy(meta), records=[dict(line=line, time=row['time'], quality=row['quality'], raw=row['raw'],
                  native_values=deepcopy(row['values']), native_covariance=deepcopy(row['covariance']), fingerprint=fp, observation=deepcopy(obs))])
+    if source.get('processing'):
+        batch['processing']=deepcopy(source['processing'])
+        batch['uncertainty_note']+='\nOccupation review: '+options.occupation_note
     result = deepcopy(project)
     result['observations'].append(obs)
     result['imports'].append(batch)
@@ -399,12 +412,32 @@ def validate_imports(project):
     imports = project['imports']
     if not isinstance(imports, list) or len(imports) > 10000:
         raise ValueError('Expected at most 10000 import audit records.')
-    ids, fingerprints, observations = set(), set(), {}
+    ids, fingerprints, observations, occupations = set(), set(), {}, set()
     template = dict(id='', format='', source_name='', source_sha256='', imported_at='', frame='', epoch='',
                     antenna_note='', uncertainty_note='', synthetic=False, metadata={}, records=[])
     row_template = dict(line=0, time='', quality='', raw='', native_values=[], native_covariance=[], fingerprint='', observation={})
     for batch in imports:
-        n._keys(batch, template, 'Import audit')
+        expected=set(template)
+        if isinstance(batch,dict) and 'processing' in batch: expected.add('processing')
+        n._keys(batch, expected, 'Import audit')
+        if 'processing' in batch:
+            from .gnss_processing import validate_context
+            validate_context(batch['processing'])
+            context=batch['processing']
+            if batch['format']!='RTKLIB_POS_1':raise ValueError('Raw-job provenance requires the original processed POS source.')
+            validate_metadata(batch['metadata'],batch['format'])
+            if context['occupation_sha256'] in occupations:raise ValueError('A raw occupation cannot appear as two independent imported baselines.')
+            occupations.add(context['occupation_sha256'])
+            if (batch['frame'],batch['epoch'])!=(context['frame'],context['epoch']):
+                raise ValueError('Imported processing frame/epoch differs from its job.')
+            if math.dist(batch['metadata']['reference'],context['base_xyz'])>.0002:
+                raise ValueError('Processing base differs from its import provenance.')
+            raw={row['id']:row for row in project.get('raw_sources',[])}
+            if project['project_id']!=context['project_id'] or any(raw.get(row['source_id'],{}).get('fingerprint')!=row['fingerprint'] for row in context['inputs']):
+                raise ValueError('Imported raw-processing provenance depends on its original catalogue links/project identity.')
+            for entry,point in zip(context['inputs'][:2],(context['base'],context['rover'])):
+                if (raw[entry['source_id']]['point'],raw[entry['source_id']]['session'])!=(point,context['session']):
+                    raise ValueError('Imported processing point/session bindings cannot be relabelled through the raw catalogue.')
         for field in ('id', 'source_name', 'source_sha256', 'imported_at', 'frame', 'epoch', 'antenna_note', 'uncertainty_note'):
             n._text(batch[field], 'Import '+field, required=True)
         if batch['id'] in ids or '/' in batch['source_name'] or '\\' in batch['source_name'] or ':' in batch['source_name']:
@@ -434,6 +467,8 @@ def validate_imports(project):
                 raise ValueError('Import source fingerprint mismatch or duplicate source observation.')
             fingerprints.add(fp)
             obs = row['observation']
+            if 'processing' in batch and (obs['from_point'],obs['to_point'],obs['session'])!=(context['base'],context['rover'],context['session']):
+                raise ValueError('Imported processing endpoints/session differ from its job.')
             n._keys(obs, n.observation(), 'Imported original observation')
             if obs['id'] in observations:
                 raise ValueError('Duplicate imported observation ID.')

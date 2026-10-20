@@ -1,7 +1,7 @@
 [general]
 name=Survey Adjustment – SALSA prototype
-description=Shared GNSS import with raw RINEX catalogue, linked map/timeline and preflight; verified SALSA adjustment and traceable PointZ delivery.
-version=0.9.0
+description=Local PPK/static GPS with external RTKLIB, existing RINEX and reviewed baseline workflow; SALSA adjustment and traceable PointZ delivery.
+version=0.10.0
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Tore Berthelsen
@@ -9,7 +9,7 @@ email=
 homepage=https://www.3dmapper.no
 repository=https://github.com/TBRTK/qgis-survey-adjustment
 tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
-about=Independent prototype using a separately installed SALSA engine and independent model checks. GNSS networks, mixed total-station CSV and 1D levelling. Separate delivery review requires frame/epoch/height evidence, distinguishes NN2000:2018/2025, supports explicit same-frame UTM/NTM projection and reviewed local HREF height conversion. Unchanged calculations, original/adjusted/delivered PointZ coordinates, reports and checksums are preserved locally. Raw RINEX catalogue, metadata review and local map/timeline preflight share the existing network/import workflow. No raw positioning/PPK/VRS, ITRF/WGS84 frame shift, epoch transformation or output uncertainty propagation. No professional delivery approval or official endorsement.
+about=Independent prototype using a separately installed SALSA engine and independent model checks. GNSS networks, mixed total-station CSV and 1D levelling. Separate delivery review requires frame/epoch/height evidence, distinguishes NN2000:2018/2025, supports explicit same-frame UTM/NTM projection and reviewed local HREF height conversion. Unchanged calculations, original/adjusted/delivered PointZ coordinates, reports and checksums are preserved locally. Raw RINEX catalogue, metadata review and local map/timeline preflight share the existing network/import workflow. Explicit local PPK/static GPS processing uses separately installed RTKLIB EX 2.5.1. No VRS, ITRF/WGS84 frame shift, epoch transformation or output uncertainty propagation. No professional delivery approval or official endorsement.
 category=Vector
 experimental=True
 hasProcessingProvider=False

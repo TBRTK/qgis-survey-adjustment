@@ -77,6 +77,10 @@ class BaselineImportDialog(QDialog):
         self.endpoints = QCheckBox('I documented the frame, epoch and antenna / point-height treatment')
         self.covariance = QCheckBox('I reviewed covariance and dependence; formal precision is not absolute accuracy')
         for field in (self.relative, self.endpoints, self.covariance): box.addWidget(field)
+        self.occupation=QCheckBox('The selected processed result represents a documented stationary occupation of this physical point')
+        self.occupation_note=QLineEdit(); self.occupation_note.setPlaceholderText('Required for raw-job handoff: occupied point, stationary interval and why this epoch/result represents it. Never treat a moving track as point observations.')
+        box.addWidget(self.occupation); box.addWidget(self.occupation_note)
+        self.occupation.hide(); self.occupation_note.hide()
         box.addStretch(); scroll.setWidget(content); layout.addWidget(scroll, 1)
         self.review = QTextBrowser(); self.review.setMaximumHeight(130); layout.addWidget(self.review)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
@@ -88,6 +92,7 @@ class BaselineImportDialog(QDialog):
         for field in (self.origin,self.target,self.session,self.use,self.frame): field.currentIndexChanged.connect(self.invalidate)
         for field in (self.identifier,self.epoch,self.antenna_note,self.uncertainty_note): field.textChanged.connect(self.invalidate)
         for field in (self.synthetic,self.relative,self.endpoints,self.covariance): field.toggled.connect(self.invalidate)
+        self.occupation.toggled.connect(self.invalidate); self.occupation_note.textChanged.connect(self.invalidate)
 
     def invalidate(self, *_):
         self.plan = None
@@ -111,11 +116,19 @@ class BaselineImportDialog(QDialog):
             self.source_mode.setCurrentIndex(0)
             self.source_mode.blockSignals(False)
         self.invalidate(); self.source = None; self.path = Path(path); self.table.setRowCount(0)
+        self.occupation.setChecked(False);self.occupation_note.clear();self.occupation.hide();self.occupation_note.hide()
         for check in (self.synthetic,self.relative,self.endpoints,self.covariance):
             check.setChecked(False)
         try:
             source = b.read_source(path, processing_mode=self.source_mode.currentData() or None)
             self.path, self.source = Path(path), source
+            if source.get('processing'):
+                context=source['processing'];self.occupation.show();self.occupation_note.show()
+                for field,key in ((self.origin,'base'),(self.target,'rover'),(self.session,'session'),(self.frame,'frame')):
+                    field.setCurrentIndex(max(0,field.findData(context[key])))
+                self.epoch.setText(context['epoch'])
+                self.antenna_note.setText(context['antenna_note'])
+                self.uncertainty_note.setText(context['model_note']+'; raw job '+context['job_id']+'; engine/config/input hashes retained in audit.')
             meta=source['metadata']
             reference=f"Processing base ({'XYZ metres' if meta['representation']=='XYZ' else 'lat/lon/ellipsoidal h'}): {meta['reference']}" if meta['reference'] is not None else 'Precomputed relative ΔXYZ; processing-base coordinates are not included in this CSV.'
             self.filename.setText(f"{source['source_name']} — {meta['representation']}, {meta['mode']}, {meta['time_system']}\n{reference}")
@@ -142,12 +155,14 @@ class BaselineImportDialog(QDialog):
                 if row[key]: field.setCurrentIndex(max(0,field.findData(row[key])))
 
     def options(self):
-        return b.ImportOptions(frame=self.frame.currentData(),epoch=self.epoch.text().strip(),
+        options=b.ImportOptions(frame=self.frame.currentData(),epoch=self.epoch.text().strip(),
             origin=self.origin.currentData(),target=self.target.currentData(),session=self.session.currentData(),
             identifier=self.identifier.text().strip(),use=self.use.currentData(),
             antenna_note=self.antenna_note.text().strip(),uncertainty_note=self.uncertainty_note.text().strip(),
             relative_confirmed=self.relative.isChecked(),endpoints_confirmed=self.endpoints.isChecked(),
             covariance_confirmed=self.covariance.isChecked(),synthetic=self.synthetic.isChecked())
+        options.stationary_confirmed=self.occupation.isChecked();options.occupation_note=self.occupation_note.text().strip()
+        return options
 
     def preview(self):
         self.plan = None; self.import_button.setEnabled(False)

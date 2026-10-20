@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.9.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.10.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,34 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.9.0
+WHAT CHANGED IN 0.10.0
+Adds explicit local PPK kinematic and static relative GPS processing from the
+existing raw RINEX links. It reuses the background queue, saved network,
+source identity checks, map construction/picking and existing POS/baseline
+review. No second import workflow or new project store. Nothing is imported
+automatically; a documented stationary occupation is required for a baseline.
+
+External engine: reviewed RTKLIB EX 2.5.1 Windows rnx2rtkp.exe, exact binary
+SHA256. BSD-2-Clause engine stays separate from this GPL-3.0-only plugin ZIP.
+First profile: GPS L1 or L1+L2, broadcast ephemerides, explicit fixed ECEF base,
+frame/coordinate epoch and header H/E/N treatment. No receiver PCV/PCO
+calibration, precise products, VRS or datum/epoch transformation. Processing
+other constellations or engine binaries requires a separately reviewed profile.
+
+Jobs preserve copied inputs, original identities, settings, engine/configuration
+hashes, original full-covariance POS, GPST epochs, ECEF coordinates and explicit
+WGS84-ellipsoid height CSV. Stop/timeouts and changed inputs/settings invalidate
+results. Static filter states and PPK epochs remain correlated. A repeated raw
+occupation cannot be imported as another independent baseline. Header XYZ is
+never used automatically as a fixed base. FIX is not survey approval/accuracy.
+
+Open Network project > Raw GNSS / RINEX > PPK / static processing. Choose a
+mode, then New synthetic example for selected mode for independent constructed
+GPS orbits/signals with known stationary/moving truth. The old 0.9 catalogue
+fixtures have nonphysical navigation and are rejected for processing.
+See docs/PPK_STATIC.txt (source) or PPK_STATIC.txt (installed package).
+
+FEATURES FROM 0.9.0
 Adds raw RINEX catalogue, preflight and linked map/timeline inside the existing
 Network project. Import GNSS file routes processed POS/vector CSV through the
 existing measured-baseline review, and RINEX through a raw metadata review.
@@ -25,8 +52,9 @@ edits invalidate previous views. Approximate header locations are DISPLAY ONLY.
 
 Raw sources use schema 3 of the existing network project. Legacy projects/runs
 retain schema-2 serialization. Original raw bytes remain in their external files;
-a saved catalogue is not a raw-file archive. No raw positioning/PPK, VRS,
-ambiguity resolution, orbit/fit assessment or independent cycle-slip detection.
+a saved catalogue is not a raw-file archive. Catalogue inspection alone does
+not calculate positions, ambiguity resolution, orbit/fit or cycle-slip detection.
+Explicit processing is a separate action within this same raw-source workflow.
 See docs/RINEX.txt (source) or RINEX.txt (installed package). Three deliberately
 constructed parser/preflight fixtures include nonphysical navigation data and
 must never be used for positioning. Real receiver exports still need validation.
@@ -93,7 +121,7 @@ available. The plugin remains separate from SOSI Survey.
 
 INSTALLATION
 In QGIS 4: Plugins > Manage and Install Plugins > Install from ZIP.
-Select survey_adjustment-0.9.0.zip and enable the plugin. The Python package
+Select survey_adjustment-0.10.0.zip and enable the plugin. The Python package
 is survey_adjustment. SOSI Survey remains a separate plugin.
 Select the separately installed SALSA lsasolver on tab 3. Keep the full SALSA
 folder with its own DLLs; a standalone lsasolver.exe is usually insufficient.
@@ -549,7 +577,8 @@ producing a lower-bound chi-squared warning. A completed calculation is not
 professional approval of the measurements.
 
 LIMITS AND FURTHER VALIDATION
-No raw RINEX processing, VRS synthesis, automatic raw direction-set/face decoding,
+PPK/static GPS requires the separate reviewed RTKLIB profile. No VRS synthesis,
+automatic raw direction-set/face decoding,
 cross-observation/session covariance, general datum/epoch transformation or DOV correction
 or professional delivery approval is implemented. Baseline import is limited
 to the documented processed POS/relative-vector CSV profiles. Actual Emlid

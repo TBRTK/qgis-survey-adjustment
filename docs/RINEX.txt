@@ -1,4 +1,4 @@
-RAW GNSS / RINEX - SURVEY ADJUSTMENT 0.9.0
+RAW GNSS / RINEX - SURVEY ADJUSTMENT 0.10.0
 
 Use tab 5, Network project, and the existing Import GNSS file button. Processed
 POS/vector CSV still opens the existing measured-baseline review. RINEX opens
@@ -21,8 +21,8 @@ network-project limit. Metadata/availability are stored, not raw observation
 values. No file is silently truncated. Read/parse/preflight tasks run outside
 the GUI thread and can be cancelled; stale results cannot overwrite an edited
 project. Compact/Hatanaka, ZIP, receiver binary and other RINEX versions need
-a separately reviewed conversion/profile. No converter or positioning engine
-is downloaded or executed. Leap-second epochs and mid-file header updates
+a separately reviewed conversion/profile. Catalogue inspection does not download/run a converter or positioning engine.
+Explicit PPK/static processing is a separate action; see PPK_STATIC.txt. Leap-second epochs and mid-file header updates
 are rejected explicitly rather than silently reinterpreted.
 
 ADDING A SOURCE
@@ -97,8 +97,8 @@ or moving an original makes its link unavailable; restore it or explicitly
 review a replacement. A saved catalogue is not an archive of original bytes.
 Existing baseline audit/covariance, network quality, SALSA, mixed survey and
 reference-reviewed delivery use their existing paths and limits. Raw RINEX is
-not sent to SALSA and is not a new observation model. A future raw solver must
-route reviewed processed results through the existing typed baseline import.
+not sent to SALSA and is not a new observation model. PPK/static RTKLIB jobs
+route explicitly reviewed processed results through the existing baseline import.
 
 SYNTHETIC EXAMPLES
 Load synthetic network, then select Raw GNSS / RINEX -> Add synthetic RINEX

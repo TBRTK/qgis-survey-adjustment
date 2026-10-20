@@ -499,7 +499,7 @@ class NetworkPanel(QWidget):
             return self.import_baselines(path)
         except (ValueError,OSError) as error: self.error(error); return False
 
-    def import_baselines(self,path=None):
+    def import_baselines(self,path=None,line=None):
         try:
             from .baseline_ui import BaselineImportDialog
             project=self.snapshot()
@@ -507,6 +507,9 @@ class NetworkPanel(QWidget):
                 raise ValueError('Add the physical base/rover points and a documented UTC acquisition session before importing a baseline.')
             dialog=BaselineImportDialog(self,project)
             if path: dialog.load(path)
+            if line is not None and dialog.source:
+                for index,row in enumerate(dialog.source['rows']):
+                    if row['line']==line:dialog.table.selectRow(index);break
             if dialog.exec()==QDialog.DialogCode.Accepted:
                 if self.snapshot()!=project:
                     raise ValueError('Network changed during import review. Reopen the import dialog.')

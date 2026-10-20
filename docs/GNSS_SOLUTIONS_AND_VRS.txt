@@ -1,11 +1,11 @@
 GNSS SOLUTIONS AS A WORKFLOW REFERENCE; VRS INVESTIGATION
 Workflow reference researched 2026-10-19; reuse-first scope agreed 2026-10-20.
-Existing implementation baseline: Survey Adjustment 0.9.0.
+Existing implementation baseline: Survey Adjustment 0.10.0.
 
 STATUS
 The read-only RINEX catalogue/map/timeline/preflight is implemented in 0.9.0;
-see RINEX.txt. Raw GNSS positioning and VRS generation remain investigation
-topics, not implemented features. The plugin is an independent
+see RINEX.txt. Explicit RTKLIB EX 2.5.1 GPS PPK/static processing is implemented
+in 0.10.0; see PPK_STATIC.txt. VRS and other engine profiles remain future work. The plugin is an independent
 implementation. It does not include GNSS Solutions code, engine, installer,
 manual, icons or proprietary project formats. No affiliation is claimed.
 
@@ -31,7 +31,7 @@ Reuse map before implementation:
 
 Implemented useful additions in 0.9.0 are bounded RINEX-specific decoding,
 raw-file/station/antenna/time review and coverage/overlap views. A reviewed
-raw-processing engine adapter remains future work. Route a supported processed result
+RTKLIB EX GPS raw-processing adapter is implemented in 0.10.0. Route a supported processed result
 through the existing baseline review/import contract with preserved source and
 processing identity. Do not invent covariance or import every correlated epoch.
 Raw carrier-phase observations, absolute coordinates and relative baselines
@@ -58,7 +58,8 @@ For an independent QGIS workflow, the practical progression is:
 3. Implemented in 0.9.0: existing GNSS/network workspace now includes raw-file
    catalogue entries, station/antenna/time review, time coverage/overlap and
    satellite/observation availability. Jobs for a separately reviewed processing
-   engine remain future work. Reuse inventory, processed-solution import and downstream checks. Final coordinates
+   engine are implemented in 0.10.0 for pinned RTKLIB EX GPS. Inventory,
+   processed-solution import and downstream checks are reused. Final coordinates
    and processed baseline vectors must remain different data products.
 
 VRS IN GNSS SOLUTIONS
