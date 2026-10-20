@@ -36,6 +36,14 @@ class PublicationSafetyTests(unittest.TestCase):
         policy = {'repository_files': [], 'synthetic_fixtures': {}, 'historical_synthetic_sha256': []}
         self.assertTrue(inspect_files({'private_notes.py': b'notes'}, policy))
 
+    def test_mixed_snapshots_require_exact_reviewed_synthetic_hashes(self):
+        data=b'{"synthetic":true}\n'; name='examples/training.samix.json'
+        policy={'repository_files':[name],'synthetic_fixtures':{},'historical_synthetic_sha256':[]}
+        self.assertTrue(inspect_files({name:data},policy))
+        policy['synthetic_fixtures'][name]={'sha256':hashlib.sha256(data).hexdigest()}
+        self.assertFalse(inspect_files({name:data},policy))
+        self.assertTrue(inspect_files({name:data+b'\n'},policy))
+
     def test_archive_rejects_added_missing_duplicate_and_changed_files(self):
         policy = {'package_files': {'plugin/LICENSE': 'LICENSE', 'plugin/DISCLAIMER.txt': 'DISCLAIMER.txt'}}
         files = {'LICENSE': b'GPL', 'DISCLAIMER.txt': b'AS IS'}

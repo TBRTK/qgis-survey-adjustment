@@ -49,6 +49,8 @@ def digest(data):
 
 def read_source(path):
     path = Path(path)
+    if path.stat().st_size > 1000000:
+        raise ValueError('Survey CSV exceeds the 1 MB limit.')
     data = path.read_bytes()
     if len(data) > 1000000:
         raise ValueError('Survey CSV exceeds the 1 MB limit.')
@@ -64,7 +66,7 @@ def source_bytes(source):
     n._text(source['name'],'Source basename',required=True)
     if any(c in source['name'] for c in '/\\:') or type(source['bom']) is not bool or type(source['synthetic']) is not bool:
         raise ValueError('Invalid source basename or encoding marker.')
-    if not isinstance(source['utf8'],str) or len(source['utf8'].encode('utf-8')) > 1000000:
+    if not isinstance(source['utf8'],str) or '\x00' in source['utf8'] or len(source['utf8'].encode('utf-8')) > 1000000:
         raise ValueError('Invalid or oversized survey source.')
     data = (b'\xef\xbb\xbf' if source['bom'] else b'') + source['utf8'].encode('utf-8')
     if digest(data) != source['sha256']:
@@ -77,14 +79,18 @@ def parse_source(source):
     text=source['utf8']
     if not text.strip(): raise ValueError('Survey source is empty.')
     delimiter=';' if text.splitlines()[0].count(';') > text.splitlines()[0].count(',') else ','
-    reader=csv.DictReader(io.StringIO(text,newline=''),delimiter=delimiter)
+    reader=csv.DictReader(io.StringIO(text,newline=''),delimiter=delimiter,strict=True)
     if reader.fieldnames != list(FIELDS):
         raise ValueError('Use the documented mixed-survey CSV template, including its exact column order. Unknown fields are not discarded.')
     result=[]; identifiers=set()
-    for line,row in enumerate(reader,2):
+    for row in reader:
+        line=reader.line_num
         if None in row or any(v is None for v in row.values()):
             raise ValueError(f'CSV row {line}: incorrect number of fields.')
         o={k:v.strip() for k,v in row.items()}
+        for key in ('id','session','from_point','to_point','backsight'):
+            if len(o[key])>80 or any(ord(ch)<32 for ch in o[key]):
+                raise ValueError(f'CSV row {line}: IDs must be at most 80 characters without control characters.')
         if not o['id'] or o['id'] in identifiers:
             raise ValueError(f'CSV row {line}: observation IDs must be non-empty and unique.')
         identifiers.add(o['id'])
@@ -113,6 +119,11 @@ def parse_source(source):
                 raise ValueError(f'CSV row {line}: angle outside the declared range; face-II zenith angles must be reduced externally.')
         elif o['unit']!='m' or o['angle_reference']:
             raise ValueError(f'CSV row {line}: linear observations use m and no angle reference.')
+        if o['kind'] in ANGLES:
+            if not 1e-12<=o['sigma']*_angular(o)<=math.pi:
+                raise ValueError(f'CSV row {line}: angular sigma must be 1e-12 to pi radians, expressed in the declared unit.')
+        elif abs(o['value'])>1e7 or not 1e-9<=o['sigma']<=1e4:
+            raise ValueError(f'CSV row {line}: linear value must be within 1e7 m and sigma within 1e-9 to 1e4 m.')
         if o['kind']=='DISTANCE' and o['value']<=0:
             raise ValueError(f'CSV row {line}: a slope distance must be positive; grid/horizontal distances are not accepted.')
         if o['kind']=='HORIZONTAL_ANGLE':
@@ -144,6 +155,7 @@ def snapshot(project, source, options):
     if source['synthetic']!=project['synthetic']:
         raise ValueError('Synthetic/real classification differs between the CSV and network. Do not mix training and field data.')
     if not isinstance(options,MixedOptions): raise ValueError('Expected mixed-survey options.')
+    validate_options(options)
     return dict(format=FORMAT,schema_version=1,network=deepcopy(project),source=deepcopy(source),options=asdict(options))
 
 
@@ -162,6 +174,19 @@ def loads(text):
     job=json.loads(text,object_pairs_hook=n._pairs,parse_constant=lambda value:(_ for _ in ()).throw(ValueError('Non-finite JSON.')))
     dumps(job)
     return job
+
+
+def validate_options(options,require_review=False):
+    if not isinstance(options,MixedOptions) or options.profile not in ('MIXED_3D','LEVEL_1D'):
+        raise ValueError('Select a supported calculation profile.')
+    confirmations=(options.frame_reviewed,options.reductions_reviewed,options.independence_reviewed)
+    if any(type(value) is not bool for value in confirmations):
+        raise ValueError('Review confirmations must be true or false.')
+    n._text(options.model_note,'Survey model review',required=require_review)
+    n._number(options.alpha,'Significance alpha')
+    if not .001<=options.alpha<=.20: raise ValueError('Significance alpha must be 0.001-0.20.')
+    if require_review and not all(confirmations):
+        raise ValueError('Review frame/heights, reductions and independent uncertainty blocks before calculating.')
 
 
 def _angular(o):
@@ -237,12 +262,7 @@ def _jacobian(o, positions, order, profile):
 
 def _observations(job):
     project=job['network']; rows=parse_source(job['source']); options=MixedOptions(**job['options'])
-    if options.profile not in ('MIXED_3D','LEVEL_1D') or not all(type(v) is bool and v for v in
-            (options.frame_reviewed,options.reductions_reviewed,options.independence_reviewed)):
-        raise ValueError('Select a profile and review frame/heights, reductions and independent uncertainty blocks.')
-    n._text(options.model_note,'Survey model review',required=True)
-    n._number(options.alpha,'Significance alpha')
-    if not .001<=options.alpha<=.20: raise ValueError('Significance alpha must be 0.001-0.20.')
+    validate_options(options,True)
     if not project['crs'] or not project['epoch'] or not project['height_datum']:
         raise ValueError('Document project CRS, coordinate epoch and height datum.')
     if options.profile=='MIXED_3D' and project['height_datum']!='ELLIP':
@@ -259,7 +279,7 @@ def _observations(job):
                 raise ValueError('LEVEL_1D does not use GNSS vectors. Disable them with a reason or use a separate levelling network.')
             if original['frame']!='EPSG:4936' or any(x not in (None,0.) for x in (original['instrument_height'],original['target_height'])):
                 if original['enabled']: raise ValueError('Mixed GNSS vectors require ETRS89 ECEF and already reduced physical endpoints.')
-            existing.append(deepcopy(original))
+        existing.append(deepcopy(original))
     for o in rows:
         endpoints=[o['from_point'],o['to_point']]+([o['backsight']] if o['kind']=='HORIZONTAL_ANGLE' else [])
         if any(v not in points for v in endpoints) or len(set(endpoints))!=len(endpoints):
@@ -354,13 +374,19 @@ def analyse(job):
     for o,cov,matrix,res in raw:
         qv=(cov-matrix@covariance@matrix.T); variances=np.maximum(np.diag(qv),0.)
         standardized=[float(v/math.sqrt(var)) if var>max(float(np.max(np.diag(cov)))*1e-8,1e-24) else None for v,var in zip(res,variances)]
-        red=float(np.trace(np.linalg.solve(cov,qv))); fraction=max(0.,min(1.,red/len(res)))
+        lower=np.linalg.cholesky(cov)
+        whitened=np.linalg.solve(lower,np.linalg.solve(lower,qv).T).T
+        eigenvalues=np.linalg.eigvalsh((whitened+whitened.T)/2)
+        if not np.isfinite(eigenvalues).all() or eigenvalues.min() < -1e-6:
+            raise ValueError('Unstable mixed residual covariance; review the geometry and uncertainty weights.')
+        eigenvalues=np.clip(eigenvalues,0.,1.)
+        fraction=float(eigenvalues.mean()); minimum=float(eigenvalues.min())
         factor=1. if o['kind'] in ('GNSS_VECTOR','COORDINATE_PRIOR') else _angular(o)
         unit='m' if o['kind'] in ('GNSS_VECTOR','COORDINATE_PRIOR') else o['unit']
-        flags=['NO_REDUNDANCY'] if fraction<1e-8 else ['LOW_REDUNDANCY'] if fraction<.1 else []
+        flags=['NO_REDUNDANCY'] if fraction<1e-8 else ['LOW_REDUNDANCY'] if minimum<.1 else []
         if any(v is not None and 2*norm.sf(abs(v))*len(residual)<options.alpha for v in standardized): flags.append('RESIDUAL_REVIEW')
         diagnostics.append(dict(id=o['id'],kind=o['kind'],unit=unit,residual=(res/factor).tolist(),
-            standardized=standardized,redundancy_fraction=fraction,flags=flags,
+            standardized=standardized,redundancy_fraction=fraction,minimum_direction_redundancy=minimum,flags=flags,
             corrected_observation=None if o['kind']=='COORDINATE_PRIOR' else (_measured(o,positions,profile)/factor).tolist()))
     check_results=[]
     for o in checks:
@@ -372,6 +398,7 @@ def analyse(job):
             local[v]=np.array([p['coordinates'][2]]) if dimension==1 else grid.ecef(p['coordinates'])
             if p['role']=='CHECK' and p['sigma'] is None: missing=True
         r=dict(id=o['id'],status='INCONCLUSIVE',unit='m' if o['kind']=='GNSS_VECTOR' else o['unit'],residual=None,pvalue=None)
+        r['reason']='Independent endpoint or check-coordinate uncertainty is undocumented; no zero uncertainty is inferred.' if missing else 'Held-out check, never used in adjustment.'
         if not missing:
             res=_difference(o,_measured(o,local,profile),_prediction(o,local,profile))
             jac=_jacobian(o,local,order,profile)
@@ -402,13 +429,15 @@ def analyse(job):
     warnings=['Conditional independent-block uncertainty model; shared setup/base errors and cross-observation covariance are not modelled.',
         'No geoid/DOV, atmospheric, face, prism or datum/epoch correction is inferred. No variance rescaling or automatic outlier removal.',
         'Sigma must include assessed centring, instrument-height, target-height and prior reduction uncertainty; these are not guessed.',
-        'Statistical diagnostics are conditional model tests, not survey/delivery approval.']
+        'Statistical diagnostics are conditional model tests, not survey/delivery approval.',
+        'Covariance is a first-order linearized model; supplied sigmas must include uncertainty from prior reductions.']
     if profile=='LEVEL_1D': warnings.append('HEIGHT ONLY: E/N are retained, not adjusted or quality-tested. SALSA uses a computational radial axis, not georeferenced ECEF coordinates; the original height datum is preserved.')
     else: warnings.append('Angles must already refer to the ellipsoid normal; raw gravity verticals require external documented reduction. Orthometric levelling cannot enter this ELLIP profile directly.')
     if not dof: warnings.append('ZERO DEGREES OF FREEDOM: fit test NOT_TESTABLE.')
     if global_test['status']!='WITHIN_MODEL_INTERVAL': warnings.append('Global model test: '+global_test['status']+'.')
     return dict(kind='mixed_survey',software_version=VERSION,profile=profile,synthetic=project['synthetic'],
         job_sha256=digest(dumps(job).encode('utf-8')),height=project['height_datum'],point_crs=project['crs'],epoch=project['epoch'],
+        options=asdict(options),source_name=job['source']['name'],source_sha256=job['source']['sha256'],
         positions={v:x.tolist() for v,x in positions.items()},initial={v:x.tolist() for v,x in initial.items()},
         parameter_order=order,parameter_covariance=covariance.tolist(),points=point_results,
         observations=diagnostics,checks=check_results,excluded=[dict(id=o['id'],reason=o['notes']) for o in all_rows if not o['enabled']],
@@ -530,10 +559,13 @@ def report_text(report):
         report['profile']+'; '+report['point_crs']+'; height '+report['height']+'; epoch '+report['epoch'],
         'SALSA VERIFIED' if report.get('engine_confirmation') else 'INDEPENDENT PREVIEW - SALSA HAS NOT RUN',
         'Observed minus calculated residuals in the explicitly stated units; uncertainty is not rescaled by APV.',
-        'Global model test: '+json.dumps(report['global_test']), '', 'POINTS']
+        'Global model test: '+json.dumps(report['global_test']),
+        'Model review: '+report['options']['model_note'],
+        'Source CSV: '+report['source_name']+'; SHA256 '+report['source_sha256'],
+        'Point uncertainties are geodetic ENU for MIXED_3D; LEVEL_1D only estimates height uncertainty.', '', 'POINTS']
     for p in report['points']: lines.append(f"{p['id']} | {p['role']} | E/N/Z: {p['position_grid']} | sigma: {p['sigma']}")
     lines+=['','OBSERVATIONS / PRIORS']
-    for o in report['observations']: lines.append(f"{o['id']} | {o['kind']} | {o['residual']} {o['unit']} | standardized {o['standardized']} | redundancy {o['redundancy_fraction']:.6g} | {o['flags']}")
+    for o in report['observations']: lines.append(f"{o['id']} | {o['kind']} | {o['residual']} {o['unit']} | standardized {o['standardized']} | redundancy mean {o['redundancy_fraction']:.6g}, weakest direction {o['minimum_direction_redundancy']:.6g} | {o['flags']}")
     lines+=['','HELD-OUT CHECKS']+[json.dumps(r,ensure_ascii=False) for r in report['checks']]
     lines+=['','EXCLUDED']+[json.dumps(r,ensure_ascii=False) for r in report['excluded']]
     lines+=['','WARNINGS']+report['warnings']+report.get('engine_warnings',[])
@@ -549,11 +581,14 @@ def write_results(folder, report):
     def safe(value):
         value=str(value); return "'"+value if value.startswith(('=','+','-','@')) else value
     with (folder/'points.csv').open('w',encoding='utf-8-sig',newline='') as f:
-        writer=csv.writer(f); writer.writerow(['ID','Role','Easting','Northing','Point height','Sigma E','Sigma N','Sigma height','CRS','Height datum','Assessment'])
+        writer=csv.writer(f); writer.writerow(['ID','Role','Easting','Northing','Point height','Sigma geodetic E','Sigma geodetic N','Sigma height','CRS','Height datum','Assessment'])
         for p in report['points']: writer.writerow([safe(p['id']),p['role'],*(p['position_grid'] or [None]*3),*(p['sigma'] or [None]*3),report['point_crs'],report['height'],'REVIEW REQUIRED'])
     with (folder/'residuals.csv').open('w',encoding='utf-8-sig',newline='') as f:
-        writer=csv.writer(f); writer.writerow(['ID','Kind','Unit','Observed-minus-calculated','Standardized residuals','Redundancy fraction','Review'])
-        for o in report['observations']: writer.writerow([safe(o['id']),o['kind'],o['unit'],json.dumps(o['residual']),json.dumps(o['standardized']),o['redundancy_fraction'],', '.join(o['flags'])])
+        writer=csv.writer(f); writer.writerow(['ID','Kind','Unit','Observed-minus-calculated','Standardized residuals','Redundancy fraction','Minimum direction redundancy','Review'])
+        for o in report['observations']: writer.writerow([safe(o['id']),o['kind'],o['unit'],json.dumps(o['residual']),json.dumps(o['standardized']),o['redundancy_fraction'],o['minimum_direction_redundancy'],', '.join(o['flags'])])
+    with (folder/'checks.csv').open('w',encoding='utf-8-sig',newline='') as f:
+        writer=csv.writer(f); writer.writerow(['ID','Status','Unit','Residual','Pvalue','Reason'])
+        for o in report['checks']: writer.writerow([safe(o['id']),o['status'],o['unit'],json.dumps(o['residual']),o['pvalue'],o['reason']])
     (folder/'sha256.json').write_text(json.dumps({p.name:engine.sha256(p) for p in folder.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n',encoding='utf-8')
 
 

@@ -1,0 +1,161 @@
+MIXED SURVEY CSV - TOTAL STATION AND LEVELLING
+Survey Adjustment 0.7.0 / QGIS 4
+
+Open tab 5, Network project, then Mixed survey / total station and levelling.
+The English dialog runs locally on a separate snapshot. Original network point
+coordinates and source files are not overwritten. No measurement is uploaded.
+
+QUICK START WITH CONSTRUCTED EXAMPLES
+1. Load synthetic 3D mixed example, or the synthetic NN2000 levelling example.
+2. Inspect Survey CSV / units, the profile, source classification and model note.
+3. Read and check the three confirmations. They are never selected automatically.
+4. Check CSV / preview adjustment gives an independent model preview only.
+5. Choose the separately installed SALSA lsasolver and Run SALSA and verify.
+6. Review residuals, point uncertainty, excluded records and held-out checks.
+7. Show result on map (with Z), or open the local report folder. QGIS can export
+   the read-only PointZ/LineStringZ layers normally, including to GeoPackage.
+8. Save mixed project stores network, original CSV bytes and options together.
+   The .samix.json file is separate from both .sanet.json and the QGIS project.
+
+CHOOSING THE PROFILE
+MIXED_3D combines ETRS89 ECEF GNSS vectors already present in the network with
+slope distances, clockwise horizontal angles, zenith angles and ELLIP height
+differences. Point coordinates are EUREF89 / UTM 31-36 and ellipsoidal point
+heights. All adjustable survey points need documented approximate E/N/Z.
+GNSS vectors retain their full within-vector covariance and source audit.
+Known-with-uncertainty points provide weighted priors, fixed points are held
+exact by model choice, and CHECK points/observations stay outside the fit.
+
+LEVEL_1D adjusts point-to-point height differences in the project height datum:
+NN2000, NN54, ELLIP or LOCAL. GNSS vectors and angles/distances must not be active
+in this profile. E/N are retained for locating the points, not adjusted or tested.
+The SALSA adapter uses a computational radial axis with two components held
+exact. Those internal coordinates are not georeferenced ECEF. Exported PointZ
+and CSV records retain the original project E/N and declared height datum.
+No geoid or height-datum transformation is performed in either profile.
+
+YOUR OWN DATA
+Build/open the physical points and UTC acquisition sessions in Network project
+first. Open the mixed workflow, then import a CSV using the template below.
+Use Open mixed project to resume a saved complete mixed snapshot. Confirmations
+must be reviewed again after reopening. Changing settings invalidates results.
+Save source CSV / template writes the original loaded CSV, or a constructed
+synthetic template if none is loaded. It does not create measurements for you.
+
+Receiver-neutral means an explicit common format, not automatic decoding of all
+manufacturer files. Leica/Trimble/Topcon/Sokkia/etc. exports must be mapped into
+this template with documented units and reductions. Proprietary JOB/DBX files,
+LandXML, raw direction sets, instrument face observations and field-book
+backsight/foresight readings are not imported in this first profile. Reduce such
+data externally and preserve the original records. Do not label raw gravity-
+referenced observations as ELLIPSOID_NORMAL without a justified reduction.
+
+CSV HEADER - EXACT COLUMN ORDER, INCLUDING UNUSED EMPTY FIELDS
+id,session,kind,from_point,to_point,backsight,value,unit,sigma,instrument_height,target_height,backsight_height,height_basis,angle_reference,use,enabled,notes
+
+Encoding: UTF-8, optional UTF-8 BOM. Separator: comma or semicolon. Decimal comma
+is supported when properly quoted or used with semicolons. No thousands
+separators. Multiline quoted notes are retained in the unchanged source.
+Limit: 1 MB, 300 observations and 50 network points. IDs are at most 80 characters.
+
+FIELD HELP
+id: Unique observation ID. Must not duplicate a network GNSS/inventory ID.
+session: Existing acquisition-session ID with documented UTC start time.
+kind: DISTANCE, HORIZONTAL_ANGLE, ZENITH_ANGLE or HEIGHT_DIFFERENCE.
+from_point: Physical station/from point ID, already present in the network.
+to_point: Physical target/to point ID, different from from_point.
+backsight: Reference target for HORIZONTAL_ANGLE only; all three IDs differ.
+value: Observed value, not a coordinate or an invented GNSS baseline.
+unit: m for linear observations; deg or gon for angles (decimal values).
+sigma: Positive assessed 1-sigma standard deviation, in the SAME unit as value.
+  For example, 2 arcseconds = 0.000555555555555556 deg, not 2 deg.
+  Include assessed centring, instrument/target-height and prior reduction
+  uncertainty. The adapter does not infer these from manufacturer RMS fields.
+instrument_height: Metres above the from-point mark for DISTANCE/ZENITH_ANGLE.
+target_height: Metres above the target mark for DISTANCE and both angle kinds.
+backsight_height: Metres above the backsight mark for HORIZONTAL_ANGLE only.
+height_basis: NN2000, NN54, ELLIP or LOCAL for HEIGHT_DIFFERENCE only; must equal
+  the project's height datum. Blank for distances/angles.
+angle_reference: ELLIPSOID_NORMAL for angles; blank for distances/height diffs.
+  This declares the vertical reference, not a request for an automatic correction.
+use: ADJUSTMENT or CHECK. CHECK observations are not used to fit coordinates.
+enabled: true or false. Disabled rows remain visible with their notes/reason.
+notes: Required reduction/uncertainty/source explanation or exclusion reason.
+
+OBSERVATION CONVENTIONS AND REDUCTIONS
+DISTANCE is the measured slope distance, not a grid or horizontal distance.
+Enter instrument_height and target_height explicitly, including 0 for an
+already reduced mark-to-mark observation. SALSA's endpoint-height reduction
+is reproduced in the independent model. Prism/atmosphere/scale corrections
+must already be documented/applied externally; no default coefficient is used.
+
+HORIZONTAL_ANGLE is measured clockwise from backsight to target at from_point:
+0 <= value < 360 deg, or 0 <= value < 400 gon. Leave instrument_height blank;
+this angle model uses the backsight/target heights, both explicitly entered.
+Zero means already reduced mark heights, not unknown height. Entering station
+height here would suggest an unsupported correction, so it is rejected.
+
+ZENITH_ANGLE is 0 toward the zenith and 90 deg / 100 gon at the horizontal.
+Use the reduced face-I convention, range 0-180 deg / 0-200 gon. Near-vertical
+sights without stable horizontal geometry are rejected. Instrument and target
+heights are explicit, including 0 when already reduced. Face-II observations,
+refraction and deflection of vertical are not reduced automatically.
+
+HEIGHT_DIFFERENCE is height(to)-height(from) between the actual point marks.
+Use externally reduced/assessed differences; all three instrument/target/
+backsight height fields are blank. No extra curvature/refraction correction is
+silently applied. In mixed 3D it must be ELLIP, not an NN2000 difference.
+
+Heights entered in the endpoint fields are 0-20 m. Linear values must be within
+1e7 m and linear sigma within 1e-9 to 1e4 m. Angular sigma expressed in the
+chosen unit must convert to 1e-12 to pi radians. Out-of-range/extreme values
+are rejected before solving; these are implementation bounds, not tolerances.
+
+Existing distance/height inventory records lack the CSV reduction fields. They
+cannot silently enter a mixed calculation. Transfer them explicitly to the CSV
+with NEW IDs and document their units/reductions; disable the inventory records
+with a reason. The original inventory and the excluded records are preserved.
+
+UNCERTAINTY AND QUALITY
+Unknown points are estimated. CONSTRAINED coordinate sigmas are in the project
+grid E/N/Z axes; their full covariance is transformed into the ECEF model.
+Reported MIXED_3D point sigmas are geodetic ENU; coordinates are project E/N/Z.
+LEVEL_1D only reports height sigma; horizontal sigmas remain blank, not zero.
+Fixed-point zero covariance is a mathematical assumption, not proof of accuracy.
+
+The independent model uses documented, independent Gaussian observation blocks.
+It does not model shared setup/base errors or cross-observation covariance.
+Several observations from one setup may be dependent; separate IDs alone do
+not establish independence. The model review must state those limitations.
+No robust deletion, automatic weight tuning or APV covariance rescaling occurs.
+
+Significance alpha is 0.001-0.20, default 0.05, and is retained in saved options.
+The global test is two-sided chi-square. Standardized residuals use residual
+covariance and corrected local thresholds. Mean and weakest-direction block
+redundancy are reported: a small residual can hide an error in a weak direction.
+Zero degrees of freedom is NOT_TESTABLE. The reported covariance is conditional
+on the first-order model and assessed sigmas, including any prior reductions.
+This is not a national/recipient standard or professional delivery approval.
+
+SALSA VERIFICATION AND LOCAL OUTPUT
+SALSA must converge and agree with the independent model's positions within
+0.02 mm, degrees of freedom and variance statistic. Rounded text covariance
+is compared within 1% or 1e-11 m2. Original input/source/engine hashes and a
+reproducible solver input are checked before accepting the output.
+Model agreement verifies transfer/calculation, not the assumptions or field data.
+Warnings (including missing geoid) remain visible. No geoid is bundled.
+
+Each run creates a new local folder: mixed.samix.json, unchanged source.csv,
+input.dat, input_metadata.json, solution.out/bin, console.txt, quality.json/txt/html,
+points.csv, residuals.csv, checks.csv and sha256.json. These may contain private
+measurements and personal local paths. Do not publish the run folder on GitHub.
+Only the constructed examples and reviewed source/docs belong in distributions.
+
+LICENSE AND LIMITS
+The plugin remains separate from SOSI Survey. The unmodified SALSA engine is
+installed separately and is not included in the ZIP. No official SALSA/ARL:UT,
+QGIS or instrument-manufacturer endorsement is implied. See LICENSE/NOTICE.
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. Real instrument/export configurations still require validation.

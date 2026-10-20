@@ -1,7 +1,7 @@
 [general]
 name=Survey Adjustment – SALSA prototype
-description=Linked GNSS network maps, confidence ellipses, verified SALSA adjustment, full-covariance baseline import and quality checks.
-version=0.6.0
+description=Verified SALSA mixed GNSS/total-station CSV adjustment, levelling in NN2000, Z-enabled maps and quality checks.
+version=0.7.0
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Tore Berthelsen
@@ -9,7 +9,7 @@ email=
 homepage=https://www.3dmapper.no
 repository=https://github.com/TBRTK/qgis-survey-adjustment
 tracker=https://github.com/TBRTK/qgis-survey-adjustment/issues
-about=Independent prototype. ETRS89 GNSS network adjustment through a separately installed SALSA engine, checked against an independent full-covariance solution. Linked maps and tables, 95% confidence ellipses, height uncertainty, residuals, redundancy, held-out checks and saved-run comparison. Explicit display enlargement; local GeoPackage map export. Processed GNSS baseline import with source audit, versioned network projects, repeatability and coordinate workflows. No raw RINEX, VRS, mixed survey solver or NN2000 transformation. Not an official SALSA or receiver product.
+about=Independent prototype using a separately installed SALSA engine and independent model checks. Mixed 3D CSV: ETRS89 GNSS vectors, slope distances, horizontal/zenith angles and ELLIP height differences. Separate 1D levelling preserves NN2000/NN54/ELLIP/LOCAL heights and retains E/N. Explicit units, endpoint heights and prior reductions; local snapshots, reports and PointZ maps. GNSS network quality/maps and repeatability remain available. No raw RINEX, VRS, geoid/DOV, datum or NN2000 transformation. Real manufacturer exports still require validation. Not an official SALSA or receiver product.
 category=Vector
 experimental=True
 hasProcessingProvider=False

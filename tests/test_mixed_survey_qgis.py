@@ -62,6 +62,36 @@ class MixedSurveyQgisTests(unittest.TestCase):
         with patch.object(QFileDialog,'getOpenFileName',return_value=(str(bad),'')): self.assertFalse(self.dialog.open_csv())
         self.assertEqual(self.dialog.source['sha256'],original)
 
+    def test_saved_alpha_precision_restores_and_invalid_alpha_is_not_clamped(self):
+        self.dialog.load_example(); self.dialog.alpha.setText('0.0123456789'); self.confirm()
+        self.assertTrue(self.dialog.preview(),self.dialog.status.text())
+        path=self.path/'alpha.samix.json'
+        with patch.object(QFileDialog,'getSaveFileName',return_value=(str(path),'')): self.assertTrue(self.dialog.save_project())
+        self.dialog.alpha.setText('0.05'); self.dialog.dirty=False
+        with patch.object(QFileDialog,'getOpenFileName',return_value=(str(path),'')): self.assertTrue(self.dialog.open_project())
+        self.assertEqual(self.dialog.options().alpha,.0123456789)
+        self.confirm(); self.assertTrue(self.dialog.preview())
+        self.dialog.alpha.setText('0.25'); self.assertFalse(self.dialog.preview()); self.assertEqual(self.dialog.alpha.text(),'0.25')
+
+    def test_changed_derived_coordinates_are_rejected_before_adding_layers(self):
+        self.dialog.load_example(); self.confirm(); self.assertTrue(self.dialog.preview())
+        before=set(QgsProject.instance().mapLayers())
+        point=next(p for p in self.dialog.result['points'] if p['role']=='UNKNOWN')
+        point['position_grid'][2]+=5
+        self.assertFalse(self.dialog.add_map()); self.assertEqual(set(QgsProject.instance().mapLayers()),before)
+        self.assertIn('differs',self.dialog.status.text())
+
+    def test_cancelled_open_and_external_change_preserve_the_current_snapshot(self):
+        self.dialog.load_example(); self.confirm(); path=self.path/'snapshot.samix.json'
+        with patch.object(QFileDialog,'getSaveFileName',return_value=(str(path),'')): self.assertTrue(self.dialog.save_project())
+        original=m.dumps(self.dialog.current_job()); self.dialog.note.setText('Unsaved review')
+        with patch.object(QFileDialog,'getOpenFileName',return_value=(str(path),'')),patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Cancel):
+            self.assertFalse(self.dialog.open_project())
+        self.assertEqual(self.dialog.note.text(),'Unsaved review')
+        path.write_text(original+'\n',encoding='utf-8'); disk=path.read_bytes()
+        with patch.object(QFileDialog,'getSaveFileName',return_value=(str(path),'')): self.assertFalse(self.dialog.save_project())
+        self.assertEqual(path.read_bytes(),disk)
+
     @unittest.skipUnless(PROGRAM.exists(),'Separate SALSA engine not installed')
     def test_nonblocking_salsa_and_report_map_full_flow(self):
         self.dialog.load_example(); self.confirm(); self.dialog.solver.setText(str(PROGRAM))

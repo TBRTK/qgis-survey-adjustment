@@ -1,15 +1,34 @@
-SURVEY ADJUSTMENT 0.6.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
-DEVELOPMENT CHECKPOINT: mixed total-station/levelling CSV work is unfinished.
-See docs/MIXED_SURVEY_DEVELOPMENT.txt for scope, validation and remaining work.
+SURVEY ADJUSTMENT 0.7.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
-Date: 2026-10-19
+Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
 
 The software is provided “AS IS”, without warranty. Disclaimers and limitations
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.6.0
+WHAT CHANGED IN 0.7.0
+Adds a receiver-neutral CSV workflow for mixed total-station/GNSS observations
+and a separate 1D levelling workflow. Open Network project -> Mixed survey /
+total station and levelling. Read MIXED_SURVEY.txt (docs/MIXED_SURVEY.txt in
+the source checkout), also available on the dialog's CSV field help tab.
+
+Mixed 3D combines documented ETRS89 ECEF vectors, slope distances, clockwise
+horizontal angles, zenith angles and ELLIP point-height differences. Units,
+endpoint heights and prior reductions are explicit. Separate levelling 1D
+preserves NN2000/NN54/ELLIP/LOCAL height differences and retains E/N unchanged.
+No automatic geoid/DOV, prism/face, atmospheric or datum conversion is added.
+Angles must already refer to the documented ellipsoid-normal convention.
+
+Original CSV bytes, options and network are preserved in a .samix.json snapshot.
+The independent model checks SALSA positions, covariance, dof and APV. Local
+reports include model review, source/input/engine hashes, residuals in declared
+units, weakest-direction redundancy, held-out checks and excluded records.
+PointZ/LineStringZ result layers retain the actual heights and declared datum.
+Two constructed training snapshots and CSV variants are included; real
+manufacturer/export configurations still require validation. See limitations.
+
+GNSS MAP FEATURES FROM 0.6.0
 Adds a linked local GNSS network map/table workspace: actual 3D points and
 baseline endpoints, full-covariance horizontal 95% ellipses, sigma-U labels,
 residual/coordinate-change arrows and read-only original-record/import details.
@@ -21,13 +40,13 @@ The versioned Network project stores points, sessions, observations and import
 audits separately from the QGIS map. GNSS network adjustment through SALSA is
 verified against an independent full-covariance model. Unknown, weighted known,
 fixed and held-out check roles are supported. This profile requires compatible
-ETRS89 vectors and ellipsoidal point heights. Raw RINEX/VRS and mixed-observation
-processing remain future work. Existing coordinate/repeatability workflows stay
+ETRS89 vectors and ellipsoidal point heights. Raw RINEX/VRS processing remains
+future work. Existing coordinate/repeatability workflows stay
 available. The plugin remains separate from SOSI Survey.
 
 INSTALLATION
 In QGIS 4: Plugins > Manage and Install Plugins > Install from ZIP.
-Select survey_adjustment-0.6.0.zip and enable the plugin. The Python package
+Select survey_adjustment-0.7.0.zip and enable the plugin. The Python package
 is survey_adjustment. SOSI Survey remains a separate plugin.
 Select the separately installed SALSA lsasolver on tab 3. Keep the full SALSA
 folder with its own DLLs; a standalone lsasolver.exe is usually insufficient.
@@ -310,8 +329,9 @@ New observations have no assumed sigma value. Do not invent measured baselines
 by differencing RTK point coordinates. Import measured baseline is described above.
 Instrument/target heights are stored only: blank means undocumented; zero
 means a point-to-point value. No height, curvature, grid or geoid reduction is
-applied. No cross-observation/session covariance or total-station angle model
-is implemented. The GNSS solver validates compatibility before use.
+applied by this inventory editor. No cross-observation/session covariance is
+implemented. The separate mixed CSV workflow adds an explicit angle model and
+endpoint-height reductions. The GNSS-only solver validates compatibility before use.
 
 Double-click or Edit selected to edit a record. Referenced IDs cannot be renamed
 or removed if observations would become orphaned; change dependent records
@@ -482,7 +502,7 @@ producing a lower-bound chi-squared warning. A completed calculation is not
 professional approval of the measurements.
 
 LIMITS AND FURTHER VALIDATION
-No raw RINEX processing, VRS synthesis, mixed total-station/levelling solver,
+No raw RINEX processing, VRS synthesis, automatic raw direction-set/face decoding,
 cross-observation/session covariance, geoid/NN2000/datum/epoch transformation
 or professional delivery approval is implemented. Baseline import is limited
 to the documented processed POS/relative-vector CSV profiles. Actual Emlid

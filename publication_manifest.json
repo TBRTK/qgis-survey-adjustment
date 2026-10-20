@@ -11,6 +11,7 @@
     "DISCLAIMER.txt",
     "docs/GNSS_SOLUTIONS_AND_VRS.txt",
     "docs/MIXED_SURVEY_DEVELOPMENT.txt",
+    "docs/MIXED_SURVEY.txt",
     "docs/NETWORK_MAP.txt",
     "docs/PUBLISHING.md",
     "LICENSE",
@@ -35,7 +36,11 @@
     "survey_adjustment/examples/synthetic_baseline_enu.pos",
     "survey_adjustment/examples/synthetic_baseline_llh.pos",
     "survey_adjustment/examples/synthetic_baseline_xyz.pos",
+    "survey_adjustment/examples/synthetic_levelling.csv",
+    "survey_adjustment/examples/synthetic_levelling.samix.json",
     "survey_adjustment/examples/synthetic_measured_baseline.csv",
+    "survey_adjustment/examples/synthetic_mixed_survey.csv",
+    "survey_adjustment/examples/synthetic_mixed.samix.json",
     "survey_adjustment/layers.py",
     "survey_adjustment/LICENSE",
     "survey_adjustment/metadata.txt",
@@ -107,7 +112,11 @@
     "survey_adjustment/network_map_ui.py": "survey_adjustment/network_map_ui.py",
     "survey_adjustment/mixed_survey.py": "survey_adjustment/mixed_survey.py",
     "survey_adjustment/mixed_survey_ui.py": "survey_adjustment/mixed_survey_ui.py",
-    "survey_adjustment/MIXED_SURVEY_DEVELOPMENT.txt": "docs/MIXED_SURVEY_DEVELOPMENT.txt"
+    "survey_adjustment/MIXED_SURVEY.txt": "docs/MIXED_SURVEY.txt",
+    "survey_adjustment/examples/synthetic_mixed_survey.csv": "survey_adjustment/examples/synthetic_mixed_survey.csv",
+    "survey_adjustment/examples/synthetic_levelling.csv": "survey_adjustment/examples/synthetic_levelling.csv",
+    "survey_adjustment/examples/synthetic_mixed.samix.json": "survey_adjustment/examples/synthetic_mixed.samix.json",
+    "survey_adjustment/examples/synthetic_levelling.samix.json": "survey_adjustment/examples/synthetic_levelling.samix.json"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {
@@ -153,19 +162,39 @@
     "survey_adjustment/examples/gnss_quality.sanet.json": {
       "sha256": "b3250144b6a23469e4ed47a86776ca93397ca439b94cf9d8f8810bf1a6b25843",
       "provenance": "Constructed solely from invented UTM training points (REF0 291000,6701000,80), independent Gaussian vector blocks generated with NumPy seed 503, a synthetic grid-coordinate prior and held-out reference. Explicitly synthetic, no receiver/customer data. Source construction: network_quality.synthetic_quality_project."
+    },
+    "survey_adjustment/examples/synthetic_mixed_survey.csv": {
+      "sha256": "ec2a735006561529e2f9a626a4e8469e2b9a2152d7729809d1e310563e4bffe7",
+      "provenance": "Manually reviewed constructed training geometry only: REF0 UTM 291000/6701000/80, four additional invented points, seeded independent noise (705), known endpoint heights, explicit ELLIP 3D or NN2000 1D profile. Source construction mixed_survey.synthetic_job. No instrument, receiver or customer measurements; confirmations initially false."
+    },
+    "survey_adjustment/examples/synthetic_levelling.csv": {
+      "sha256": "20c77d719f4bd65bfa660ef4bc72e5aecde11629fd5d870712161e63f4eae095",
+      "provenance": "Manually reviewed constructed training geometry only: REF0 UTM 291000/6701000/80, four additional invented points, seeded independent noise (705), known endpoint heights, explicit ELLIP 3D or NN2000 1D profile. Source construction mixed_survey.synthetic_job. No instrument, receiver or customer measurements; confirmations initially false."
+    },
+    "survey_adjustment/examples/synthetic_mixed.samix.json": {
+      "sha256": "a317e3541a95e467b220f37dc319f2edc51e632312ab99bb0a5c16a24646ddb9",
+      "provenance": "Manually reviewed constructed training geometry only: REF0 UTM 291000/6701000/80, four additional invented points, seeded independent noise (705), known endpoint heights, explicit ELLIP 3D or NN2000 1D profile. Source construction mixed_survey.synthetic_job. No instrument, receiver or customer measurements; confirmations initially false."
+    },
+    "survey_adjustment/examples/synthetic_levelling.samix.json": {
+      "sha256": "db1b108dc02ca02e3a8259edbc83886644790eb887dc8b4c9491e33d86346eb2",
+      "provenance": "Manually reviewed constructed training geometry only: REF0 UTM 291000/6701000/80, four additional invented points, seeded independent noise (705), known endpoint heights, explicit ELLIP 3D or NN2000 1D profile. Source construction mixed_survey.synthetic_job. No instrument, receiver or customer measurements; confirmations initially false."
     }
   },
   "historical_synthetic_sha256": [
     "069372ff46d82aeafa84d413260568bcc8eaef9a608b03ccc9d62fb3328a7ea7",
     "07f52e199ba0dca683df46b88b7d9a4c662f36879e2a6d8cd53d83ffe4095d8a",
     "17bbda1a8b271b7eb356b6dbe99c3ee9e4df49600bdf3dbd901c165855da90f6",
+    "20c77d719f4bd65bfa660ef4bc72e5aecde11629fd5d870712161e63f4eae095",
     "36cdc19a533dc42f2bcbb19701453061b62fada1d3338dcf577e9120598f174b",
     "62f8197d031ca259be3a2fa3856ca68e9360df8456b815759497d478795b04b9",
     "638cedc9d8a10cf3acf4c32221b2d493720016164947f4d366ebb25cf66966bb",
     "8b12e70d465d8a761f5f6d7e1634f0a08723e573d9cc4edf034757991455f405",
+    "a317e3541a95e467b220f37dc319f2edc51e632312ab99bb0a5c16a24646ddb9",
     "b3250144b6a23469e4ed47a86776ca93397ca439b94cf9d8f8810bf1a6b25843",
+    "db1b108dc02ca02e3a8259edbc83886644790eb887dc8b4c9491e33d86346eb2",
     "dd058f2a84d829844759c6b01ffce732e29c07d47b01baaf3a7c040612875ca4",
     "e99f90efdccce226e420ca3016598f12ddf3a84c027fce47a74ec0ed2a9d3e3f",
+    "ec2a735006561529e2f9a626a4e8469e2b9a2152d7729809d1e310563e4bffe7",
     "ed3c0f8af35bcf9f1ece870748fd2341b1ca996fefc6ca038290e3b248024a8b",
     "f27ccec0869545d1a8dfd067e8cc503bf1b1c722dd8df4daf099f086f1043c0f",
     "f37830a53708d89135c27ffbc05e8e7f5505922190660d8cb77ab0e860f44a5a"

@@ -1,5 +1,8 @@
 MIXED SURVEY CSV - DEVELOPMENT CHECKPOINT (2026-10-20)
 
+HISTORICAL CHECKPOINT: the listed follow-ups were subsequently addressed in
+0.7.0. See MIXED_SURVEY.txt for the current implementation and its limitations.
+
 This source checkpoint continues the 0.6.0 GNSS/map work with an unfinished
 total-station and levelling prototype. It is not a completed mixed-survey release.
 Do not interpret the package version as evidence of field validation.

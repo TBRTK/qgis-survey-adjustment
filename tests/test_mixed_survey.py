@@ -18,11 +18,24 @@ def edit_rows(value,callback):
     source=value['source']; reader=csv.DictReader(io.StringIO(source['utf8']))
     rows=list(reader); callback(rows)
     buffer=io.StringIO(newline=''); writer=csv.DictWriter(buffer,fieldnames=m.FIELDS,lineterminator='\n'); writer.writeheader(); writer.writerows(rows)
-    source['utf8']=buffer.getvalue(); source['sha256']=m.digest(m.source_bytes(dict(source,sha256=m.digest((b'\xef\xbb\xbf' if source['bom'] else b'')+source['utf8'].encode('utf-8')))))
+    source['utf8']=buffer.getvalue()
+    source['sha256']=m.digest((b'\xef\xbb\xbf' if source['bom'] else b'')+source['utf8'].encode('utf-8'))
     return value
 
 
 class MixedSurveyTests(unittest.TestCase):
+    def test_packaged_constructed_examples_preserve_their_exact_csv_and_start_unconfirmed(self):
+        for filename,profile in [('synthetic_mixed.samix.json','MIXED_3D'),('synthetic_levelling.samix.json','LEVEL_1D')]:
+            path=ROOT/'survey_adjustment/examples'/filename
+            data=path.read_bytes(); value=m.loads(data.decode('utf-8'))
+            self.assertTrue(value['network']['synthetic']); self.assertTrue(value['source']['synthetic'])
+            self.assertEqual(m.source_bytes(value['source']),(path.parent/value['source']['name']).read_bytes())
+            self.assertFalse(value['options']['frame_reviewed'])
+            with self.assertRaises(ValueError): m.analyse(value)
+            value['options'].update(frame_reviewed=True,reductions_reviewed=True,independence_reviewed=True)
+            self.assertEqual(m.analyse(value)['profile'],profile)
+            self.assertEqual(path.read_bytes(),data)
+
     def test_mixed_fit_units_covariance_heldout_and_immutable_snapshot(self):
         value=job(); before=deepcopy(value); report=m.analyse(value)
         self.assertEqual(value,before); self.assertEqual(report['global_test']['degrees_of_freedom'],15)
@@ -136,6 +149,54 @@ class MixedSurveyTests(unittest.TestCase):
         value=edit_rows(value,lambda rows:rows.__setitem__(slice(None),[rows[0]]))
         with self.assertRaisesRegex(ValueError,'Rank-deficient'): m.analyse(value)
 
+    def test_disabled_legacy_inventory_remains_visible_and_active_legacy_is_rejected(self):
+        from survey_adjustment import network as n
+        value=job(); legacy=dict(n.observation(),id='OLD_DISTANCE',kind='DISTANCE',session='T01',from_point='REF0',to_point='P01',
+            values=[84.8],covariance=[.0001],enabled=False,notes='Transferred to explicit survey CSV with reviewed reductions.')
+        value['network']['observations'].append(legacy)
+        report=m.analyse(value)
+        self.assertIn('OLD_DISTANCE',{r['id'] for r in report['excluded']})
+        self.assertNotIn('OLD_DISTANCE',{r['id'] for r in report['observations']})
+        legacy['enabled']=True
+        with self.assertRaisesRegex(ValueError,'inventory'): m.analyse(value)
+
+    def test_extreme_numeric_values_and_invalid_saved_options_fail_before_solving(self):
+        for change in (dict(value='1e308'),dict(sigma='1e308'),dict(sigma='1e-308')):
+            value=edit_rows(job(),lambda rows:rows[0].update(change))
+            with self.subTest(change=change),self.assertRaisesRegex(ValueError,'linear'): m.analyse(value)
+        for change in (dict(alpha=True),dict(alpha=0.),dict(alpha=.21),dict(alpha=float('inf')),dict(profile='FUTURE'),dict(frame_reviewed='yes')):
+            value=job(); value['options'].update(change)
+            with self.subTest(change=change),self.assertRaises(ValueError): m.dumps(value)
+
+    def test_empty_nul_multiline_and_invalid_json_sources_are_not_silently_repaired(self):
+        value=job()
+        for text in ('','\n','\x00'):
+            source=dict(value['source'],utf8=text,sha256=m.digest(text.encode()))
+            with self.subTest(text=repr(text)),self.assertRaises(ValueError): m.parse_source(source)
+        edit_rows(value,lambda rows:rows[0].update(notes='SYNTHETIC first line\nDocumented second line'))
+        rows=m.parse_source(value['source'])
+        self.assertIn('\n',rows[0]['notes']); self.assertEqual(rows[0]['line'],3)
+        self.assertEqual(m.loads(m.dumps(value)),value)
+        with self.assertRaises(ValueError): m.loads(m.dumps(value).replace('"schema_version": 1,','"schema_version": 1, "schema_version": 2,',1))
+
+    def test_missing_check_uncertainty_is_inconclusive_without_using_it_in_fit(self):
+        value=job(); before=m.analyse(value)
+        value['network']['points'][-1]['sigma']=None
+        report=m.analyse(value)
+        self.assertEqual(report['positions'],before['positions'])
+        self.assertEqual(report['checks'][0]['status'],'INCONCLUSIVE')
+        self.assertIsNone(report['checks'][0]['pvalue'])
+        self.assertIn('undocumented',report['checks'][0]['reason'])
+
+    def test_duplicate_gnss_session_and_asymmetric_coordinate_prior_covariance(self):
+        value=job(); duplicate=deepcopy(value['network']['observations'][0]); duplicate['id']='G_DUP'
+        value['network']['observations'].append(duplicate)
+        with self.assertRaisesRegex(ValueError,'Repeated GNSS'): m.analyse(value)
+        value=job(); report=m.analyse(value)
+        self.assertEqual(report['options'],value['options'])
+        self.assertEqual(report['source_sha256'],value['source']['sha256'])
+        self.assertTrue(all(0<=r['minimum_direction_redundancy']<=r['redundancy_fraction']+1e-10 for r in report['observations']))
+
     @unittest.skipUnless(PROGRAM.exists(),'Separate SALSA engine not installed')
     def test_actual_salsa_nonzero_heights_angles_level_covariance_reports_and_tamper(self):
         for profile in ('MIXED_3D','LEVEL_1D'):
@@ -146,6 +207,7 @@ class MixedSurveyTests(unittest.TestCase):
                 self.assertLess(result['engine_confirmation']['maximum_position_difference_m'],2e-5)
                 self.assertEqual((path/'source.csv').read_bytes(),m.source_bytes(value['source']))
                 self.assertIn('AS IS',(path/'quality.txt').read_text())
-                self.assertEqual(len(list(csv.DictReader((path/'points.csv').open(encoding='utf-8-sig')))),5)
+                with (path/'points.csv').open(encoding='utf-8-sig') as handle:
+                    self.assertEqual(len(list(csv.DictReader(handle))),5)
                 (path/'input.dat').write_bytes((path/'input.dat').read_bytes()+b'\n')
                 with self.assertRaisesRegex(ValueError,'changed'): m.inspect_result(path,0,PROGRAM)

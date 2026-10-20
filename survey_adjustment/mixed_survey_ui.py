@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """English, receiver-neutral mixed CSV workflow; immutable network snapshots."""
 from copy import deepcopy
-from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 import os
@@ -40,6 +39,9 @@ class MixedSurveyDialog(QDialog):
         self.profile=QComboBox(); self.profile.addItem('Mixed 3D: GNSS + slope distances + angles + ELLIP height differences','MIXED_3D')
         self.profile.addItem('Levelling 1D: height differences in the project height datum; E/N retained','LEVEL_1D')
         form.addRow('Calculation profile',self.profile)
+        self.alpha=QLineEdit('0.05')
+        self.alpha.setToolTip('Two-sided global chi-square and corrected local residual/check test significance. This is not a delivery tolerance.')
+        form.addRow('Significance alpha',self.alpha)
         self.source_label=QLabel('No survey CSV selected.'); self.source_label.setWordWrap(True); form.addRow(self.source_label)
         self.synthetic_csv=QCheckBox('This CSV contains constructed synthetic training data only (must match the network)')
         form.addRow(self.synthetic_csv)
@@ -69,14 +71,20 @@ class MixedSurveyDialog(QDialog):
         self.tabs=QTabWidget(); layout.addWidget(self.tabs,1)
         self.overview=QTextBrowser(); self.tabs.addTab(self.overview,'Overview / model warnings')
         self.source_table=NetworkQualityDialog.table(['ID','Kind','Session','From / station','To','Backsight','Value','Unit','1-sigma','HI','HT','Back HT','Use / enabled'])
-        self.point_table=NetworkQualityDialog.table(['Point','Role','Easting','Northing','Point height','Sigma E','Sigma N','Sigma height','Review'])
-        self.residual_table=NetworkQualityDialog.table(['Observation / prior','Kind','Unit','Residuals','Standardized','Redundancy fraction','Review'])
+        self.point_table=NetworkQualityDialog.table(['Point','Role','Easting','Northing','Point height','Sigma geodetic E','Sigma geodetic N','Sigma height','Review'])
+        self.residual_table=NetworkQualityDialog.table(['Observation / prior','Kind','Unit','Residuals','Standardized','Mean redundancy','Weakest direction','Review'])
         self.check_table=NetworkQualityDialog.table(['Check','Status','Unit','Residual','Pvalue'])
         for widget,title in ((self.source_table,'Survey CSV / units'),(self.point_table,'Adjusted points'),(self.residual_table,'Residuals / redundancy'),(self.check_table,'Held-out checks')):
             self.tabs.addTab(widget,title)
+        self.csv_help=QTextBrowser()
+        help_path=Path(__file__).parent/'MIXED_SURVEY.txt'
+        if not help_path.exists(): help_path=Path(__file__).parent.parent/'docs/MIXED_SURVEY.txt'
+        self.csv_help.setPlainText(help_path.read_text(encoding='utf-8') if help_path.exists() else 'See docs/MIXED_SURVEY.txt for the CSV template, units and reduction conventions.')
+        self.tabs.addTab(self.csv_help,'CSV field help')
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close); buttons.rejected.connect(self.reject); layout.addWidget(buttons)
         self.timer=QTimer(self); self.timer.setSingleShot(True); self.timer.timeout.connect(self.stop)
         self.profile.currentIndexChanged.connect(self.invalidate)
+        self.alpha.textChanged.connect(self.invalidate)
         for field in (self.note,self.solver): field.textChanged.connect(self.invalidate)
         for field in (self.frame_review,self.reduction_review,self.independence_review,self.synthetic_csv): field.toggled.connect(self.invalidate)
         self.update_banner()
@@ -87,8 +95,9 @@ class MixedSurveyDialog(QDialog):
             '. This separate snapshot does not overwrite your network or QGIS project.')
 
     def options(self):
+        from .network_ui import number
         return m.MixedOptions(profile=self.profile.currentData(),frame_reviewed=self.frame_review.isChecked(),
-            reductions_reviewed=self.reduction_review.isChecked(),independence_reviewed=self.independence_review.isChecked(),model_note=self.note.text().strip())
+            reductions_reviewed=self.reduction_review.isChecked(),independence_reviewed=self.independence_review.isChecked(),model_note=self.note.text().strip(),alpha=number(self.alpha.text()))
 
     def current_job(self):
         if self.source is None: raise ValueError('Open a survey CSV or load a synthetic example first.')
@@ -120,6 +129,7 @@ class MixedSurveyDialog(QDialog):
         if self.dirty and self.source is not None and not self.maybe_leave(): return False
         job=m.synthetic_job(profile); self.project=job['network']; self.saved_path=self.saved_digest=None
         self.profile.setCurrentIndex(self.profile.findData(profile))
+        self.alpha.setText(str(job['options']['alpha']))
         self.note.setText('SYNTHETIC independent Gaussian errors; known reductions, units and physical endpoints. No field data.')
         for field in (self.frame_review,self.reduction_review,self.independence_review): field.setChecked(False)
         self.set_source(job['source']); self.update_banner(); return True
@@ -144,6 +154,7 @@ class MixedSurveyDialog(QDialog):
             if self.dirty and self.source is not None and not self.maybe_leave(): return False
             self.project=job['network']; self.set_source(job['source'])
             self.profile.setCurrentIndex(self.profile.findData(job['options']['profile'])); self.note.setText(job['options']['model_note'])
+            self.alpha.setText(str(job['options']['alpha']))
             for field in (self.frame_review,self.reduction_review,self.independence_review): field.setChecked(False)
             self.saved_path=p; self.saved_digest=m.digest(data); self.dirty=False; self.update_banner()
             self.status.setText('Snapshot opened. Review confirmations again before calculating.'); return True
@@ -238,12 +249,16 @@ class MixedSurveyDialog(QDialog):
             for i,values in enumerate(rows):
                 for j,value in enumerate(values): table.setItem(i,j,QTableWidgetItem('' if value is None else str(value)))
         fill(self.point_table,[[p['id'],p['role'],*(p['position_grid'] or [None]*3),*(p['sigma'] or [None]*3),', '.join(p['flags'])] for p in report['points']])
-        fill(self.residual_table,[[o['id'],o['kind'],o['unit'],str(o['residual']),str(o['standardized']),o['redundancy_fraction'],', '.join(o['flags'])] for o in report['observations']])
+        fill(self.residual_table,[[o['id'],o['kind'],o['unit'],str(o['residual']),str(o['standardized']),o['redundancy_fraction'],o['minimum_direction_redundancy'],', '.join(o['flags'])] for o in report['observations']])
         fill(self.check_table,[[o['id'],o['status'],o['unit'],str(o['residual']),o['pvalue']] for o in report['checks']])
 
     def add_map(self):
         try:
             if not self.result or m.dumps(self.current_job())!=m.dumps(self.job): raise ValueError('Calculate the current snapshot first.')
+            expected=m.analyse(self.job)
+            for key in expected:
+                if self.result.get(key)!=expected[key]:
+                    raise ValueError('Derived mixed result differs from the recorded model. Calculate again before mapping.')
             report=self.result; positions={p['id']:p['position_grid'] for p in report['points'] if p['position_grid'] is not None}
             rows=[]
             for p in report['points']:

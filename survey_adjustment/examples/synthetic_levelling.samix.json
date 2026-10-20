@@ -1,0 +1,131 @@
+{
+  "format": "survey-adjustment-mixed",
+  "schema_version": 1,
+  "network": {
+    "format": "survey-adjustment-network",
+    "schema_version": 2,
+    "project_id": "00000000-0000-4000-8000-000000000070",
+    "name": "SYNTHETIC mixed survey",
+    "crs": "EPSG:25832",
+    "height_datum": "NN2000",
+    "epoch": "2026-10-18",
+    "notes": "Constructed training geometry; no actual field data or correction service.",
+    "synthetic": true,
+    "points": [
+      {
+        "id": "REF0",
+        "role": "FIXED",
+        "coordinates": [
+          291000.0,
+          6701000.0,
+          80.0
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "REF1",
+        "role": "CONSTRAINED",
+        "coordinates": [
+          291120.0,
+          6701000.0,
+          81.0
+        ],
+        "sigma": [
+          0.01,
+          0.01,
+          0.004
+        ],
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "P01",
+        "role": "UNKNOWN",
+        "coordinates": [
+          291060.08,
+          6701059.94,
+          82.1
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "P02",
+        "role": "UNKNOWN",
+        "coordinates": [
+          291150.08,
+          6701099.94,
+          84.1
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "CHECK1",
+        "role": "CHECK",
+        "coordinates": [
+          291100.0,
+          6701080.0,
+          83.0
+        ],
+        "sigma": [
+          0.01,
+          0.01,
+          0.004
+        ],
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      }
+    ],
+    "sessions": [
+      {
+        "id": "G01",
+        "start": "2026-10-18T08:00:00Z",
+        "end": "2026-10-18T08:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "T01",
+        "start": "2026-10-18T09:00:00Z",
+        "end": "2026-10-18T09:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "L01",
+        "start": "2026-10-18T10:00:00Z",
+        "end": "2026-10-18T10:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "CHECK",
+        "start": "2026-10-18T11:00:00Z",
+        "end": "2026-10-18T11:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      }
+    ],
+    "observations": [],
+    "imports": []
+  },
+  "source": {
+    "name": "synthetic_levelling.csv",
+    "sha256": "20c77d719f4bd65bfa660ef4bc72e5aecde11629fd5d870712161e63f4eae095",
+    "utf8": "id,session,kind,from_point,to_point,backsight,value,unit,sigma,instrument_height,target_height,backsight_height,height_basis,angle_reference,use,enabled,notes\nT001,L01,HEIGHT_DIFFERENCE,REF0,P01,,2.002981343198706,m,0.003,,,,NN2000,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT002,L01,HEIGHT_DIFFERENCE,REF1,P01,,0.9977118341217023,m,0.003,,,,NN2000,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT003,L01,HEIGHT_DIFFERENCE,P01,P02,,2.0013356503850575,m,0.003,,,,NN2000,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT004,L01,HEIGHT_DIFFERENCE,REF1,P02,,3.0006849395107156,m,0.003,,,,NN2000,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT005,L01,HEIGHT_DIFFERENCE,REF0,P02,,3.999694193757572,m,0.003,,,,NN2000,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT006,CHECK,HEIGHT_DIFFERENCE,P01,CHECK1,,1.000928010197666,m,0.003,,,,NN2000,,CHECK,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT007,L01,HEIGHT_DIFFERENCE,REF0,P02,,4.000136858462049,m,0.003,,,,NN2000,,ADJUSTMENT,false,SYNTHETIC disabled training observation; retained to demonstrate exclusion audit.\n",
+    "bom": false,
+    "synthetic": true
+  },
+  "options": {
+    "profile": "LEVEL_1D",
+    "frame_reviewed": false,
+    "reductions_reviewed": false,
+    "independence_reviewed": false,
+    "model_note": "SYNTHETIC independent Gaussian training data, seed 705. Explicit units, endpoint heights and prior reductions; no field measurements.",
+    "alpha": 0.05
+  }
+}

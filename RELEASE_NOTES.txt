@@ -1,3 +1,46 @@
+Survey Adjustment 0.7.0 - mixed total-station and levelling CSV
+
+Adds a receiver-neutral documented CSV profile, with field help in the English
+dialog, reached from Network project -> Mixed survey / total station and
+levelling. A separate .samix.json snapshot preserves the network, exact source
+CSV, classification, options and model review. Original network/source records
+are not overwritten. Two constructed example snapshots/CSVs are included.
+
+MIXED_3D combines ETRS89 GNSS vectors, slope distances, clockwise horizontal
+angles, zenith angles and ELLIP point-height differences. Metres/deg/gon and
+instrument/target/backsight heights are explicit. LEVEL_1D adjusts reduced
+height differences in NN2000/NN54/ELLIP/LOCAL and retains E/N without a horizontal
+quality claim. It uses a documented computational radial axis inside SALSA.
+It does not convert NN2000 to ellipsoidal heights or apply a geoid.
+
+SALSA is verified against an independent nonlinear/linear model: convergence,
+source/input/engine identity, dof/APV, positions within 0.02 mm and rounded
+covariance within 1% or 1e-11 m2. Residuals retain their declared units. Global
+tests, standardized residuals, mean/weakest-direction redundancy, held-out
+checks, exclusions and Z-enabled map layers are explicit. No automatic outlier
+removal, shared-error model or APV covariance rescaling is introduced.
+
+Validation: 137 functional tests in the QGIS 4.0.0 runtime and 9 publication/
+privacy tests. Includes actual SALSA 1.17.0 runs, nonblocking Qt process,
+nonzero instrument/target heights, degrees/gon equivalence, independent NN2000
+height solution, zero dof/rank failure, synthetic/source separation, malformed/
+extreme inputs, exact saved alpha, excluded legacy records, held-out errors,
+snapshot/map tamper rejection and original Z preservation. Native installed
+desktop validation is recorded locally, separately from offscreen tests.
+
+Limits: this is a prototype, not certified for delivery or every manufacturer
+export. Use the CSV template; no proprietary/raw direction-set/face decoder.
+Angles must already refer to ELLIPSOID_NORMAL; no gravity/DOV, atmosphere,
+face/prism, geoid or datum/epoch correction is inferred. Sigma must include
+assessed centring/height/prior reduction uncertainty. Cross-observation errors
+are not modelled. See MIXED_SURVEY.txt for explicit conventions and bounds.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations
+of liability apply only to the extent permitted by GPLv3 sections 15-17 and
+applicable law. This does not exclude statutory liability that cannot lawfully
+be excluded. See LICENSE. No official SALSA/ARL:UT or receiver endorsement.
+
+Previous release:
 Survey Adjustment 0.6.0 - linked GNSS maps and confidence ellipses
 
 Adds a local map/table workspace from an explicit calculation snapshot. Actual

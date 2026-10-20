@@ -35,6 +35,8 @@ local_settings.json
 *.gpkg-*
 *.sanet.json
 *.samix.json
+!survey_adjustment/examples/synthetic_mixed.samix.json
+!survey_adjustment/examples/synthetic_levelling.samix.json
 !survey_adjustment/examples/network_inventory.sanet.json
 !survey_adjustment/examples/gnss_quality.sanet.json
 *.pos

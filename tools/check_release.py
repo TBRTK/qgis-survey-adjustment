@@ -52,7 +52,7 @@ def content_issues(data):
 
 def is_fixture(name):
     path = PurePosixPath(name)
-    return path.suffix.lower() in DATA_SUFFIXES or name.endswith('.sanet.json')
+    return path.suffix.lower() in DATA_SUFFIXES or name.lower().endswith(('.sanet.json','.samix.json'))
 
 def fixture_digest(data):
     # Git may convert CRLF on Windows. Preserve every byte except line endings.

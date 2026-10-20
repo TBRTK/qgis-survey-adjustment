@@ -1,0 +1,184 @@
+{
+  "format": "survey-adjustment-mixed",
+  "schema_version": 1,
+  "network": {
+    "format": "survey-adjustment-network",
+    "schema_version": 2,
+    "project_id": "00000000-0000-4000-8000-000000000070",
+    "name": "SYNTHETIC mixed survey",
+    "crs": "EPSG:25832",
+    "height_datum": "ELLIP",
+    "epoch": "2026-10-18",
+    "notes": "Constructed training geometry; no actual field data or correction service.",
+    "synthetic": true,
+    "points": [
+      {
+        "id": "REF0",
+        "role": "FIXED",
+        "coordinates": [
+          291000.0,
+          6701000.0,
+          80.0
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "REF1",
+        "role": "CONSTRAINED",
+        "coordinates": [
+          291120.0,
+          6701000.0,
+          81.0
+        ],
+        "sigma": [
+          0.01,
+          0.01,
+          0.004
+        ],
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "P01",
+        "role": "UNKNOWN",
+        "coordinates": [
+          291060.08,
+          6701059.94,
+          82.1
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "P02",
+        "role": "UNKNOWN",
+        "coordinates": [
+          291150.08,
+          6701099.94,
+          84.1
+        ],
+        "sigma": null,
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      },
+      {
+        "id": "CHECK1",
+        "role": "CHECK",
+        "coordinates": [
+          291100.0,
+          6701080.0,
+          83.0
+        ],
+        "sigma": [
+          0.01,
+          0.01,
+          0.004
+        ],
+        "notes": "SYNTHETIC training control/approximation; fixed is a model choice only."
+      }
+    ],
+    "sessions": [
+      {
+        "id": "G01",
+        "start": "2026-10-18T08:00:00Z",
+        "end": "2026-10-18T08:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "T01",
+        "start": "2026-10-18T09:00:00Z",
+        "end": "2026-10-18T09:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "L01",
+        "start": "2026-10-18T10:00:00Z",
+        "end": "2026-10-18T10:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      },
+      {
+        "id": "CHECK",
+        "start": "2026-10-18T11:00:00Z",
+        "end": "2026-10-18T11:59:00Z",
+        "instrument": "SYNTHETIC instrument",
+        "corrections": "Synthetic independent Gaussian errors; no field correction service.",
+        "notes": ""
+      }
+    ],
+    "observations": [
+      {
+        "id": "G1",
+        "session": "G01",
+        "kind": "GNSS_VECTOR",
+        "from_point": "REF0",
+        "to_point": "P01",
+        "use": "ADJUSTMENT",
+        "enabled": true,
+        "values": [
+          -58.991118663226025,
+          51.29241843900945,
+          33.051336659661374
+        ],
+        "covariance": [
+          0.0001,
+          1e-05,
+          0.0,
+          0.000144,
+          5e-06,
+          0.000225
+        ],
+        "frame": "EPSG:4936",
+        "instrument_height": 0.0,
+        "target_height": 0.0,
+        "notes": "SYNTHETIC independent ECEF vector; point-to-point, full covariance known."
+      },
+      {
+        "id": "G2",
+        "session": "G01",
+        "kind": "GNSS_VECTOR",
+        "from_point": "REF1",
+        "to_point": "P02",
+        "use": "ADJUSTMENT",
+        "enabled": true,
+        "values": [
+          -88.64711724073386,
+          16.214672451826274,
+          52.783043624649736
+        ],
+        "covariance": [
+          0.0001,
+          1e-05,
+          0.0,
+          0.000144,
+          5e-06,
+          0.000225
+        ],
+        "frame": "EPSG:4936",
+        "instrument_height": 0.0,
+        "target_height": 0.0,
+        "notes": "SYNTHETIC independent ECEF vector; point-to-point, full covariance known."
+      }
+    ],
+    "imports": []
+  },
+  "source": {
+    "name": "synthetic_mixed_survey.csv",
+    "sha256": "ec2a735006561529e2f9a626a4e8469e2b9a2152d7729809d1e310563e4bffe7",
+    "utf8": "id,session,kind,from_point,to_point,backsight,value,unit,sigma,instrument_height,target_height,backsight_height,height_basis,angle_reference,use,enabled,notes\nT001,T01,DISTANCE,REF0,P01,,84.87375235048081,m,0.003,1.5,1.8,,,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT002,T01,DISTANCE,REF1,P01,,84.85156652076382,m,0.003,1.5,1.8,,,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT003,T01,DISTANCE,REF0,P02,,180.30892906312553,m,0.003,1.5,1.8,,,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT004,T01,DISTANCE,REF1,P02,,104.44005738470857,m,0.003,1.5,1.8,,,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT005,T01,DISTANCE,P01,P02,,98.50334589593012,m,0.003,1.5,1.8,,,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT006,T01,HORIZONTAL_ANGLE,REF0,P01,REF1,350.0004055166636,gon,0.0005,,1.8,1.7,,ELLIPSOID_NORMAL,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT007,T01,HORIZONTAL_ANGLE,REF1,P02,REF0,106.69940363670281,deg,0.00045,,1.8,1.7,,ELLIPSOID_NORMAL,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT008,T01,HORIZONTAL_ANGLE,P01,P02,REF0,223.37456535580475,gon,0.0005,,1.8,1.7,,ELLIPSOID_NORMAL,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT009,T01,ZENITH_ANGLE,REF0,P01,,98.27537353151665,gon,0.0005,1.5,1.8,,,ELLIPSOID_NORMAL,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT010,T01,ZENITH_ANGLE,REF1,P02,,88.19013367153198,deg,0.00045,1.5,1.8,,,ELLIPSOID_NORMAL,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT011,L01,HEIGHT_DIFFERENCE,REF0,P01,,1.9943179467050105,m,0.003,,,,ELLIP,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT012,L01,HEIGHT_DIFFERENCE,REF1,P01,,0.998967790522152,m,0.003,,,,ELLIP,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT013,L01,HEIGHT_DIFFERENCE,P01,P02,,1.99719356571312,m,0.003,,,,ELLIP,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT014,L01,HEIGHT_DIFFERENCE,REF1,P02,,3.0001756401105486,m,0.003,,,,ELLIP,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT015,L01,HEIGHT_DIFFERENCE,REF0,P02,,4.002679269126268,m,0.003,,,,ELLIP,,ADJUSTMENT,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT016,CHECK,DISTANCE,P01,CHECK1,,44.732915310972935,m,0.003,1.5,1.8,,,,CHECK,true,SYNTHETIC independent training observation; no actual geoid/atmosphere; assessed sigma includes reductions.\nT017,T01,DISTANCE,REF0,P02,,180.3102281341439,m,0.003,1.5,1.8,,,,ADJUSTMENT,false,SYNTHETIC disabled training observation; retained to demonstrate exclusion audit.\n",
+    "bom": false,
+    "synthetic": true
+  },
+  "options": {
+    "profile": "MIXED_3D",
+    "frame_reviewed": false,
+    "reductions_reviewed": false,
+    "independence_reviewed": false,
+    "model_note": "SYNTHETIC independent Gaussian training data, seed 705. Explicit units, endpoint heights and prior reductions; no field measurements.",
+    "alpha": 0.05
+  }
+}
