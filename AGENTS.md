@@ -32,6 +32,14 @@ No GPS-pattern, E5a/E5b, C01/C02 or antenna/radome fallback. GLONASS AR stays of
 No combined engine/compiler/upstream source or real calibration data in releases.
 Full RS4 Pro support is not claimed: official azimuth/band model is outside this
 limited profile. See docs/SYSTEM_ENGINE.txt and docs/RS4_PRO_SUPPORT.txt.
+0.13.0 adds SA2 v4 in the SAME flow: complete azimuth grids, explicit fixed level
+NRP headings and true G01/G02, R01/R02, E01/E05, C01/C06 IDs. Changing yaw/tilt
+must be blocked, never inferred from track/IMU/camera. Preserve provider comments,
+including RS4P copied/unverified calibration qualification. No full device/field
+accuracy claim. Keep original upstream/SA1 audit contracts readable. Same signals
+at both receivers; F/NAV clock selection, no invented B1C SPP bias; actual relative
+BDS observations remain in residual reports. Audit every grid sample and separately
+recalculate an applied correction. See docs/SYSTEM_ENGINE.txt for precise limits.
 Preserve original engine POS/covariance, raw occupation identity, base coordinates,
 antenna offsets and processing audit. Static/PPK epochs are correlated; no
 automatic averaging, coordinate updates or independent baseline insertion.

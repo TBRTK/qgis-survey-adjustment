@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.12.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.13.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-20
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,41 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.12.0
+WHAT CHANGED IN 0.13.0
+The existing Raw GNSS > PPK/static flow gains an explicitly selected experimental
+Survey SA2 profile. It preserves complete ANTEX 1.4 azimuth grids, interpolates
+azimuth/zenith values and rotates PCO using separately documented base/rover NRP
+azimuths. Headings are clockwise from true/geodetic north, not magnetic/grid north
+or direction of travel. Antennas must remain level with constant orientation.
+Changing yaw/tilt is blocked; no invented IMU or camera orientation is applied.
+
+The selected pairs are GPS L1/L2, GLONASS G1/G2, Galileo E1/E5a (F/NAV) and
+BeiDou B1C/B3I. The same explicit code/phase signal is forced at both receivers.
+Actual RINEX/ANTEX band IDs are retained: G01/G02, R01/R02, E01/E05, C01/C06.
+No C01/C02 or E05/E07 substitution. Missing signals, incomplete azimuth grids,
+inconsistent 0/360 seam, unknown headings or already-corrected PCV inputs fail.
+The engine confirms every grid sample, heading, signal and an actual correction;
+the adapter independently recalculates that correction before accepting results.
+
+The official EML_REACH_RS4P NONE model can now be read with its azimuth grid and
+these bands. Its NGS record explicitly says it was copied from RS4 without
+verification by calibration. Preserve this qualification; it is not an independent
+RS4 Pro calibration or field validation. Review antenna diagrams, marker-to-ARP
+H/E/N and model provenance. No universal 95 mm addition or RS4 substitution.
+No full RS4 Pro device/IMU/visual-survey support is claimed.
+
+Original/subset hashes, exact input data, full POS covariance, height export,
+map/report, existing baseline review and duplicate-occupation gate are reused.
+Historical upstream/SA1 jobs remain readable. GPS is required; GLONASS fixing
+remains off. BeiDou is excluded from coarse absolute SPP because RINEX-3 D1/D2
+navigation does not supply its B1C code biases; relative same-signal receiver
+differences are retained. This is not PPP, a datum shift or survey approval.
+
+Own source remains GPL-3.0-only. Upstream BSD/SOFA notices are retained. Engine,
+compiler, actual receiver data and real calibration files are not distributed.
+See SYSTEM_ENGINE.txt and RS4_PRO_SUPPORT.txt (docs/ in source).
+
+FEATURES FROM 0.12.0
 Extends the existing PPK/static flow with GLONASS G1/G2 and per-constellation
 receiver ANTEX through a separate experimental Survey SA1 engine. GPS remains
 required; GLONASS ambiguities remain float. Navigation must supply valid FDMA

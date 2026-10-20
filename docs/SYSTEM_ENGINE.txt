@@ -1,3 +1,70 @@
+SURVEY SA2 - AZIMUTH CALIBRATION AND EXPLICIT SIGNAL PAIRS (0.13.0)
+
+One existing raw catalogue, import, background queue, result/map/export flow and
+baseline handoff. SA2 is a separate experimental engine contract (v4); upstream
+v1/v2 and SA1 v3 jobs keep their own identities and historical numerical models.
+
+SA2 uses the same pinned upstream source/compiler and own builder below, with
+--variant sa2 and a NEW output directory. It extends the existing system_pcv.c,
+not a second solver/import pipeline. Receiver arrays retain every PCO, NOAZI and
+azimuth sample. Absolute ANTEX 1.4; zenith 0/90/5, DAZI=0 or 5-90 degrees dividing
+360; complete clockwise rows 0..360 with identical seam values. Other grids or
+ANTEX 2.0 are refused, not approximated. Bilinear interpolation uses antenna-frame
+azimuth = (geodetic line-of-sight azimuth - NRP heading) mod 360. PCO N/E rotates
+by that heading; marker-to-ARP H/E/N remains in local geodetic ENU and is separate.
+No dropped azimuth terms, GPS-pattern fallback or universal 95 mm adjustment.
+
+Each receiver must be level with constant documented NRP heading over the whole
+occupation. Explicit mode and separate base/rover angles (0 <= angle < 360) are
+required, together with orientation/provider-note review. 0 is true north and
+90 east. Grid north, magnetic north, camera direction and travel direction are
+not interchangeable. RINEX ZERODIR AZI must agree if present; PCVS APPLIED blocks
+double correction. Changing yaw/tilt requires time-tagged body orientation and
+another reviewed model; no IMU/visual-survey correction is implemented here.
+Already tilt-corrected final coordinates still use the existing coordinate import.
+
+Reviewed pairs: GPS L1/L2, GLONASS G1/G2, Galileo E1/E5a, BeiDou B1C/B3I.
+Actual ANTEX IDs: G01/G02, R01/R02, E01/E05, C01/C06. C01 is 1575.42 MHz B1C
+in the reviewed RS4P file; it is not 1561.098 MHz B1I/C02. No substitution.
+SA2 changes the engine's observation slot mapping while preserving actual carrier
+frequencies. Same common code/phase signal is explicitly selected at BOTH receivers
+through existing RINEX options. GPS: 1C/P/W/L/S/X and 2W/P/C/S/L/X; GLONASS 1C/P,
+2C/P; Galileo 1C/B/X and 5Q/I/X; BeiDou 1P/D/X and 6I/Q/X. Extra bands stay outside
+this one/two-frequency profile. BeiDou requires unambiguous RINEX 3.03-3.05.
+Galileo F/NAV clock/ephemeris selection is explicit; no I/NAV clock substitution.
+
+GPS remains required. GLONASS AR stays off with the existing FDMA/nav checks.
+RINEX-3 D1/D2 does not provide B1C broadcast code biases: SA2 therefore excludes
+BeiDou from coarse absolute single-point initialization. Actual relative same-
+signal receiver differences still use BeiDou; no missing absolute bias is invented.
+The residual report includes genuinely valid relative observations even when a
+satellite was excluded from coarse SPP. No PPP, precise products, CNAV/RINEX 4,
+satellite antenna calibration, datum/epoch transformation or accuracy guarantee.
+
+Application audit: per receiver/system/frequency PCO/NOAZI, NRP heading, DAZI,
+EVERY azimuth sample, selected actual signal, satellite direction and applied range
+correction. The adapter compares all values and independently recomputes that
+correction (including H/E/N). Every selected system/frequency must contribute valid
+residuals. Original/full subset/calibration/source/config/engine hashes retained.
+Provider comments and SINEX code remain in the selected model/report; copied or
+unverified model warnings are visible before processing. Full covariance, exact
+height/XYZ export, correlated epochs and duplicate-occupation safeguards unchanged.
+
+Reviewed local SA2 engine SHA256:
+81054215ea966854f79b6ca8ecb802f189eff6e99ee934d65961c3ddd9e4e780
+No binary/compiler/upstream source/calibration data is published. Existing own
+GPL-3.0-only / upstream BSD and SOFA notice/distribution limits below still apply.
+SA2 is an experimental Survey extension, not an official RTKLIB or Emlid release.
+
+References for signal/axis conventions:
+https://files.igs.org/pub/data/format/rinex305.pdf
+https://www.ngs.noaa.gov/ANTCAL/LoadFile?file=ngs20.atx
+https://files.igs.org/pub/resource/working_groups/antenna/ANTEX20.pdf
+The last document is a draft describing newer format conventions; this adapter
+continues to accept only ANTEX 1.4, not ANTEX 2.0.
+
+HISTORICAL SA1 PROFILE AND SHARED BUILD/RIGHTS REVIEW (0.12.0)
+
 SURVEY SA1 — EXPERIMENTAL FOUR-SYSTEM RECEIVER CALIBRATION
 
 Survey Adjustment 0.12.0 extends the existing Raw GNSS > PPK/static dialog.

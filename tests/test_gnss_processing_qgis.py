@@ -5,6 +5,7 @@ from unittest.mock import patch
 from test_qgis import app,ROOT,Iface
 from test_gnss_processing import ENGINE
 from test_system_engine import SA_ENGINE
+from test_azimuth_antenna import AZ_ENGINE
 from qgis.PyQt.QtCore import QSettings,QProcess
 from qgis.PyQt.QtWidgets import QFileDialog,QDialog
 from survey_adjustment.plugin import SurveyDialog
@@ -106,6 +107,41 @@ class ProcessingQgisTests(unittest.TestCase):
         self.assertEqual(len(self.owner.project['observations']),1)
         self.assertEqual(self.owner.project['imports'][0]['processing']['profile'],p.SYSTEM_PROFILE)
         self.owner.write(self.root/'saved_extended.sanet.json');self.assertEqual(n.load_project(self.root/'saved_extended.sanet.json'),self.owner.snapshot())
+
+    @unittest.skipUnless(AZ_ENGINE.is_file(),'Separate experimental azimuth engine not bundled')
+    def test_sa2_qprocess_azimuth_review_signal_plan_and_existing_baseline_handoff(self):
+        dialog=self.dialog;dialog.engine_variant.setCurrentIndex(dialog.engine_variant.findData('survey-sa2'))
+        dialog.executable.setText(str(AZ_ENGINE))
+        for system in ('E','C','R'):dialog.systems[system].setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        self.assertFalse(dialog.orientation_review.isChecked());self.assertEqual(dialog.rover_heading.text(),'37')
+        self.assertTrue(dialog.review_models());self.assertIn('E05',dialog.report.toPlainText());self.assertIn('C06',dialog.report.toPlainText())
+        for field in (dialog.base_review,dialog.antenna_review,dialog.model_review,dialog.license_review):field.setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory') as picker:self.assertFalse(dialog.start());self.assertFalse(picker.called)
+        dialog.orientation_review.setChecked(True);self.start()
+        self.assertIn('B1C/B3I',dialog.report.toPlainText());self.assertEqual(dialog.result['signal_plan']['E'],['1C','5Q'])
+        dialog.select_record('processing_epoch',str(dialog.source['rows'][-1]['line']))
+        def execute(review):
+            for check in (review.synthetic,review.relative,review.endpoints,review.covariance,review.occupation):check.setChecked(True)
+            review.occupation_note.setText('SYNTHETIC fixed level antennas with NRP azimuths 0/37 degrees; final correlated state only.')
+            self.assertTrue(review.preview(),review.review.toPlainText());self.assertTrue(review.finish());return QDialog.DialogCode.Accepted
+        with patch.object(BaselineImportDialog,'exec',execute):self.assertTrue(dialog.review_baseline())
+        self.assertEqual(len(self.owner.project['observations']),1)
+        self.assertEqual(self.owner.project['imports'][0]['processing']['profile'],p.AZIMUTH_PROFILE)
+        self.owner.write(self.root/'saved_azimuth.sanet.json');self.assertEqual(n.load_project(self.root/'saved_azimuth.sanet.json'),self.owner.snapshot())
+        dialog.rover_heading.setText('38');self.assertFalse(dialog.handoff.isEnabled());self.assertIsNone(dialog.result)
+
+    def test_provider_copied_unverified_notes_are_visible_in_model_review(self):
+        from survey_adjustment import antenna
+        dialog=self.dialog;dialog.engine_variant.setCurrentIndex(dialog.engine_variant.findData('survey-sa2'))
+        for system in ('E','C','R'):dialog.systems[system].setChecked(True)
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        path=Path(dialog.antex.text());text=path.read_text()
+        label=d.header('SYNTHETIC: COPIED WITHOUT VERIFICATION BY CALIBRATION!','COMMENT')
+        text=text.replace(d.header('     5.0','DAZI'),label+d.header('     5.0','DAZI'))
+        path.write_text(text,encoding='ascii')
+        self.assertTrue(dialog.review_models());self.assertIn('WITHOUT VERIFICATION',dialog.report.toPlainText())
+        self.assertFalse(dialog.handoff.isEnabled());self.assertFalse(dialog.orientation_review.isChecked())
 
     def test_cancelled_or_closed_job_is_marked_aborted(self):
         with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertTrue(self.dialog.start())

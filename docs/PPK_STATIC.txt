@@ -1,6 +1,9 @@
-PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.12.0
+PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.13.0
 
 ENGINE PROFILE
+Survey SA2 adds azimuth calibration and E1/E5a, B1C/B3I pairs in the SAME dialog.
+Select fixed level orientation, enter base/rover NRP headings and review antenna
+models/provider notes. Changing yaw/tilt is blocked. See SYSTEM_ENGINE.txt.
 The original upstream EX profile below remains available with its legacy limits.
 For experimental GLONASS and per-system ANTEX, select Survey SA1 in the SAME
 dialog and choose the separately built, exact reviewed executable. Read

@@ -1,2 +1,2 @@
 # SPDX-License-Identifier: GPL-3.0-only
-VERSION = '0.12.0'
+VERSION = '0.13.0'

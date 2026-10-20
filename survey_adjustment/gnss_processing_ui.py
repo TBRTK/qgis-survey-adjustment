@@ -30,7 +30,8 @@ class ProcessingDialog(QDialog):
         label.setWordWrap(True);layout.addWidget(label)
         profile_row=QHBoxLayout();profile_row.addWidget(QLabel('Engine profile'))
         self.engine_variant=combo({'upstream':'Upstream EX 2.5.1 — legacy G/E/C, GPS-only ANTEX',
-            'survey-sa1':'Experimental Survey SA1 — G/E/C/R and per-system receiver ANTEX'})
+            'survey-sa1':'Experimental Survey SA1 — legacy G/E/C/R, NOAZI ANTEX',
+            'survey-sa2':'Experimental Survey SA2 — azimuth ANTEX, Galileo E1/E5a, BeiDou B1C/B3I'})
         profile_row.addWidget(self.engine_variant,1);layout.addLayout(profile_row)
         page=QWidget();form=QGridLayout(page);self.controls=page
         self.executable=QLineEdit(str(QSettings().value('SurveyAdjustment/rtklib_ex251','')))
@@ -60,24 +61,38 @@ class ProcessingDialog(QDialog):
         system_row=QHBoxLayout()
         for field in self.systems.values():system_row.addWidget(field)
         form.addWidget(QLabel('Satellite systems'),11,0);form.addLayout(system_row,11,1,1,4)
-        self.calibration=combo({'none':'Explicitly uncalibrated — header H/E/N only','antex':'Receiver ANTEX PCO + NOAZI PCV — reviewed engine bands'})
+        self.calibration=combo({'none':'Explicitly uncalibrated — header H/E/N only','antex':'Receiver ANTEX PCO/PCV — reviewed engine bands'})
         form.addWidget(QLabel('Receiver calibration'),12,0);form.addWidget(self.calibration,12,1,1,4)
         self.antex=QLineEdit();self.antex.setPlaceholderText('Local absolute ANTEX 1.4; exact antenna + radome, serial/generic model, entire occupation valid')
         choose_antex=QPushButton('Choose ANTEX …');choose_antex.clicked.connect(self.choose_antex)
         form.addWidget(QLabel('ANTEX file'),13,0);form.addWidget(self.antex,13,1,1,3);form.addWidget(choose_antex,13,4)
         self.calibration_note=QLineEdit();self.calibration_note.setPlaceholderText('Source/version and usage rights; verify antenna serial, radome, mounting, north orientation and ARP height')
-        form.addWidget(QLabel('Calibration evidence'),14,0);form.addWidget(self.calibration_note,14,1,1,4)
-        hint=QLabel('Slots: GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I; Survey SA1 also GLONASS G1/G2 with fixing disabled. GPS required. ANTEX: absolute DAZI=0, zenith 0–90°/5°. Mixed calibration requires SA1. H/E/N must mean marker-to-ARP, without PCO already included. RS4 Pro: do not add a fixed 95 mm or substitute RS4 calibration; other bands and azimuth patterns require another tested profile.')
+        review_model=QPushButton('Review antenna models …');review_model.clicked.connect(self.review_models)
+        form.addWidget(QLabel('Calibration evidence'),14,0);form.addWidget(self.calibration_note,14,1,1,3);form.addWidget(review_model,14,4)
+        hint=QLabel('Upstream/SA1: GPS L1/L2, Galileo E1/E5b, BeiDou B1I/B2I; SA1 adds GLONASS G1/G2. SA2: Galileo E1/E5a, BeiDou B1C/B3I, same GPS/GLONASS pairs. GPS required; GLONASS fixing off. Absolute ANTEX 1.4, zenith 0/90/5. SA2 adds complete azimuth grids. H/E/N is marker-to-ARP without PCO already included. No fixed 95 mm addition or automatic antenna/band substitution.')
         hint.setWordWrap(True);form.addWidget(hint,15,0,1,5)
         self.reference_help=QLabel()
-        self.reference_help.setWordWrap(True);form.addWidget(self.reference_help,16,0,1,5)
+        self.reference_help.setWordWrap(True);form.addWidget(self.reference_help,19,0,1,5)
+        self.orientation_box=QWidget();orientation_layout=QGridLayout(self.orientation_box);orientation_layout.setContentsMargins(0,0,0,0)
+        self.orientation_mode=combo({'':'Select antenna motion / orientation','fixed-level':'Level, fixed NRP direction throughout this occupation',
+            'variable':'Changing yaw / tilt — raw SA2 processing is not supported'})
+        orientation_layout.addWidget(self.orientation_mode,0,0,1,2)
+        self.base_heading=QLineEdit();self.rover_heading=QLineEdit()
+        for i,(label,field) in enumerate((('Base antenna NRP azimuth °',self.base_heading),('Rover antenna NRP azimuth °',self.rover_heading))):
+            field.setPlaceholderText('Required: 0 <= angle < 360; decimal point')
+            orientation_layout.addWidget(QLabel(label),i+1,0);orientation_layout.addWidget(field,i+1,1)
+        orientation_help=QLabel('SA2: bearing of the antenna north reference point (NRP), clockwise from true/geodetic north: 0° north, 90° east. Use the antenna diagram, not the camera direction. Grid north, magnetic north and direction of travel are different. Antenna must stay level and keep this heading throughout the occupation. Changing yaw/tilt or IMU-assisted measurements need another model. Review provider notes below, including copied/unverified calibration.')
+        orientation_help.setWordWrap(True);orientation_layout.addWidget(orientation_help,3,0,1,2)
+        form.addWidget(self.orientation_box,16,0,3,5);self.orientation_box.hide()
         self.base_review=QCheckBox('I verified the fixed base coordinates, physical point, frame and coordinate epoch')
         self.antenna_review=QCheckBox('I verified H/E/N is marker-to-ARP, without duplicated PCO, and reviewed mounting/model or its explicit absence')
         self.model_review=QCheckBox('I reviewed model limits and dependence; FIX/formal covariance are not absolute accuracy')
         self.license_review=QCheckBox('I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
-        for row,field in enumerate((self.base_review,self.antenna_review,self.model_review,self.license_review),17):form.addWidget(field,row,0,1,5)
+        for row,field in enumerate((self.base_review,self.antenna_review,self.model_review,self.license_review),20):form.addWidget(field,row,0,1,5)
+        self.orientation_review=QCheckBox('I verified constant, level antenna orientation and true-north azimuths, and reviewed the calibration provider notes')
+        form.addWidget(self.orientation_review,24,0,1,5);self.orientation_review.hide()
         link=QLabel('<a href="'+p.ENGINE_LICENSE+'">RTKLIB licence</a> · <a href="'+p.ENGINE_RELEASE+'">Reviewed engine release</a> — engine binary is not part of the plugin ZIP')
-        link.setOpenExternalLinks(True);form.addWidget(link,21,0,1,5)
+        link.setOpenExternalLinks(True);form.addWidget(link,25,0,1,5)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);scroll.setMaximumHeight(400);layout.addWidget(scroll)
         row=QHBoxLayout();self.example_button=QPushButton('New synthetic example for selected mode …');self.example_button.clicked.connect(self.example)
         self.run_button=QPushButton('Run local PPK / static …');self.run_button.clicked.connect(self.start)
@@ -102,12 +117,14 @@ class ProcessingDialog(QDialog):
         self.handoff=QPushButton('Review solution through existing baseline import …');self.handoff.setEnabled(False);self.handoff.clicked.connect(self.review_baseline);layout.addWidget(self.handoff)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.stop)
-        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note):field.textChanged.connect(self.invalidate)
+        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note,self.base_heading,self.rover_heading):field.textChanged.connect(self.invalidate)
         for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere,self.calibration):field.currentIndexChanged.connect(self.invalidate)
         self.engine_variant.currentIndexChanged.connect(self.profile_changed)
         for field in self.systems.values():field.toggled.connect(self.invalidate)
         for field in (self.elevation,self.ratio):field.valueChanged.connect(self.invalidate)
         for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.toggled.connect(self.invalidate)
+        self.orientation_review.toggled.connect(self.invalidate)
+        self.orientation_mode.currentIndexChanged.connect(self.invalidate)
         self.populate()
 
     def populate(self):
@@ -121,6 +138,8 @@ class ProcessingDialog(QDialog):
     def options(self):
         try:coordinates=tuple(float(v) for v in self.base_xyz.text().replace(',',' ').split())
         except ValueError:raise ValueError('Enter three fixed base ECEF coordinates with decimal points.') from None
+        try:headings=[float(field.text()) if field.text().strip() else None for field in (self.base_heading,self.rover_heading)]
+        except ValueError:raise ValueError('Enter antenna azimuths with decimal points.') from None
         return p.ProcessingOptions(base=self.base.currentData(),rover=self.rover.currentData(),navigation=self.navigation.currentData(),
             mode=self.mode.currentData(),base_xyz=coordinates,frame=self.frame.currentData(),epoch=self.project['epoch'],
             frequencies=self.frequency.currentData(),elevation=self.elevation.value(),ratio=self.ratio.value(),atmosphere=self.atmosphere.currentData(),
@@ -128,6 +147,8 @@ class ProcessingDialog(QDialog):
             systems=tuple(s for s,field in self.systems.items() if field.isChecked()),calibration=self.calibration.currentData(),
             antex_path=self.antex.text().strip(),calibration_note=self.calibration_note.text().strip(),
             engine_variant=self.engine_variant.currentData(),
+            base_azimuth_deg=headings[0],rover_azimuth_deg=headings[1],orientation_reviewed=self.orientation_review.isChecked(),
+            orientation_mode=self.orientation_mode.currentData() if self.engine_variant.currentData()=='survey-sa2' else '',
             base_reviewed=self.base_review.isChecked(),antenna_reviewed=self.antenna_review.isChecked(),model_reviewed=self.model_review.isChecked(),license_reviewed=self.license_review.isChecked())
 
     def invalidate(self,*_):
@@ -142,31 +163,64 @@ class ProcessingDialog(QDialog):
 
     def profile_changed(self):
         self.invalidate();self.license_review.setChecked(False)
-        extended=self.engine_variant.currentData()=='survey-sa1'
-        self.license_review.setText('I reviewed experimental Survey SA1 GPLv3 extension and upstream BSD/SOFA notices; separately installed engine' if extended else 'I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
-        key='SurveyAdjustment/rtklib_sa1' if extended else 'SurveyAdjustment/rtklib_ex251'
+        variant=self.engine_variant.currentData();extended=variant in ('survey-sa1','survey-sa2');azimuth=variant=='survey-sa2'
+        self.license_review.setText('I reviewed experimental Survey '+variant[-3:].upper()+' GPLv3 extension and upstream BSD/SOFA notices; separately installed engine' if extended else 'I reviewed RTKLIB EX 2.5.1 BSD-2-Clause licence; engine is separately installed')
+        self.orientation_box.setVisible(azimuth);self.orientation_review.setVisible(azimuth);self.orientation_review.setChecked(False)
+        self.base_heading.clear();self.rover_heading.clear()
+        self.orientation_mode.setCurrentIndex(0)
+        self.systems['E'].setText('Galileo E1/E5a' if azimuth else 'Galileo')
+        self.systems['C'].setText('BeiDou B1C/B3I' if azimuth else 'BeiDou B1I/B2I')
+        if azimuth:self.calibration.setCurrentIndex(self.calibration.findData('antex'))
+        key={'survey-sa1':'SurveyAdjustment/rtklib_sa1','survey-sa2':'SurveyAdjustment/rtklib_sa2'}.get(variant,'SurveyAdjustment/rtklib_ex251')
         self.executable.setText(str(QSettings().value(key,'')))
 
     def choose_antex(self):
         path,_=QFileDialog.getOpenFileName(self,'Choose local absolute receiver ANTEX','','ANTEX (*.atx *.ATX)')
         if path:self.antex.setText(path)
 
+    def review_models(self):
+        self.invalidate()
+        try:
+            options=self.options();sources={s['id']:s for s in self.project.get('raw_sources',[])}
+            model=p.calibration_review(options,sources[options.base],sources[options.rover])
+            if model is None:raise ValueError('Select ANTEX calibration and its local file first.')
+            self.report.setHtml('<h3>Antenna model review — no computation</h3>'+self.calibration_html(model))
+            self.views.setCurrentIndex(0);self.status.setText('Review original provider notes and model limits before confirming orientation/calibration.')
+            return True
+        except (ValueError,KeyError,OSError) as error:self.status.setText('Cannot review antenna models: '+str(error));return False
+
+    def calibration_html(self,calibration):
+        parts=[]
+        for key in ('base','rover'):
+            model=calibration[key]
+            parts.append('<p><b>'+key+': '+html.escape(model['type'])+'</b>; DAZI '+str(model['dazi'])+'°; bands '+html.escape(', '.join(model['frequencies']))+'.</p>')
+            comments=model.get('comments',[])
+            warnings=[line for line in comments if any(word in line.upper() for word in ('COPIED','VERIFICATION','WARNING','ATTENTION'))]
+            if warnings:parts.append('<p><b>Provider qualification: '+html.escape(' '.join(warnings))+'</b></p>')
+        return ''.join(parts)
+
     def example(self):
         if not self.owner.maybe_leave():return False
         systems=tuple(s for s,field in self.systems.items() if field.isChecked());calibrated=self.calibration.currentData()=='antex'
-        if (calibrated and systems!=('G',) or 'R' in systems) and self.engine_variant.currentData()!='survey-sa1':
+        azimuth=self.engine_variant.currentData()=='survey-sa2'
+        if (calibrated and systems!=('G',) or 'R' in systems) and self.engine_variant.currentData() not in ('survey-sa1','survey-sa2'):
             self.status.setText('Select Survey SA1 for GLONASS or mixed-system ANTEX examples. Upstream EX retains its GPS-only calibration contract.');return False
         parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW constructed GNSS example')
         if not parent:return False
         try:
             folder=Path(parent)/('Synthetic_GNSS_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
-            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic',systems=systems,calibrated=calibrated)
+            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic',systems=systems,calibrated=calibrated,azimuth=azimuth)
             self.owner.replace_project(self.project,folder/'example.sanet.json');self.populate()
             self.base_xyz.setText(' '.join(f'{v:.8f}' for v in demo.BASE));self.frame.setCurrentIndex(self.frame.findData('EPSG:4978'))
             self.atmosphere.setCurrentIndex(self.atmosphere.findData('ideal-synthetic'))
             self.antenna_note.setText('SYNTHETIC marker endpoints; base/rover H=1/2 m; invented PCO and NOAZI PCV.' if calibrated else 'SYNTHETIC electrical endpoints; zero H/E/N and antenna patterns.')
             self.antex.setText(str(folder/'synthetic.atx') if calibrated else '')
             self.calibration_note.setText('Own invented ANTEX models, no real receiver calibration. Constructed north-oriented antenna offsets for this integration test.' if calibrated else '')
+            if azimuth:
+                self.orientation_mode.setCurrentIndex(self.orientation_mode.findData('fixed-level'))
+                self.base_heading.setText('0');self.rover_heading.setText('37');self.orientation_review.setChecked(False)
+                self.antenna_note.setText('SYNTHETIC level antennas: base NRP 0°, rover NRP 37° clockwise from true north; marker-to-ARP H=1/2 m.')
+                self.calibration_note.setText('Own invented DAZI=5 grids and exact per-system bands. No actual RS4 Pro calibration or field validation.')
             self.model_note.setText('SYNTHETIC circular '+''.join(systems)+' orbits, ideal signals, no atmosphere; WGS84 ellipsoid test coordinates only. Not field accuracy.')
             for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.setChecked(False)
             self.status.setText('Constructed example created in the existing network. Review fields and confirmations before running. Original user project was not overwritten.')
@@ -188,7 +242,7 @@ class ProcessingDialog(QDialog):
             self.folder=Path(parent)/('GNSS_'+options.mode+'_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
             self.submitted=asdict(options);self.program=executable;self.preparing=True
             self.controls.setEnabled(False);self.example_button.setEnabled(False);self.run_button.setEnabled(False);self.stop_button.setEnabled(True)
-            QSettings().setValue('SurveyAdjustment/rtklib_sa1' if options.engine_variant=='survey-sa1' else 'SurveyAdjustment/rtklib_ex251',str(executable))
+            QSettings().setValue({'survey-sa1':'SurveyAdjustment/rtklib_sa1','survey-sa2':'SurveyAdjustment/rtklib_sa2'}.get(options.engine_variant,'SurveyAdjustment/rtklib_ex251'),str(executable))
             self.status.setText('Checking and copying local raw inputs in the existing background queue …');self.timer.start(120000)
             folder=self.folder;project=deepcopy(self.project)
             def preparation_failed(error):
@@ -247,6 +301,9 @@ class ProcessingDialog(QDialog):
             audit='<p>Valid engine residuals: '+esc('; '.join(s+': '+', '.join(ids) for s,ids in used.items()))+'</p>'
             if calibration:
                 audit+='<p>Applied receiver ANTEX: '+esc('; '.join(key+': '+calibration[key]['type']+' ('+calibration[key]['selection']+')' for key in ('base','rover')))+'. Original SHA256 '+esc(calibration['original_sha256'])+'.</p>'
+                audit+=self.calibration_html(calibration)
+            if self.result.get('signal_plan'):
+                audit+='<p>Actual signals: '+esc(json.dumps(self.result['signal_plan']))+'; antenna NRP azimuths: '+esc(json.dumps(self.result['antenna_azimuth_deg']))+'°.</p>'
             self.report.setHtml('<h3>'+esc(self.result['engine_version'])+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
             self.open_button.setEnabled(True);self.handoff.setEnabled(self.result['eligible_fix']>0)
             self.status.setText('Engine completed: '+str(self.result['epochs'])+' epochs; '+str(self.result['eligible_fix'])+' eligible FIX. Input/output integrity checked; review limitations. No baseline added.')

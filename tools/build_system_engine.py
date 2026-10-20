@@ -49,7 +49,8 @@ def replace_one(path,old,new):
     path.write_text(text.replace(old,new),encoding='utf-8',newline='\n')
 
 
-def build(archive,zig,output):
+def build(archive,zig,output,variant='sa1'):
+    if variant not in ('sa1','sa2'):raise ValueError('Unknown Survey engine variant.')
     archive=Path(archive).resolve();zig=Path(zig).resolve();output=Path(output).resolve()
     if hashlib.sha256(archive.read_bytes()).hexdigest()!=SOURCE_SHA:raise ValueError('Unreviewed source archive.')
     if hashlib.sha256(zig.read_bytes()).hexdigest()!=COMPILER_SHA:raise ValueError('Unreviewed compiler executable.')
@@ -97,12 +98,14 @@ def build(archive,zig,output):
             if ((i=decodef(buff+8,19,pcv.var[freq-1]))<=0) continue;''')
     replace_one(rtk,'antmodel(opt->pcvr+base,opt->antdel[base],azel+i*2,opt->posopt[1],\n                 dant);',
         'if (!sa_antmodel(opt->pcvr+base,opt->antdel[base],azel+i*2,opt->posopt[1],\n                         satsys(obs[i].sat,NULL),opt->nf,dant)) return 0;')
+    if variant=='sa2':patch_azimuth(source)
     extension=Path(__file__).with_name('system_pcv.c');shutil.copy2(extension,source/'src/system_pcv.c')
     names='rtkcmn trace rinex rtkpos postpos solution lambda geoid sbas preceph pntpos ephemeris options ppp ppp_ar rtcm rtcm2 rtcm3 rtcm3e ionex tides sofa system_pcv'.split()
     command=[str(zig),'cc','-target','x86_64-windows-gnu','-O2','-std=c17','-DWIN32','-DWIN_STATIC','-DTRACE',
         '-DENAGLO','-DENAGAL','-DENACMP','-DNFREQ=3','-DNEXOBS=3','-I'+str(source/'src'),
         str(source/'app/consapp/rnx2rtkp/rnx2rtkp.c'),*[str(source/'src'/(name+'.c')) for name in names],
         '-ffile-prefix-map='+str(source)+'=/rtklib','-lwinmm','-lws2_32','-o',str(output/'rnx2rtkp.exe')]
+    if variant=='sa2':command+=['-DSURVEY_SA2','-Wl,--stack,16777216']
     temporary=output/'tmp';temporary.mkdir()
     environment=dict(os.environ,ZIG_GLOBAL_CACHE_DIR=str(archive.parent/'zig-global-cache'),ZIG_LOCAL_CACHE_DIR=str(output/'local-cache'),SOURCE_DATE_EPOCH='0',TEMP=str(temporary),TMP=str(temporary))
     result=subprocess.run(command,capture_output=True,text=True,timeout=300,env=environment)
@@ -114,13 +117,63 @@ def build(archive,zig,output):
         compiler_sha256=hashlib.sha256(zig.read_bytes()).hexdigest(),extension_sha256=hashlib.sha256(extension.read_bytes()).hexdigest(),
         command=command,engine_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),pre_normalization_sha256=original_hash,
         normalization='Only unsigned PE/COFF timestamps and CodeView GUID, for deterministic rebuilds; machine code/data unchanged.',
-        identity='RTKLIB EX 2.5.1-SA1 experimental local receiver-PCV extension',
+        identity='RTKLIB EX 2.5.1-'+variant.upper()+' experimental local receiver-PCV extension',
         rights='Own extension GPL-3.0-only; upstream BSD-2-Clause and SOFA notices retained. Not an upstream release. Engine binaries not included in plugin/publication.')
     (output/'PROVENANCE.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
     print(provenance['identity']);print(provenance['engine_sha256'])
 
 
+def patch_azimuth(source):
+    """SA2 keeps actual RINEX bands/frequencies, not relabelled ANTEX records."""
+    header=source/'src/rtklib.h';cmn=source/'src/rtkcmn.c';rtk=source/'src/rtkpos.c'
+    replace_one(header,'"2.5.1-SA1"','"2.5.1-SA2"')
+    replace_one(header,'unsigned int sa_present[4];','unsigned int sa_present[4];\n    double sa_dazi;\n    double sa_azi[4][NFREQ][73][19];\n    int sa_rows[4][NFREQ];')
+    replace_one(header,'} prcopt_t;','    double sa_heading[2]; /* SA2 NRP azimuth {rover,base}, degrees */\n} prcopt_t;')
+    replace_one(header,'int sa_antmodel(const pcv_t *,const double *,const double *,int,int,int,double *);',
+        'int sa_antmodel(const pcv_t *,const double *,const double *,int,int,int,const uint8_t *,double,double *);')
+    replace_one(rtk,'satsys(obs[i].sat,NULL),opt->nf,dant)) return 0;',
+        'satsys(obs[i].sat,NULL),opt->nf,obs[i].code,opt->sa_heading[base],dant)) return 0;')
+    replace_one(rtk,'if (!ssat->vs) continue;\n            satno2id(i+1,id);',
+        'if (!ssat->vs && !ssat->vsat[0] && !ssat->vsat[1]) continue; /* include actual relative BDS residuals, even when excluded from coarse SPP */\n            satno2id(i+1,id);')
+    for old,new in (("case '7': *freq=FREQE5b; return 1; /* E5b */","case '7': *freq=FREQE5b; return 3; /* E5b excluded from SA2 slots */"),
+        ("case '5': *freq=FREQL5; return 2; /* E5a */","case '5': *freq=FREQL5; return 1; /* SA2 E5a */"),
+        ("case '2': *freq=FREQ1_CMP; return 0; /* B1I */","case '2': *freq=FREQ1_CMP; return 3; /* B1I excluded from SA2 slots */"),
+        ("case '7': *freq=FREQ2_CMP; return 1; /* B2,B2b */","case '7': *freq=FREQ2_CMP; return 4; /* B2b excluded from SA2 slots */"),
+        ("case '6': *freq=FREQ3_CMP; return 3; /* B3 */","case '6': *freq=FREQ3_CMP; return 1; /* SA2 B3I */"),
+        ("case '1': *freq=FREQL1;    return 4; /* B1C,B1A */","case '1': *freq=FREQL1;    return 0; /* SA2 B1C */"),
+        ('else if (sys==SYS_GAL) sa_slot=f==1?0:f==7?1:f==5?2:-1;','else if (sys==SYS_GAL) sa_slot=f==1?0:f==5?1:-1;'),
+        ('else if (sys==SYS_CMP) sa_slot=f==2?0:f==7?1:f==5?2:-1;','else if (sys==SYS_CMP) sa_slot=f==1?0:f==6?1:-1;')):
+        replace_one(cmn,old,new)
+    # The subset uses <=236 byte rows. Strict Python validation bounds the grid.
+    replace_one(cmn,'else if (strstr(buff+60,"START OF FREQUENCY")) {',
+        'else if (strstr(buff+60,"DAZI")) { pcv.sa_dazi=atof(buff); }\n        else if (strstr(buff+60,"START OF FREQUENCY")) {')
+    replace_one(cmn,'else if (strstr(buff+60,"END OF FREQUENCY")) {\n            freq=0;',
+        'else if (strstr(buff+60,"END OF FREQUENCY")) {\n            sa_sys=sa_slot=-1; freq=0;')
+    anchor='for (;i<19;i++) pcv.var[freq-1][i]=pcv.var[freq-1][i-1];\n        }'
+    replace_one(cmn,anchor,anchor+'''
+        else if (!pcv.sat && pcv.sa_dazi>0 && sa_sys>=0 && sa_slot>=0 && sa_slot<NFREQ) {
+            char *end; double angle=strtod(buff,&end);
+            int row=(int)lround(angle/pcv.sa_dazi);
+            if (end==buff||row<0||row>72||row!=pcv.sa_rows[sa_sys][sa_slot]||decodef(buff+8,19,pcv.sa_azi[sa_sys][sa_slot][row])!=19) {
+                fclose(fp); return 0;
+            }
+            pcv.sa_rows[sa_sys][sa_slot]++;
+        }''')
+    options=source/'src/options.c'
+    replace_one(options,'{"ant1-anttype",',
+        '{"ant1-sa-azimuth",1,(void *)&prcopt_.sa_heading[0],"deg clockwise from true north"},\n    {"ant2-sa-azimuth",1,(void *)&prcopt_.sa_heading[1],"deg clockwise from true north"},\n    {"ant1-anttype",')
+    eph=source/'src/ephemeris.c'
+    replace_one(eph,'0,0,0,0,0,0,0\n};','0,0,2,0,0,0,0\n};')
+    # GPS remains required. B1C broadcast code biases are not supplied by this
+    # RINEX-3 D1/D2 navigation profile: exclude BeiDou from coarse absolute SPP.
+    # Relative same-signal receiver differences downstream retain BeiDou.
+    pnt=source/'src/pntpos.c'
+    replace_one(pnt,'if (!(sys=satsys(sat,NULL))) continue;',
+        'if (!(sys=satsys(sat,NULL))) continue;\n        if (sys==SYS_CMP) continue; /* SA2: no implicit B1C SPP code-bias model */')
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-zip',required=True);parser.add_argument('--zig',required=True);parser.add_argument('--output',required=True)
-    args=parser.parse_args();build(args.source_zip,args.zig,args.output)
+    parser.add_argument('--variant',choices=('sa1','sa2'),default='sa1')
+    args=parser.parse_args();build(args.source_zip,args.zig,args.output,args.variant)

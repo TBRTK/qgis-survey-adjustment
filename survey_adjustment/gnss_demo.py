@@ -88,19 +88,26 @@ def synthetic_model(base):
         noazi_mm=[round((5. if base else 15.)*(z/90)**2,4) for z in range(0,91,5)]) for f in ('G01','G02')})
 
 
-def multi_model(base,systems):
+def multi_model(base,systems,azimuth=False):
     model=synthetic_model(base)
     for system in systems:
         if system=='G':continue
-        for index,freq in enumerate(antenna.SYSTEM_FREQUENCIES[system]):
+        for index,freq in enumerate((antenna.AZIMUTH_FREQUENCIES if azimuth else antenna.SYSTEM_FREQUENCIES)[system]):
             offset={'E':80.,'C':-65.,'R':120.}[system]*(1 if base else -1)*(1+index*.2)
             model['frequencies'][freq]=dict(neu_mm=[20.+offset/3,-30.+offset/4,200.+offset],
                 noazi_mm=[round((30.+offset/5)*(z/90)**2,4) for z in range(0,91,5)])
+    if azimuth:
+        model.update(dazi=5.)
+        for index,values in enumerate(model['frequencies'].values()):
+            amplitude=(40.+index*8)*(1 if base else -1)
+            values['azi_mm']=[[float(a),*[round(v+amplitude*math.sin(math.radians(a if a<360 else 0))*math.sin(math.radians(z)),4)
+                for z,v in zip(range(0,91,5),values['noazi_mm'])]] for a in range(0,361,5)]
     return model
 
 
-def observations(moving,base=False,systems=('G',),calibrated=False):
+def observations(moving,base=False,systems=('G',),calibrated=False,azimuth=False):
     rng=random.Random(100 if base else 101)
+    model_set=multi_model(base,systems,azimuth) if calibrated else None
     receiver=BASE if base else rover_at(0,moving)
     text=header(f'{"3.05":>9}           O                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
     text+=header('SYNTHETIC IDEAL ORBITS / CODE / PHASE - NO FIELD DATA','COMMENT')
@@ -111,7 +118,10 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
     text+=header(''.join(f'{v:14.4f}' for v in receiver),'APPROX POSITION XYZ')
     text+=header(''.join(f'{v:14.4f}' for v in ((1. if base else 2.,0.,0.) if calibrated else (0.,0.,0.))),'ANTENNA: DELTA H/E/N')
     for system in systems:
-        text+=header({'G':'G    4 C1C L1C C2W L2W','E':'E    4 C1C L1C C7Q L7Q','C':'C    4 C2I L2I C7I L7I','R':'R    4 C1C L1C C2C L2C'}[system],'SYS / # / OBS TYPES')
+        types={'G':'G    4 C1C L1C C2W L2W','E':'E    4 C1C L1C C7Q L7Q','C':'C    4 C2I L2I C7I L7I','R':'R    4 C1C L1C C2C L2C'}
+        if azimuth:types.update(E='E    4 C1C L1C C5Q L5Q',C='C    4 C1P L1P C6I L6I')
+        text+=header(types[system],'SYS / # / OBS TYPES')
+    if azimuth:text+=header(f'{(0. if base else 37.):14.4f}','ANTENNA: ZERODIR AZI')
     text+=header(f'{5.:10.3f}','INTERVAL')
     for stamp,label in ((START,'TIME OF FIRST OBS'),(START+timedelta(seconds=600),'TIME OF LAST OBS')):
         text+=header(f'{stamp.year:6d}{stamp.month:6d}{stamp.day:6d}{stamp.hour:6d}{stamp.minute:6d}{stamp.second:13.7f}     GPS',label)
@@ -122,7 +132,7 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
         receiver=BASE if base else rover_at(seconds,moving); stamp=START+timedelta(seconds=seconds)
         sats=[]
         for system in systems:
-            for prn in range(6 if system=='C' else 1,30 if system=='C' else 25):
+            for prn in range(19 if azimuth and system=='C' else 6 if system=='C' else 1,43 if azimuth and system=='C' else 30 if system=='C' else 25):
                 sat=position(prn,seconds,system); vector=[a-b for a,b in zip(sat,receiver)]
                 elevation=math.asin(sum(a*b for a,b in zip(vector,up))/math.sqrt(sum(a*a for a in vector)))
                 if elevation>math.radians(15): sats.append((system,prn))
@@ -134,11 +144,22 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
                 sat=position(prn,seconds,system); los=[a-b for a,b in zip(sat,receiver)]; norm=math.sqrt(sum(v*v for v in los)); los=[v/norm for v in los]
                 east=[-math.sin(lam),math.cos(lam),0.];north=[-math.sin(phi)*math.cos(lam),-math.sin(phi)*math.sin(lam),math.cos(phi)]
                 zen=math.degrees(math.acos(sum(a*b for a,b in zip(los,up))));i=min(17,int(zen/5));f=zen/5-i
-                for slot,freq in enumerate(antenna.SYSTEM_FREQUENCIES[system]):
-                    model=multi_model(base,systems)['frequencies'][freq];nn,ee,uu=[v/1000 for v in model['neu_mm']]
+                for slot,freq in enumerate((antenna.AZIMUTH_FREQUENCIES if azimuth else antenna.SYSTEM_FREQUENCIES)[system]):
+                    entire=model_set;model=entire['frequencies'][freq];nn,ee,uu=[v/1000 for v in model['neu_mm']]
                     offset=[nn*a+ee*b+(uu+(1. if base else 2.))*c for a,b,c in zip(north,east,up)]
                     corrections[slot]=-sum(a*b for a,b in zip(offset,los))+(model['noazi_mm'][i]*(1-f)+model['noazi_mm'][i+1]*f)/1000
+                    if azimuth:
+                        # Independent generation: rotate LOS into antenna axes;
+                        # sum four grid corners (not the adapter review helper).
+                        heading=0. if base else 37.;angle=math.radians(heading)
+                        n_rot=nn*math.cos(angle)-ee*math.sin(angle);e_rot=nn*math.sin(angle)+ee*math.cos(angle)
+                        geometric_az=math.degrees(math.atan2(sum(a*b for a,b in zip(los,east)),sum(a*b for a,b in zip(los,north))))%360
+                        column=((geometric_az-heading)%360)/5;lower=int(column);w=column-lower
+                        grid=entire['frequencies'][freq]['azi_mm']
+                        pcv=sum(grid[a][z+1]*wa*wz for a,wa in ((lower,1-w),(lower+1,w)) for z,wz in ((i,1-f),(i+1,f)))/1000
+                        corrections[slot]=-sum((n_rot*a+e_rot*b+(uu+(1. if base else 2.))*c)*v for a,b,c,v in zip(north,east,up,los))+pcv
             f1,f2=(1602e6+glo_channel(prn)*.5625e6,1246e6+glo_channel(prn)*.4375e6) if system=='R' else {'G':(1575.42e6,1227.60e6),'E':(1575.42e6,1207.14e6),'C':(1561.098e6,1207.14e6)}[system]
+            if azimuth and system in ('E','C'):f1,f2={'E':(1575.42e6,1176.45e6),'C':(1575.42e6,1268.52e6)}[system]
             code1=rho+corrections[0]+rng.gauss(0,.02); code2=rho+corrections[1]+rng.gauss(0,.02)
             phase1=(rho+corrections[0]+rng.gauss(0,.001))/(C/f1)+100000+prn*100+(0 if base else 50)
             phase2=(rho+corrections[1]+rng.gauss(0,.001))/(C/f2)+80000+prn*80+(0 if base else 30)
@@ -146,7 +167,7 @@ def observations(moving,base=False,systems=('G',),calibrated=False):
     return text
 
 
-def navigation(systems=('G',)):
+def navigation(systems=('G',),azimuth=False):
     text=header(f'{"3.05":>9}           N                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
     text+=header('SYNTHETIC CIRCULAR ORBITS - NOT REAL EPHEMERIDES','COMMENT')+header('','END OF HEADER')
     for system in systems:
@@ -160,28 +181,28 @@ def navigation(systems=('G',)):
                 text+='    '+''.join(f'{0.:19.12E}' for _ in range(4))+'\n'
             continue
         a,mu,omega,toe,lead,offset=orbit(system)
-        for prn in range(6 if system=='C' else 1,30 if system=='C' else 25):
+        for prn in range(19 if azimuth and system=='C' else 6 if system=='C' else 1,43 if azimuth and system=='C' else 30 if system=='C' else 25):
             plane,index=divmod(prn-(6 if system=='C' else 1),4)
             stamp=START-timedelta(seconds=lead+(14 if system=='C' else 0))
             week=int((stamp-datetime(2006,1,1)).total_seconds()//604800) if system=='C' else WEEK
             text+=f'{system}{prn:02d} {stamp:%Y %m %d %H %M %S}'+''.join(f'{0.:19.12E}' for _ in range(3))+'\n'
             rows=[[1,0,0,index*math.pi/2+plane*.23],[0,0,0,math.sqrt(a)],
                 [toe,0,plane*math.pi/3+offset,0],[math.radians(55),0,0,0],
-                [0,517 if system=='E' else 1,week,0],[1,0,0,0 if system=='C' else 1],[toe,4,0,0]]
+                [0,(258 if azimuth else 517) if system=='E' else 1,week,0],[1,0,0,0 if system=='C' else 1],[toe,4,0,0]]
             for row in rows: text+='    '+''.join(f'{v:19.12E}' for v in row)+'\n'
     return text
 
 
-def create(folder,moving=False,systems=('G',),calibrated=False):
+def create(folder,moving=False,systems=('G',),calibrated=False,azimuth=False):
     """Create a new explicit synthetic project; never append to a user's network."""
-    if not systems or 'G' not in systems or any(s not in ('G','E','C','R') for s in systems):raise ValueError('Unsupported synthetic profile.')
+    if not systems or 'G' not in systems or any(s not in ('G','E','C','R') for s in systems) or (azimuth and not calibrated):raise ValueError('Unsupported synthetic profile.')
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=False)
     project=n.new_project(); project.update(name='SYNTHETIC '+('moving PPK' if moving else 'static')+' '+''.join(systems)+(' ANTEX' if calibrated else '')+' integration example',
         synthetic=True,crs='EPSG:25832',height_datum='ELLIP',epoch='2026-10-18',
         notes='Constructed circular '+''.join(systems)+' orbits; no atmosphere. '+('Invented ANTEX PCO/PCV and H/E/N offsets.' if calibrated else 'Zero antenna patterns and offsets.')+' Software test only; coordinates are not national controls.')
     project['points']=[dict(n.point(),id='SIM_BASE'),dict(n.point(),id='SIM_ROVER')]
     project['sessions']=[dict(n.session(),id='SIM01',start='2026-10-18T08:00:00Z',end='2026-10-18T08:10:00Z',instrument='SYNTHETIC GNSS',corrections='Constructed GPS-UTC = 18 s, BDT = GPST - 14 s; no atmosphere.')]
-    for name,text,role,point in (('base',observations(moving,True,systems,calibrated),'BASE','SIM_BASE'),('rover',observations(moving,False,systems,calibrated),'ROVER','SIM_ROVER'),('navigation',navigation(systems),'NAV','')):
+    for name,text,role,point in (('base',observations(moving,True,systems,calibrated,azimuth),'BASE','SIM_BASE'),('rover',observations(moving,False,systems,calibrated,azimuth),'ROVER','SIM_ROVER'),('navigation',navigation(systems,azimuth),'NAV','')):
         path=folder/(name+'.rnx'); path.write_text(text,encoding='ascii',newline='\n')
         project=r.plan_import(project,r.read_source(path),r.ImportReview(role=role,point=point,session='SIM01' if point else '',
             utc_offset_seconds=18 if point else None,time_evidence='Constructed GPS minus UTC = 18 seconds.',
@@ -189,9 +210,9 @@ def create(folder,moving=False,systems=('G',),calibrated=False):
             note='Ideal constructed software test, not field measurements.',synthetic=True,confirmed=True))
     n.save_project(folder/'example.sanet.json',project)
     if calibrated:
-        payload=antenna.subset([('SIM_BASEANT     NONE',multi_model(True,systems)),('SIM_ROVERANT    NONE',multi_model(False,systems))])
+        payload=antenna.subset([('SIM_BASEANT     NONE',multi_model(True,systems,azimuth)),('SIM_ROVERANT    NONE',multi_model(False,systems,azimuth))])
         (folder/'synthetic.atx').write_bytes(payload.replace(header('','END OF HEADER').encode('ascii'),(header('SYNTHETIC INVENTED MODELS - NOT REAL ANTENNA CALIBRATION','COMMENT')+header('','END OF HEADER')).encode('ascii'),1))
     (folder/'truth.json').write_text(json.dumps(dict(synthetic=True,moving=moving,base_xyz=BASE,
-        rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),systems=list(systems),calibrated=calibrated,
+        rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),systems=list(systems),calibrated=calibrated,azimuth=azimuth,
         caution='Ideal synthetic integration fixture; cannot establish field accuracy.'),indent=2)+'\n',encoding='utf-8')
     return project
