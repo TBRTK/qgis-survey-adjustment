@@ -1,5 +1,103 @@
 GNSS SOLUTIONS AS A WORKFLOW REFERENCE; VRS INVESTIGATION
 
+NEW IN 0.18.0 - EXPERIMENTAL FLOAT VRS
+The existing GNSS dialog can now create an EXPERIMENTAL three-reference FLOAT
+VRS from three reviewed physical BASE sources. It reuses the raw catalogue,
+source inspection, background queue, static solver, map and result review.
+The rover observations and known control are held out of the network fit.
+Explicit ITRF2020 marker XYZ, individual coordinate epochs, matching GPS 1C/2W,
+30 s expanded RINEX, navigation and receiver NOAZI ANTEX are required.
+
+Our joint double-difference GLS estimates per-block FLOAT ambiguities with
+shared master/pivot observation covariance. Relative dispersive and
+nondispersive terms are transferred affinely to an explicitly defined ideal
+virtual endpoint. This is not averaging baseline coordinates or independent
+pairwise atmospheric states. Negative weights/extrapolation remain visible;
+exactly three stations cannot check spatial curvature internally.
+
+Virtual phases contain non-integer network biases. Downstream integer fixing
+is forced OFF (v8); FLOAT results cannot pass the existing FIX baseline gate.
+Physical ITRF2020 comparisons may also explicitly use AR OFF (v7). Existing
+legacy profiles retain their contracts. No coordinates or independent baseline
+are automatically accepted. Imported virtual points have no accepted national
+coordinates; the defined global XYZ remains in the processing model.
+
+The separate pinned kernel uses RTKLIB EX 2.5.1 geometry/broadcast ephemerides,
+receiver PCO/NOAZI and hydrostatic mapping. Own wrapper/model code is GPLv3;
+upstream BSD-2-Clause and SOFA terms/notices remain with the separate engine.
+No engine binary, calibration or field data is distributed. Build locally with
+tools/build_network_engine.py using the reviewed source/compiler, without
+downloads or identity fallback. See docs/GNSS_SOLUTIONS_AND_VRS.txt.
+
+Original physical references, navigation, calibration, source network, kernel
+geometry, conditional joint covariance, exclusions and virtual observations
+are retained in a local product. Static jobs snapshot it and reproduce geometry
+and virtual RINEX on readback. Checksums are integrity, not authenticity.
+
+This is a research prototype, not validated centimetre VRS. Reference clock
+offsets are narrowly bounded; no general time correction/resampling, precise
+SP3/CLK, full satellite patterns, tides, windup or integer network solution.
+Conditional covariance excludes temporal, multipath, frame, base and transfer
+model uncertainty. A successful run/FIX/formal sigma is not field accuracy.
+Use withheld controls and physical-reference comparisons before any survey use.
+
+USING THE EXPERIMENTAL GENERATOR
+1. Import three physical BASE sources and a separate ROVER/NAV through existing
+   GNSS import. Use the same reviewed occupation/session and source time system.
+2. Open PPK/static -> Three-reference network / experimental FLOAT VRS.
+   Enter each reference XYZ/ITRF2020 evidence and decimal coordinate epoch.
+   The target is a defined approximate global virtual location, not a control fit.
+   Saved reference reviews can prefill fields; explicit review remains required.
+3. Check Generate EXPERIMENTAL FLOAT VRS; choose separately built network kernel,
+   original reference receiver ANTEX and an existing NAV link. Document model,
+   clock, uncertainty and calibration/licence review. Save to a NEW local folder.
+4. Optional attachment uses the SAME typed raw import and creates one virtual
+   reference point. Original physical sources and Check point stay intact.
+   Static GPS L1/L2, upstream EX, ITRF2020, AR OFF and virtual zero pattern are
+   selected. Review rover ARP/model and all four review boxes before processing.
+5. Run static through the existing queue. Inspect epochs/map/report; compare a
+   selected epoch with the existing held-out known point through the reviewed
+   national-frame/HREF comparison. FLOAT cannot become an accepted baseline.
+
+MODEL AND NEXT RESEARCH
+GPS 1C/2W only; 30 s expanded continuous RINEX 3.04/3.05, three physical points,
+4-16 common satellites/block and 30-120 samples. LLI/geometry-free screening can
+exclude entire blocks. Every block resets virtual ambiguity arcs. No invented
+Doppler/SNR. NAV, receiver model and original H/E/N are used once; a mathematical
+zero-pattern virtual endpoint is not a manufactured receiver calibration.
+Reference coordinate epochs must agree within 60 s. No velocity propagation.
+The bounded initial clock model requires RCV CLOCK OFFS APPL 0, supplied reference
+offsets <=10 ns and independent SPP clock magnitudes <=100 ns; DD cancellation
+does not establish exact physical synchronisation or correct arbitrary clocks.
+Conditional noise: code 0.35/0.45 m, phase 0.004/0.005 m divided by sin(elevation).
+It is an assumed observation model, not measured field uncertainty. The pivot
+defines a relative clock/atmosphere gauge. Affine extrapolation cannot recover
+unobserved atmospheric curvature. Float ambiguities can absorb code/model bias.
+The next numerical work is robust network arc/ambiguity treatment, improved
+atmosphere/orbits and independent controls; do not enable integer fixing on this
+product or suppress a worse withheld result to obtain an apparent improvement.
+
+BUILD / RIGHTS
+python tools/build_network_engine.py --source <reviewed-source.zip>
+    --compiler <reviewed-zig.exe> --output <NEW-local-build-folder>
+Pinned source/compiler identities are shared with build_system_engine.py; the
+normalised executable identity is pinned in network_vrs.KERNEL_SHA256. The build
+retains upstream licence/source notices. Binary distribution needs a separate
+complete licence/source review and is not part of this plugin release.
+Our GLS/RINEX/UI/wrapper source is original GPL-3.0-only code. No Ginan, CLASLIB,
+Geo++ or proprietary GNSS Solutions source/binary is used or claimed compatible.
+
+Primary model/reference research:
+https://files.igs.org/pub/data/format/rinex305.pdf
+https://community.emlid.com/uploads/short-url/Aeal84WwgpasQyJ4dtOoKb3MIH7.pdf
+https://github.com/rtklibexplorer/RTKLIB/tree/62d4677ed8425a4e2748c6d390b500d1afb493fc
+Ginan network PPP/SSR and CLASLIB Compact-SSR virtual observations were examined;
+neither was demonstrated as a ready-made raw-three-station adapter here. Their
+licences do not establish capability. This implementation uses our own estimator.
+
+Previous implementation notes follow; historical release limits retain their dates.
+
+
 CURRENT STATIC / REFERENCE FOCUS - 0.16.0, 2026-10-21
 The user primarily calculates stationary 30-100 km baselines and uses own bases,
 Onocoy, Emlid Caster and https://igs.bkg.bund.de/. Dynamic tilt/3D development

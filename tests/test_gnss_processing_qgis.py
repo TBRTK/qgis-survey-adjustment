@@ -12,6 +12,8 @@ from survey_adjustment.plugin import SurveyDialog
 from survey_adjustment.gnss_processing_ui import ProcessingDialog
 from survey_adjustment.baseline_ui import BaselineImportDialog
 from survey_adjustment import gnss_processing as p,gnss_demo as d,network as n
+import test_gnss_processing as processing_tests
+import test_network_vrs as network_tests
 
 
 @unittest.skipUnless(ENGINE.is_file(),'Reviewed external engine intentionally not bundled')
@@ -86,6 +88,63 @@ class ProcessingQgisTests(unittest.TestCase):
         self.assertFalse(self.dialog.last_comparison['known_point_used_to_fit'])
         self.assertTrue(self.dialog.last_comparison_path.is_file())
         self.assertFalse(self.owner.project['observations'])
+
+    def test_three_reference_review_uses_existing_queue_without_virtual_import(self):
+        fixture=processing_tests.ReferenceNetworkTests();fixture.setUp()
+        try:
+            self.owner.replace_project(fixture.project);before=self.owner.snapshot()
+            dialog=ProcessingDialog(self.owner);dialog.show()
+            def accept(review):
+                self.assertEqual(review.windowTitle(),'Three-reference network / VRS feasibility')
+                for fields,reference in zip(review.references,fixture.references):
+                    source,xyz,epoch,evidence=fields
+                    source.setCurrentIndex(source.findData(reference['source_id']))
+                    xyz.setText(' '.join(map(str,reference['xyz'])));epoch.setText(str(reference['coordinate_epoch_decimal_year']));evidence.setText(reference['evidence'])
+                review.target.setText(' '.join(map(str,fixture.target)));review.reviewed.setChecked(True)
+                return QDialog.DialogCode.Accepted
+            try:
+                with patch.object(QDialog,'exec',accept),patch.object(QFileDialog,'getSaveFileName',return_value=(str(self.root/'network_review.json'),'')):
+                    self.assertTrue(dialog.review_reference_network(),dialog.status.text())
+                deadline=time.monotonic()+20
+                while self.owner.raw_panel.task and time.monotonic()<deadline:app.processEvents();time.sleep(.01)
+                self.assertIsNone(self.owner.raw_panel.task)
+                self.assertFalse(dialog.last_network_review['virtual_observations_generated'])
+                self.assertIn('Virtual observations generated: NO',dialog.report.toPlainText())
+                self.assertEqual(self.owner.snapshot(),before)
+                self.assertTrue(dialog.last_network_review_path.is_file())
+            finally:dialog.reject();dialog.deleteLater();app.processEvents()
+        finally:fixture.tearDown()
+
+    @unittest.skipUnless(network_tests.KERNEL.is_file(),'Separate network kernel not bundled')
+    def test_three_reference_generation_uses_same_queue_import_float_static_report(self):
+        folder=self.root/'network';folder.mkdir()
+        project,references,target,antex=network_tests.fixture(folder)
+        self.owner.replace_project(project);dialog=self.dialog;dialog.project=self.owner.snapshot();dialog.populate()
+        def accept(review):
+            for fields,reference in zip(review.references,references):
+                source,xyz,epoch,evidence=fields;source.setCurrentIndex(source.findData(reference['source_id']))
+                xyz.setText(' '.join(map(str,reference['xyz'])));epoch.setText(str(reference['coordinate_epoch_decimal_year']));evidence.setText(reference['evidence'])
+            review.target.setText(' '.join(map(str,target)));review.generate.setChecked(True);review.reviewed.setChecked(True)
+            review.kernel.setText(str(network_tests.KERNEL));review.calibration.setText(str(antex))
+            review.model_note.setText('SYNTHETIC shared FLOAT network; own GPL/BSD/SOFA review; no integer or accuracy claim.')
+            return QDialog.DialogCode.Accepted
+        with patch.object(QDialog,'exec',accept),patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):
+            self.assertTrue(dialog.review_reference_network(),dialog.status.text())
+        deadline=time.monotonic()+30
+        while self.owner.raw_panel.task and time.monotonic()<deadline:app.processEvents();time.sleep(.01)
+        self.assertIsNone(self.owner.raw_panel.task)
+        self.assertEqual(dialog.ambiguity.currentData(),'off');self.assertFalse(dialog.ambiguity.isEnabled())
+        self.assertEqual(dialog.mode.currentData(),'static');self.assertEqual(dialog.options().systems,('G',))
+        self.assertIn('FLOAT VRS generated',dialog.status.text());self.assertTrue(dialog.reference_product.text())
+        for check in (dialog.base_review,dialog.antenna_review,dialog.model_review,dialog.license_review):
+            self.assertFalse(check.isChecked());check.setChecked(True)
+        self.start();self.assertEqual(dialog.result['eligible_fix'],0)
+        self.assertEqual(dialog.source['processing']['profile'],p.NETWORK_FLOAT_PROFILE)
+        self.assertFalse(dialog.handoff.isEnabled());self.assertFalse(self.owner.project['observations'])
+        self.assertIn('FLOAT ONLY',dialog.report.toPlainText())
+        physical=next(row for row in project['raw_sources'] if row['role']=='BASE')
+        dialog.base.setCurrentIndex(dialog.base.findData(physical['id']))
+        self.assertFalse(dialog.reference_product.text());self.assertTrue(dialog.ambiguity.isEnabled())
 
     def test_multisystem_example_reuses_existing_project_and_qprocess_with_used_satellites(self):
         dialog=self.dialog

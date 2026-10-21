@@ -16,7 +16,7 @@ COMMIT='62d4677ed8425a4e2748c6d390b500d1afb493fc'
 COMPILER_SHA='d408dd38eed3e5204af841bcebf70502a4dbbb8399a3a3262be55059370bc018'
 
 
-def normalize_build_identity(payload):
+def normalize_build_identity(payload, pdb_name='rnx2rtkp.pdb'):
     """Normalize only timestamps/CodeView GUID in our unsigned compiler output.
 
     Zig emits path-dependent debug identities even with no debug symbols.
@@ -38,7 +38,8 @@ def normalize_build_identity(payload):
         if kind not in (2,16):raise ValueError('Unexpected compiler debug record.')
         struct.pack_into('<I',data,at+4,0)
         if kind==2:
-            if count!=37 or data[raw:raw+4]!=b'RSDS':raise ValueError('Unexpected CodeView identity.')
+            expected=pdb_name.encode('ascii')+b'\0'
+            if count!=24+len(expected) or data[raw:raw+4]!=b'RSDS' or data[raw+24:raw+count]!=expected:raise ValueError('Unexpected CodeView identity.')
             data[raw+4:raw+20]=bytes(16)
     return bytes(data)
 

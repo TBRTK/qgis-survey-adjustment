@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.17.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.18.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-21
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,48 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.17.0
+WHAT CHANGED IN 0.18.0
+The existing GNSS dialog can now create an EXPERIMENTAL three-reference FLOAT
+VRS from three reviewed physical BASE sources. It reuses the raw catalogue,
+source inspection, background queue, static solver, map and result review.
+The rover observations and known control are held out of the network fit.
+Explicit ITRF2020 marker XYZ, individual coordinate epochs, matching GPS 1C/2W,
+30 s expanded RINEX, navigation and receiver NOAZI ANTEX are required.
+
+Our joint double-difference GLS estimates per-block FLOAT ambiguities with
+shared master/pivot observation covariance. Relative dispersive and
+nondispersive terms are transferred affinely to an explicitly defined ideal
+virtual endpoint. This is not averaging baseline coordinates or independent
+pairwise atmospheric states. Negative weights/extrapolation remain visible;
+exactly three stations cannot check spatial curvature internally.
+
+Virtual phases contain non-integer network biases. Downstream integer fixing
+is forced OFF (v8); FLOAT results cannot pass the existing FIX baseline gate.
+Physical ITRF2020 comparisons may also explicitly use AR OFF (v7). Existing
+legacy profiles retain their contracts. No coordinates or independent baseline
+are automatically accepted. Imported virtual points have no accepted national
+coordinates; the defined global XYZ remains in the processing model.
+
+The separate pinned kernel uses RTKLIB EX 2.5.1 geometry/broadcast ephemerides,
+receiver PCO/NOAZI and hydrostatic mapping. Own wrapper/model code is GPLv3;
+upstream BSD-2-Clause and SOFA terms/notices remain with the separate engine.
+No engine binary, calibration or field data is distributed. Build locally with
+tools/build_network_engine.py using the reviewed source/compiler, without
+downloads or identity fallback. See docs/GNSS_SOLUTIONS_AND_VRS.txt.
+
+Original physical references, navigation, calibration, source network, kernel
+geometry, conditional joint covariance, exclusions and virtual observations
+are retained in a local product. Static jobs snapshot it and reproduce geometry
+and virtual RINEX on readback. Checksums are integrity, not authenticity.
+
+This is a research prototype, not validated centimetre VRS. Reference clock
+offsets are narrowly bounded; no general time correction/resampling, precise
+SP3/CLK, full satellite patterns, tides, windup or integer network solution.
+Conditional covariance excludes temporal, multipath, frame, base and transfer
+model uncertainty. A successful run/FIX/formal sigma is not field accuracy.
+Use withheld controls and physical-reference comparisons before any survey use.
+
+FEATURES FROM 0.17.0
 The existing static GNSS dialog now accepts explicitly documented ITRF2020
 ECEF coordinates with a separate v6 GPS L1/L2 engine-clock audit. Pinned RTKLIB
 pntpos.c corrects solution time by the receiver clock; each solution is linked

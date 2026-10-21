@@ -22,6 +22,85 @@ def handoff(project):
         stationary_confirmed=True,occupation_note='Constructed stationary ten minute occupation; final fixed filter state, not an averaged result.')
 
 
+class ReferenceNetworkTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)
+        self.project=d.create(self.root/'example')
+        self.project['raw_sources']=[row for row in self.project['raw_sources'] if row['role']!='BASE']
+        self.references=[]
+        from survey_adjustment.coordinate_job import xyz
+        self.target=xyz(60.1,5.1,80.,'EPSG:9989')
+        for i,(lat,lon) in enumerate(((60.,5.),(60.,6.),(61.,5.))):
+            point='SIM_REF'+str(i);coordinates=xyz(lat,lon,80.,'EPSG:9989')
+            self.project['points'].append(dict(n.point(),id=point))
+            text=d.observations(False,True)
+            lines=text.splitlines(keepends=True)
+            # Constructed metadata/geometry fixture only. No claim that unchanged
+            # invented observations physically correspond to each new header.
+            lines=[d.header(' '.join(f'{v:.4f}' for v in coordinates),'APPROX POSITION XYZ') if line[60:80].strip()=='APPROX POSITION XYZ' else line for line in lines]
+            path=self.root/(point+'.rnx');path.write_text(''.join(lines),encoding='ascii')
+            self.project=r.plan_import(self.project,r.read_source(path),r.ImportReview(role='BASE',point=point,session='SIM01',
+                utc_offset_seconds=18,time_evidence='SYNTHETIC GPS-UTC 18s.',antenna_evidence='SYNTHETIC zero patterns.',
+                note='SYNTHETIC metadata/geometry-only fixture, not positioning evidence.',synthetic=True,confirmed=True))
+            self.references.append(dict(source_id=self.project['raw_sources'][-1]['id'],xyz=coordinates,frame='EPSG:9988',coordinate_epoch_decimal_year=2026.8,evidence='SYNTHETIC declared reference, not a real control.'))
+    def tearDown(self):self.tmp.cleanup()
+
+    def test_three_reference_geometry_coverage_does_not_read_or_fit_rover(self):
+        before=deepcopy(self.project)
+        # Rover deliberately unavailable; a VRS reference fit must not use it.
+        next(row for row in self.project['raw_sources'] if row['role']=='ROVER')['path']='unavailable-rover.rnx'
+        result=p.reference_network_review(self.project,self.references,self.target)
+        self.assertEqual(result['geometry']['mode'],'INTERPOLATION')
+        self.assertAlmostEqual(sum(result['geometry']['affine_weights']),1.)
+        self.assertEqual(result['availability']['common_recorded_utc_epochs'],121)
+        self.assertEqual(result['status'],'NETWORK_MODEL_REQUIRED')
+        self.assertFalse(result['virtual_observations_generated']);self.assertFalse(result['rover_observations_used'])
+        self.assertFalse(self.project['observations']);self.assertEqual(self.project['points'],before['points'])
+
+    def test_outside_triangle_keeps_negative_weights_and_zero_spatial_redundancy(self):
+        from survey_adjustment.coordinate_job import xyz
+        result=p.reference_network_review(self.project,self.references,xyz(60.1,4.5,80.,'EPSG:9989'))
+        self.assertEqual(result['geometry']['mode'],'EXTRAPOLATION')
+        self.assertLess(min(result['geometry']['affine_weights']),0)
+        self.assertEqual(result['geometry']['spatial_residual_degrees_of_freedom'],0)
+        self.assertFalse(result['virtual_observations_generated'])
+
+    def test_duplicates_rover_frame_epoch_and_source_mutation_rejected(self):
+        cases=[]
+        changed=deepcopy(self.references);changed[1]=deepcopy(changed[0]);cases.append(changed)
+        changed=deepcopy(self.references);changed[0]['source_id']=next(row['id'] for row in self.project['raw_sources'] if row['role']=='ROVER');cases.append(changed)
+        changed=deepcopy(self.references);changed[0]['frame']='EPSG:4936';cases.append(changed)
+        changed=deepcopy(self.references);changed[0]['coordinate_epoch_decimal_year']=float('nan');cases.append(changed)
+        changed=deepcopy(self.references);changed[0]['xyz'][0]=float('nan');cases.append(changed)
+        changed=deepcopy(self.references);changed[0]['evidence']='';cases.append(changed)
+        for refs in cases:
+            with self.subTest(refs=refs),self.assertRaises(ValueError):p.reference_network_review(self.project,refs,self.target)
+        path=Path(self.project['raw_sources'][-1]['path']);path.write_bytes(path.read_bytes()+b'\n')
+        with self.assertRaisesRegex(ValueError,'requires review'):p.reference_network_review(self.project,self.references,self.target)
+
+    def test_collinear_references_and_cancellation_fail_closed(self):
+        refs=deepcopy(self.references)
+        for i,ref in enumerate(refs):ref['xyz']=[self.target[0]+1000*i,self.target[1],self.target[2]]
+        with self.assertRaisesRegex(ValueError,'collinear'):p.reference_network_review(self.project,refs,self.target)
+        with self.assertRaises(ValueError):p.reference_network_review(self.project,self.references,self.target,lambda:True)
+
+    def test_recorded_clock_offset_is_preserved_and_blocks_network_acceptance(self):
+        saved=next(row for row in self.project['raw_sources'] if row['id']==self.references[0]['source_id'])
+        path=Path(saved['path']);lines=path.read_text(encoding='ascii').splitlines(keepends=True)
+        index=next(i for i,line in enumerate(lines) if line.startswith('>'))
+        lines[index]=lines[index].rstrip('\n')+'  0.000001000000\n';path.write_text(''.join(lines),encoding='ascii')
+        self.project['raw_sources'].remove(saved)
+        self.project=r.plan_import(self.project,r.read_source(path),r.ImportReview(role='BASE',point=saved['point'],session='SIM01',
+            utc_offset_seconds=18,time_evidence='SYNTHETIC GPS-UTC 18s.',antenna_evidence='SYNTHETIC zero patterns.',
+            note='SYNTHETIC clock-offset review fixture only.',synthetic=True,confirmed=True))
+        self.references[0]['source_id']=self.project['raw_sources'][-1]['id']
+        result=p.reference_network_review(self.project,self.references,self.target)
+        self.assertEqual(result['status'],'NETWORK_INPUT_REVIEW_REQUIRED')
+        self.assertEqual(result['reference_stations'][0]['receiver_clock_offset_epochs'],1)
+        self.assertIn('NETWORK clock model',' '.join(result['issues']))
+        self.assertFalse(result['virtual_observations_generated'])
+
+
 class StaticAtmosphereTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)

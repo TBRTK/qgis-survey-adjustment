@@ -93,6 +93,13 @@ class ProcessingDialog(QDialog):
         form.addWidget(self.orientation_review,24,0,1,5);self.orientation_review.hide()
         link=QLabel('<a href="'+p.ENGINE_LICENSE+'">RTKLIB licence</a> · <a href="'+p.ENGINE_RELEASE+'">Reviewed engine release</a> — engine binary is not part of the plugin ZIP')
         link.setOpenExternalLinks(True);form.addWidget(link,25,0,1,5)
+        self.ambiguity=combo({'continuous':'Continuous integer ambiguity resolution','off':'FLOAT ONLY — no integer ambiguity fixing'})
+        form.addWidget(QLabel('Ambiguity policy'),26,0);form.addWidget(self.ambiguity,26,1,1,4)
+        self.reference_product=QLineEdit();self.reference_product.setPlaceholderText('Original derived VRS product folder; mandatory for this plugin’s FLOAT VRS')
+        self.network_kernel=QLineEdit(str(QSettings().value('SurveyAdjustment/network_kernel','')))
+        self.network_kernel.setPlaceholderText('Separately built reviewed network_kernel.exe for original-source readback')
+        form.addWidget(QLabel('Derived VRS product folder'),27,0);form.addWidget(self.reference_product,27,1,1,4)
+        form.addWidget(QLabel('Network kernel'),28,0);form.addWidget(self.network_kernel,28,1,1,4)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);scroll.setMaximumHeight(400);layout.addWidget(scroll)
         row=QHBoxLayout();self.example_button=QPushButton('New synthetic example for selected mode …');self.example_button.clicked.connect(self.example)
         self.run_button=QPushButton('Run local PPK / static …');self.run_button.clicked.connect(self.start)
@@ -100,6 +107,8 @@ class ProcessingDialog(QDialog):
         self.open_button=QPushButton('Open result folder');self.open_button.clicked.connect(self.open_folder);self.open_button.setEnabled(False)
         for field in (self.example_button,self.run_button,self.stop_button,self.open_button):row.addWidget(field)
         layout.addLayout(row)
+        self.network_button=QPushButton('Three-reference network / experimental FLOAT VRS …')
+        self.network_button.clicked.connect(self.review_reference_network);layout.addWidget(self.network_button)
         self.orientation_button=QPushButton('Review orientation / pole-tip coordinates from NMEA ETC …')
         self.orientation_button.clicked.connect(self.review_orientation);layout.addWidget(self.orientation_button)
         self.status=QLabel('No calculation. Review existing links and all required fields.');self.status.setWordWrap(True);layout.addWidget(self.status)
@@ -121,15 +130,24 @@ class ProcessingDialog(QDialog):
         self.compare_button.clicked.connect(self.compare_reference);layout.addWidget(self.compare_button)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.stop)
-        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note,self.base_heading,self.rover_heading):field.textChanged.connect(self.invalidate)
-        for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere,self.calibration):field.currentIndexChanged.connect(self.invalidate)
+        for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note,self.base_heading,self.rover_heading,self.reference_product,self.network_kernel):field.textChanged.connect(self.invalidate)
+        for field in (self.mode,self.base,self.rover,self.navigation,self.frame,self.frequency,self.atmosphere,self.calibration,self.ambiguity):field.currentIndexChanged.connect(self.invalidate)
         self.engine_variant.currentIndexChanged.connect(self.profile_changed)
         for field in self.systems.values():field.toggled.connect(self.invalidate)
         for field in (self.elevation,self.ratio):field.valueChanged.connect(self.invalidate)
         for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.toggled.connect(self.invalidate)
         self.orientation_review.toggled.connect(self.invalidate)
         self.orientation_mode.currentIndexChanged.connect(self.invalidate)
+        self.base.currentIndexChanged.connect(self.base_changed)
         self.populate()
+
+    def base_changed(self):
+        from . import network_vrs
+        source=next((row for row in self.project.get('raw_sources',[]) if row['id']==self.base.currentData()),None)
+        derived=bool(source and network_vrs.requires_float(source))
+        if derived:self.ambiguity.setCurrentIndex(self.ambiguity.findData('off'))
+        else:self.reference_product.clear()
+        self.ambiguity.setEnabled(not derived)
 
     def populate(self):
         self.reference_help.setText('Network coordinate epoch: '+(self.project['epoch'] or 'MISSING')+'. Fixed base uncertainty is excluded. Header H/E/N is separate from ANTEX; no frame/epoch transformation. Use simultaneous base/rover OBS and NAV. Own bases/BKG RINEX fit the existing import. Caster data need recorded raw observations converted to RINEX, station/coordinate continuity and documented frame/epoch. Onocoy roaming can change the reference station; a caster is not a VRS generator. Compact Hatanaka data must first be expanded. No credentials, live streams, downloads or precise SP3/CLK products are processed by this dialog.')
@@ -138,6 +156,134 @@ class ProcessingDialog(QDialog):
             for source in self.project.get('raw_sources',[]):
                 if source['role']==role:combo_.addItem(source['source_name']+' / '+source['point']+' / '+source['session'],source['id'])
             if combo_.count()==2:combo_.setCurrentIndex(1)
+
+    def review_reference_network(self):
+        """Reviewed reference model and derived observations in the same raw flow."""
+        try:
+            if self.preparing or (self.process and self.process.state()!=QProcess.ProcessState.NotRunning):
+                raise ValueError('Wait for the current processing job first.')
+            project=self.owner.snapshot()
+            bases=[source for source in project.get('raw_sources',[]) if source['role']=='BASE']
+            if len({source['point'] for source in bases})<3:raise ValueError('Import/link three distinct physical BASE stations through the existing GNSS import first. Keep the rover separate.')
+            dialog=QDialog(self);dialog.setWindowTitle('Three-reference network / VRS feasibility');dialog.resize(1040,690)
+            box=QVBoxLayout(dialog)
+            note=QLabel('Select three physical references and document their ITRF2020 ECEF coordinates/epochs. Target XYZ defines a nearby virtual point. No known rover control or rover observations fit the network. Review feasibility, or explicitly generate an EXPERIMENTAL FLOAT VRS below. Integer fixing remains OFF.')
+            note.setWordWrap(True);box.addWidget(note)
+            table=QTableWidget(3,4);table.setHorizontalHeaderLabels(['Existing physical BASE source','Documented X Y Z (m)','Coordinate epoch (decimal year)','Frame / coordinate / epoch evidence'])
+            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);box.addWidget(table);dialog.references=[]
+            for index in range(3):
+                source=combo({'':'Select reference',**{row['id']:row['point']+' / '+row['source_name'] for row in bases}})
+                xyz=QLineEdit();xyz.setPlaceholderText('Fixed marker X Y Z; not header approximate XYZ')
+                epoch=QLineEdit();epoch.setPlaceholderText('Actual decimal coordinate year')
+                evidence=QLineEdit();evidence.setPlaceholderText('Frame alignment, coordinate product and epoch provenance')
+                for col,field in enumerate((source,xyz,epoch,evidence)):table.setCellWidget(index,col,field)
+                dialog.references.append((source,xyz,epoch,evidence))
+            form=QFormLayout();box.addLayout(form)
+            dialog.target=QLineEdit();dialog.target.setPlaceholderText('Approximate target ITRF2020 ECEF X Y Z; geometry only')
+            form.addRow('Approximate virtual target XYZ',dialog.target)
+            load=QPushButton('Load saved reference review values …');box.addWidget(load)
+            def load_review():
+                path,_=QFileDialog.getOpenFileName(dialog,'Load existing local reference review','','JSON (*.json)')
+                if not path:return
+                try:
+                    selected=Path(path)
+                    if selected.stat().st_size>200000:raise ValueError('Oversized reference review.')
+                    saved=json.loads(selected.read_text(encoding='utf-8'))
+                    if saved['project_sha256']!=p.r.content_fingerprint(project):raise ValueError('Saved review belongs to another network snapshot.')
+                    for fields,row in zip(dialog.references,saved['reference_stations']):
+                        source,xyz,epoch,evidence=fields;source.setCurrentIndex(source.findData(row['source_id']))
+                        xyz.setText(' '.join(map(str,row['xyz'])));epoch.setText(str(row['coordinate_epoch_decimal_year']));evidence.setText(row['evidence'])
+                    dialog.target.setText(' '.join(map(str,saved['target_ecef_itrf2020'])))
+                except (ValueError,OSError,KeyError) as error:note.setText('Cannot load review: '+str(error))
+            load.clicked.connect(load_review)
+            dialog.generate=QCheckBox('Generate EXPERIMENTAL FLOAT VRS (no integer fixing or accuracy approval)');box.addWidget(dialog.generate)
+            dialog.kernel=QLineEdit(self.network_kernel.text());dialog.calibration=QLineEdit(self.antex.text())
+            kernel_row=QHBoxLayout();kernel_row.addWidget(dialog.kernel);choose_kernel=QPushButton('Choose network kernel …');kernel_row.addWidget(choose_kernel)
+            def select_kernel():
+                path,_=QFileDialog.getOpenFileName(dialog,'Choose separately built reviewed network kernel','','Network kernel (*.exe)')
+                if path:dialog.kernel.setText(path)
+            choose_kernel.clicked.connect(select_kernel);form.addRow('Network kernel',kernel_row)
+            calibration_row=QHBoxLayout();calibration_row.addWidget(dialog.calibration);choose_calibration=QPushButton('Choose reference ANTEX …');calibration_row.addWidget(choose_calibration)
+            def select_calibration():
+                path,_=QFileDialog.getOpenFileName(dialog,'Choose reviewed NOAZI receiver ANTEX','','ANTEX (*.atx)')
+                if path:dialog.calibration.setText(path)
+            choose_calibration.clicked.connect(select_calibration);form.addRow('Reference/rover receiver models',calibration_row)
+            dialog.navigation=combo({'':'Select existing NAV',**{source['id']:source['source_name'] for source in project.get('raw_sources',[]) if source['role']=='NAV'}})
+            if dialog.navigation.count()==2:dialog.navigation.setCurrentIndex(1)
+            form.addRow('Navigation',dialog.navigation)
+            dialog.model_note=QLineEdit();dialog.model_note.setPlaceholderText('Source model/epoch/calibration/NOAZI review, extrapolation and FLOAT dependence; own GPL and upstream BSD/SOFA licence review')
+            form.addRow('Model / licence / uncertainty review',dialog.model_note)
+            dialog.point_id=QLineEdit('VRS_FLOAT');form.addRow('New virtual point ID',dialog.point_id)
+            dialog.attach=QCheckBox('Link generated virtual reference through the existing raw GNSS import (no baseline added)');dialog.attach.setChecked(True);box.addWidget(dialog.attach)
+            dialog.reviewed=QCheckBox('I reviewed the three physical stations, ITRF2020 alignment, coordinate epochs, target and source continuity')
+            box.addWidget(dialog.reviewed)
+            caution=QLabel('Outside the triangle means extrapolation; three stations cannot check atmospheric curvature internally. The experimental generator fits joint FLOAT double-difference ambiguities, with shared master/pivot covariance. Its virtual phase biases are non-integer: downstream AR must be OFF. Broadcast products, limited clock/antenna models and no field accuracy approval. Existing physical single-baseline results remain separate.')
+            caution.setWordWrap(True);box.addWidget(caution)
+            buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
+            buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);box.addWidget(buttons)
+            if dialog.exec()!=QDialog.DialogCode.Accepted:return False
+            if not dialog.reviewed.isChecked():raise ValueError('Review reference identities, frame/epochs and approximate target explicitly.')
+            coordinates=lambda field:[float(value) for value in field.text().replace(',',' ').split()]
+            references=[dict(source_id=source.currentData(),xyz=coordinates(xyz),frame='EPSG:9988',coordinate_epoch_decimal_year=float(epoch.text()),evidence=evidence.text().strip()) for source,xyz,epoch,evidence in dialog.references]
+            target=coordinates(dialog.target)
+            generate=dialog.generate.isChecked()
+            kernel=dialog.kernel.text().strip();calibration=dialog.calibration.text().strip();navigation=dialog.navigation.currentData()
+            model_note=dialog.model_note.text().strip();attach=dialog.attach.isChecked();point_id=dialog.point_id.text().strip()
+            if generate:
+                n._text(model_note,'Explicit FLOAT model, extrapolation, calibration and licence review',required=True)
+                parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW private network VRS product')
+                if not parent:return False
+                folder=Path(parent)/('VRS_FLOAT_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+                from . import network_vrs
+                def generated(product):
+                    if sip.isdeleted(self):return
+                    if self.owner.snapshot()!=project:raise ValueError('Network changed; generated product retained locally but not linked.')
+                    if attach:
+                        updated=product.pop('attached_project')
+                        self.owner.project=updated;self.owner.dirty=True;self.owner.refresh();self.owner.changed();self.project=self.owner.snapshot();self.populate()
+                        source=next(source for source in updated['raw_sources'] if source['point']==point_id)
+                        self.base.setCurrentIndex(self.base.findData(source['id']))
+                        self.base_xyz.setText(' '.join(map(str,product['report']['target_xyz'])))
+                        self.frame.setCurrentIndex(self.frame.findData('EPSG:9988'));self.ambiguity.setCurrentIndex(self.ambiguity.findData('off'))
+                        self.mode.setCurrentIndex(self.mode.findData('static'));self.frequency.setCurrentIndex(self.frequency.findData(2))
+                        self.engine_variant.setCurrentIndex(self.engine_variant.findData('upstream'))
+                        self.atmosphere.setCurrentIndex(self.atmosphere.findData(p.STATIC_ATMOSPHERE))
+                        for key,field in self.systems.items():field.setChecked(key=='G')
+                        self.navigation.setCurrentIndex(self.navigation.findData(navigation))
+                        self.reference_product.setText(product['folder']);self.network_kernel.setText(kernel)
+                        self.calibration.setCurrentIndex(self.calibration.findData('antex'));self.antex.setText(product['antex_path'])
+                        self.antenna_note.setText('Defined zero-pattern virtual endpoint; physical reference antenna removed once. Review rover marker-to-ARP and original PCO/NOAZI model separately.')
+                        self.model_note.setText(model_note+' Derived FLOAT VRS; all inherited network/ambiguity/base/model uncertainty excluded from downstream formal covariance. Integer fixing OFF.')
+                        self.calibration_note.setText('Defined ideal virtual zero pattern, not a physical calibration. Original reference-model source and any provider copied/unverified warnings are retained in the local network product; review rover model provenance.')
+                        for check in (self.base_review,self.antenna_review,self.model_review,self.license_review):check.setChecked(False)
+                    QSettings().setValue('SurveyAdjustment/network_kernel',kernel)
+                    self.last_vrs_product=product
+                    report=product['report'];self.report.setHtml('<h3>EXPERIMENTAL three-reference FLOAT VRS</h3><p>'+str(report['epochs'])+' virtual epochs; '+html.escape(report['geometry']['mode'])+'. Integer ambiguity fixing OFF; no accuracy approval.</p><p>'+html.escape(product['folder'])+'</p><ul>'+''.join('<li>'+html.escape(value)+'</li>' for value in report['limits'])+'</ul>')
+                    self.views.setCurrentWidget(self.report);self.status.setText('FLOAT VRS generated'+(' and linked through existing raw import' if attach else '')+'. Review settings/endpoints before static processing. No baseline added.')
+                def calculate(cancelled):
+                    product=network_vrs.generate(folder,project,references,target,kernel,calibration,navigation,model_note,cancelled)
+                    if attach:
+                        if cancelled():raise ValueError('Network generation cancelled before import review.')
+                        product['attached_project']=network_vrs.attach_product(project,product,kernel,point_id)
+                    return product
+                return self.owner.raw_panel.work('Generate experimental FLOAT VRS',calculate,generated)
+            path,_=QFileDialog.getSaveFileName(self,'Save NEW private reference-network review','','JSON (*.json)')
+            if not path:return False
+            output=Path(path)
+            if output.exists():raise ValueError('Choose a NEW review path; existing evidence is preserved.')
+            def finished(result):
+                if sip.isdeleted(self):return
+                if self.owner.snapshot()!=project:raise ValueError('Network changed during inspection; no review saved.')
+                with output.open('x',encoding='utf-8') as handle:json.dump(result,handle,indent=2,ensure_ascii=False,allow_nan=False)
+                self.last_network_review=result;self.last_network_review_path=output
+                esc=lambda value:html.escape(str(value));geometry=result['geometry'];availability=result['availability']
+                rows=''.join('<tr><td>'+esc(row['point'])+'</td><td>'+f"{row['chord_to_target_m']/1000:.3f}"+'</td><td>'+f"{row['affine_weight']:+.6f}"+'</td></tr>' for row in result['reference_stations'])
+                self.report.append('<h3>Three-reference network / VRS feasibility</h3><p>'+esc(result['status'])+' — '+esc(geometry['mode'])+'</p><table border="1" cellpadding="4"><tr><th>Reference</th><th>Chord to target (km)</th><th>Affine geometry weight</th></tr>'+rows+'</table><p>'+str(availability['common_recorded_utc_epochs'])+' exact common recorded epochs; '+str(availability['gps_l1_l2_epochs_at_least_four_satellites'])+' epochs with at least four common two-band GPS satellites.</p><ul>'+''.join('<li>'+esc(value)+'</li>' for value in result['issues']+result['notes'])+'</ul><p><b>Virtual observations generated: NO.</b> '+esc(result['synthesis_blocker'])+'</p><p>'+esc(output)+'</p>')
+                self.views.setCurrentWidget(self.report);self.report.moveCursor(self.report.textCursor().MoveOperation.End)
+                self.status.setText('Reference-network review saved. '+geometry['mode']+'. No VRS observations or baseline added.')
+            return self.owner.raw_panel.work('Three-reference network review',lambda cancelled:p.reference_network_review(project,references,target,cancelled),finished)
+        except (ValueError,OSError,KeyError,TypeError) as error:
+            self.status.setText('Cannot review reference network: '+str(error));return False
 
     def review_orientation(self):
         from .orientation_ui import OrientationDialog
@@ -149,7 +295,8 @@ class ProcessingDialog(QDialog):
         try:headings=[float(field.text()) if field.text().strip() else None for field in (self.base_heading,self.rover_heading)]
         except ValueError:raise ValueError('Enter antenna azimuths with decimal points.') from None
         return p.ProcessingOptions(base=self.base.currentData(),rover=self.rover.currentData(),navigation=self.navigation.currentData(),
-            mode=self.mode.currentData(),base_xyz=coordinates,frame=self.frame.currentData(),epoch=self.project['epoch'],
+            mode=self.mode.currentData(),base_xyz=coordinates,frame=self.frame.currentData(),epoch=self.project['epoch'],ambiguity_mode=self.ambiguity.currentData(),
+            reference_network_path=self.reference_product.text().strip(),network_kernel_path=self.network_kernel.text().strip(),
             frequencies=self.frequency.currentData(),elevation=self.elevation.value(),ratio=self.ratio.value(),atmosphere=self.atmosphere.currentData(),
             antenna_note=self.antenna_note.text().strip(),model_note=self.model_note.text().strip(),
             systems=tuple(s for s,field in self.systems.items() if field.isChecked()),calibration=self.calibration.currentData(),
@@ -166,7 +313,7 @@ class ProcessingDialog(QDialog):
         self.compare_button.setEnabled(False)
         self.status.setText('Settings changed. A new checked processing job is required.')
         if self.atmosphere.currentData()==p.STATIC_ATMOSPHERE:
-            self.report.setHtml('<h3>Experimental stationary atmosphere estimation</h3><p>Initial profile: upstream EX, Static, GPS L1/L2. It estimates baseline-scaled ionosphere and receiver zenith wet-delay states. Every solution epoch must have matching engine states and two-frequency GPS residuals.</p><p>The example button creates an invented ~60 km / 1 hour data set with analytic atmosphere. This is a software test, not field accuracy. Broadcast orbits remain selected; precise products, PPP and network VRS generation are not implemented.</p><p>Reference data: reuse the existing raw import for base OBS, rover OBS and NAV. Document the actual station, frame/realisation, coordinate epoch, antenna/ARP and station continuity. A supplied virtual station is not a physical antenna; do not invent its antenna correction.</p><p><a href="https://igs.bkg.bund.de/holdings">BKG data/products</a> · <a href="https://docs.onocoy.com/documentation/service-levels">Onocoy source/roaming guidance</a> · <a href="https://docs.emlid.com/emlid-studio/convert-to-rinex-workflow/">Emlid raw-to-RINEX conversion</a></p>')
+            self.report.setHtml('<h3>Experimental stationary atmosphere estimation</h3><p>Initial profile: upstream EX, Static, GPS L1/L2. It estimates baseline-scaled ionosphere and receiver zenith wet-delay states. Every solution epoch must have matching engine states and two-frequency GPS residuals.</p><p>The example button creates an invented ~60 km / 1 hour data set with analytic atmosphere. This is a software test, not field accuracy. Broadcast orbits remain selected; precise products and PPP are not implemented. A separate experimental FLOAT-network generator is available in this same dialog.</p><p>Reference data: reuse the existing raw import for base OBS, rover OBS and NAV. Document the actual station, frame/realisation, coordinate epoch, antenna/ARP and station continuity. A supplied virtual station is not a physical antenna; do not invent its antenna correction.</p><p><a href="https://igs.bkg.bund.de/holdings">BKG data/products</a> · <a href="https://docs.onocoy.com/documentation/service-levels">Onocoy source/roaming guidance</a> · <a href="https://docs.emlid.com/emlid-studio/convert-to-rinex-workflow/">Emlid raw-to-RINEX conversion</a></p>')
 
     def choose_engine(self):
         path,_=QFileDialog.getOpenFileName(self,'Choose reviewed executable for the selected engine profile','','RTKLIB (rnx2rtkp.exe)')

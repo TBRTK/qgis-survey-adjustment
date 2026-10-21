@@ -18,6 +18,7 @@
     "docs/MIXED_SURVEY.txt",
     "docs/MIXED_SURVEY_DEVELOPMENT.txt",
     "docs/NETWORK_MAP.txt",
+    "docs/ORIENTATION.txt",
     "docs/PPK_STATIC.txt",
     "docs/PUBLISHING.md",
     "docs/RINEX.txt",
@@ -68,6 +69,9 @@
     "survey_adjustment/network_quality.py",
     "survey_adjustment/network_quality_ui.py",
     "survey_adjustment/network_ui.py",
+    "survey_adjustment/network_vrs.py",
+    "survey_adjustment/orientation.py",
+    "survey_adjustment/orientation_ui.py",
     "survey_adjustment/plugin.py",
     "survey_adjustment/reporting.py",
     "survey_adjustment/rinex.py",
@@ -93,22 +97,22 @@
     "tests/test_network_qgis.py",
     "tests/test_network_quality.py",
     "tests/test_network_quality_qgis.py",
+    "tests/test_network_vrs.py",
+    "tests/test_orientation.py",
+    "tests/test_orientation_qgis.py",
     "tests/test_qgis.py",
     "tests/test_rinex.py",
     "tests/test_rinex_qgis.py",
     "tests/test_system_engine.py",
     "tools/RTKLIB_LICENSE.txt",
+    "tools/build_network_engine.py",
     "tools/build_system_engine.py",
     "tools/check_release.py",
+    "tools/network_kernel.c",
     "tools/run_secret_scan.py",
     "tools/safe_push.py",
     "tools/system_pcv.c",
-    "tools/test_release_safety.py",
-    "docs/ORIENTATION.txt",
-    "survey_adjustment/orientation.py",
-    "survey_adjustment/orientation_ui.py",
-    "tests/test_orientation.py",
-    "tests/test_orientation_qgis.py"
+    "tools/test_release_safety.py"
   ],
   "package_files": {
     "survey_adjustment/DISCLAIMER.txt": "DISCLAIMER.txt",
@@ -169,7 +173,8 @@
     "survey_adjustment/RS4_PRO_SUPPORT.txt": "docs/RS4_PRO_SUPPORT.txt",
     "survey_adjustment/orientation.py": "survey_adjustment/orientation.py",
     "survey_adjustment/orientation_ui.py": "survey_adjustment/orientation_ui.py",
-    "survey_adjustment/ORIENTATION.txt": "docs/ORIENTATION.txt"
+    "survey_adjustment/ORIENTATION.txt": "docs/ORIENTATION.txt",
+    "survey_adjustment/network_vrs.py": "survey_adjustment/network_vrs.py"
   },
   "synthetic_fixtures": {
     "survey_adjustment/examples/emlid_gjentak.csv": {

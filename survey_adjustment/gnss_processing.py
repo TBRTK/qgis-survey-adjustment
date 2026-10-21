@@ -30,8 +30,11 @@ AZIMUTH_ENGINE_VERSION='RTKLIB EX 2.5.1-SA2 — experimental azimuth and band se
 STATIC_ATMOSPHERE='estimate-iono/wet-delay'
 STATIC_PROFILE='rtklib-ex251-static-atmosphere-v5'
 ITRF_PROFILE='rtklib-ex251-itrf2020-static-clock-v6'
+ITRF_FLOAT_PROFILE='rtklib-ex251-itrf2020-static-clock-float-v7'
+NETWORK_FLOAT_PROFILE='rtklib-ex251-network-float-static-v8'
 CLOCK_MODEL='pntpos-gps-clock-ms-output-v1'
-MODERN_PROFILES=(MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE,STATIC_PROFILE,ITRF_PROFILE)
+CLOCK_PROFILES=(ITRF_PROFILE,ITRF_FLOAT_PROFILE,NETWORK_FLOAT_PROFILE)
+MODERN_PROFILES=(MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE,STATIC_PROFILE,*CLOCK_PROFILES)
 SYSTEMS={'G':('GPS',1,('1','2')),'E':('Galileo',8,('1','7')),'C':('BeiDou B1I/B2I',32,('2','7')),'R':('GLONASS G1/G2',4,('1','2'))}
 AZIMUTH_SIGNALS={'G':(('1','CPWLSX'),('2','WPCSLX')),'R':(('1','CP'),('2','CP')),
     'E':(('1','CBX'),('5','QIX')),'C':(('1','PDX'),('6','IQX'))}
@@ -74,14 +77,111 @@ class ProcessingOptions:
     rover_azimuth_deg: float|None=None
     orientation_reviewed: bool=False
     orientation_mode: str=''
+    ambiguity_mode: str='continuous'
+    reference_network_path: str=''
+    network_kernel_path: str=''
 
 
 def processing_profile(options):
-    return ITRF_PROFILE if options.frame=='EPSG:9988' else STATIC_PROFILE if options.atmosphere==STATIC_ATMOSPHERE else {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)
+    if options.reference_network_path:return NETWORK_FLOAT_PROFILE
+    return (ITRF_FLOAT_PROFILE if options.ambiguity_mode=='off' else ITRF_PROFILE) if options.frame=='EPSG:9988' else STATIC_PROFILE if options.atmosphere==STATIC_ATMOSPHERE else {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)
+
+
+def reference_network_review(project, references, target_xyz, cancelled=lambda:False):
+    """Audit a three-station VRS candidate using existing raw-catalogue evidence.
+
+    This is geometry/availability, not a network atmosphere/ambiguity estimator.
+    The rover's observations and known coordinate never enter the reference fit.
+    Negative affine weights are retained as extrapolation, never clipped to make
+    the network appear to surround the target. No virtual RINEX is fabricated.
+    """
+    import numpy as np
+    from .coordinate_job import llh
+    n.validate_project(project);b.ecef(list(target_xyz))
+    if not isinstance(references,list) or len(references)!=3:
+        raise ValueError('Select exactly three distinct existing physical BASE sources for this initial network review.')
+    sources={row['id']:row for row in project.get('raw_sources',[])}
+    seen=set();points=set();rows=[];issues=[];notes=[];epochs=[];signatures=[]
+    lat,lon,_=llh(target_xyz,'EPSG:9989');lat=math.radians(lat);lon=math.radians(lon)
+    east=(-math.sin(lon),math.cos(lon),0.)
+    north=(-math.sin(lat)*math.cos(lon),-math.sin(lat)*math.sin(lon),math.cos(lat))
+    for declared in references:
+        n._keys(declared,{'source_id','xyz','frame','coordinate_epoch_decimal_year','evidence'},'Reference station review')
+        key=declared['source_id']
+        if key not in sources or key in seen:raise ValueError('Reference sources must be distinct existing catalogue links.')
+        seen.add(key);source=sources[key];meta=source['metadata']
+        if source['role']!='BASE' or meta['file_type']!='OBS' or source['point'] in points:
+            raise ValueError('Select distinct physical BASE points, not a rover, virtual station or a second file for the same point.')
+        points.add(source['point']);b.ecef(list(declared['xyz']))
+        if declared['frame']!='EPSG:9988':raise ValueError('This initial geometry review requires explicitly documented ITRF2020 ECEF for all references and target.')
+        epoch=declared['coordinate_epoch_decimal_year'];n._number(epoch,'Reference coordinate epoch')
+        if not 2000<=epoch<=2050:raise ValueError('Document each reference coordinate epoch as decimal year, 2000-2050.')
+        n._text(declared['evidence'],'Reference coordinate/frame/epoch evidence',required=True);epochs.append(epoch)
+        entry,unchanged=r.inspect_source(project,source,cancelled)
+        if not unchanged:raise ValueError('Reference source requires review: '+'; '.join(entry['issues']))
+        if meta['time_system']!='GPS' or source['utc_offset_seconds'] is None:
+            raise ValueError('Each reference needs reviewed GPS time and source-minus-UTC evidence.')
+        if source['session']!=sources[references[0]['source_id']]['session']:
+            raise ValueError('Reference sources must belong to the same acquisition session.')
+        if any(meta['events'].get(flag,0) for flag in ('2','3','4')):
+            issues.append(source['point']+': moving/site/header-change events require separate continuous occupations.')
+        if meta['receiver_clock_offset_epochs']:
+            issues.append(source['point']+': recorded nonzero receiver clock offsets need a reviewed NETWORK clock model; do not round or silently shift them.')
+        signatures.append({sample[0]-source['utc_offset_seconds']*r.TICK:set(sample[2].split()) for sample in meta['samples']})
+        difference=[x-y for x,y in zip(declared['xyz'],target_xyz)]
+        rows.append(dict(source_id=key,point=source['point'],source_sha256=source['source_sha256'],fingerprint=source['fingerprint'],
+            xyz=list(declared['xyz']),frame=declared['frame'],coordinate_epoch_decimal_year=epoch,evidence=declared['evidence'],
+            east_from_target_m=sum(x*y for x,y in zip(difference,east)),north_from_target_m=sum(x*y for x,y in zip(difference,north)),
+            chord_to_target_m=math.dist(declared['xyz'],target_xyz),antenna_hen=meta['antenna_hen'],antenna_type=meta['antenna'],
+            receiver_clock_offset_epochs=meta['receiver_clock_offset_epochs']))
+    edges=[dict(points=[a['point'],c['point']],chord_m=math.dist(a['xyz'],c['xyz'])) for i,a in enumerate(rows) for c in rows[i+1:]]
+    if min(edge['chord_m'] for edge in edges)<1:raise ValueError('Distinct reference names cannot represent the same physical coordinate.')
+    matrix=np.array([[1.,1.,1.],[row['east_from_target_m']/1000 for row in rows],[row['north_from_target_m']/1000 for row in rows]])
+    condition=float(np.linalg.cond(matrix))
+    if not math.isfinite(condition) or condition>1e8:raise ValueError('Degenerate or nearly collinear reference triangle; a two-dimensional network cannot be inferred.')
+    weights=np.linalg.solve(matrix,np.array([1.,0.,0.]))
+    if not np.all(np.isfinite(weights)) or float(np.max(np.abs(matrix@weights-[1.,0.,0.])))>1e-8:
+        raise ValueError('Invalid affine geometry solution.')
+    for row,weight in zip(rows,weights):row['affine_weight']=float(weight)
+    inside=bool(np.all(weights>=-1e-10) and np.all(weights<=1+1e-10))
+    common=sorted(set.intersection(*(set(value) for value in signatures)))
+    counts=[];supported=[]
+    for tick in common:
+        if cancelled():raise ValueError('Reference-network review cancelled.')
+        signals=set.intersection(*(value[tick] for value in signatures))
+        by_sat={}
+        for signal in signals:
+            sat,band=signal.split('/')
+            if sat.startswith('G'):by_sat.setdefault(sat,set()).add(band)
+        sats=sorted(sat for sat,bands in by_sat.items() if any(code.startswith('1') for code in bands) and any(code.startswith('2') for code in bands))
+        counts.append(len(sats))
+        if len(sats)>=4:supported.append(tick)
+    if len(supported)<2:issues.append('Fewer than two exact common reference epochs with four matching GPS L1/L2 code/phase satellites.')
+    types=[sources[row['source_id']]['metadata']['observation_types'].get('G',[]) for row in rows]
+    common_codes=set.intersection(*(set(value) for value in types))
+    plan={band:sorted(code[1:] for code in common_codes if code.startswith('C'+band) and 'L'+code[1:] in common_codes) for band in ('1','2')}
+    if not all(plan.values()):issues.append('References lack a common exact GPS code/phase signal in both L1/L2 bands; no tracking-code substitution.')
+    if not inside:notes.append('EXTRAPOLATION: target outside reference triangle. Negative weights amplify network/model errors; shorter virtual baseline does not remove distant-reference errors.')
+    notes+=['Three references give zero spatial residual degrees of freedom for an affine plane; curvature and extrapolation accuracy cannot be checked internally.',
+        'Equal-independent-error gain is a geometric diagnostic only; real reference errors are correlated and no VRS covariance or accuracy is estimated.',
+        'Weights describe geometry only. They are not weights for averaging receiver carrier phases, baseline coordinates or independent positions.',
+        'Independent pairwise RTKLIB ION/TROP status states lack a joint network ambiguity datum/covariance and must not be treated as VRS corrections.',
+        'Reference coordinate epochs are retained individually; no propagation or inferred common frame realisation. Geometry is not precise coordinate acceptance.']
+    return dict(format='survey-adjustment-reference-network-review',version=1,status='NETWORK_INPUT_REVIEW_REQUIRED' if issues else 'NETWORK_MODEL_REQUIRED',
+        project_sha256=r.content_fingerprint(project),reference_stations=rows,target_ecef_itrf2020=list(target_xyz),reference_edges=edges,
+        geometry=dict(mode='INTERPOLATION' if inside else 'EXTRAPOLATION',inside_triangle=inside,condition_number=condition,
+            affine_weights=[float(v) for v in weights],equal_independent_error_gain=float(np.linalg.norm(weights)),spatial_residual_degrees_of_freedom=0),
+        availability=dict(common_recorded_utc_epochs=len(common),gps_l1_l2_epochs_at_least_four_satellites=len(supported),
+            minimum_common_two_band_satellites=min(counts) if counts else 0,maximum_common_two_band_satellites=max(counts) if counts else 0,
+            first_utc=r.tick_text(common[0])+'Z' if common else '',last_utc=r.tick_text(common[-1])+'Z' if common else '',common_exact_signals=plan),
+        issues=issues,notes=notes,rover_observations_used=False,virtual_observations_generated=False,
+        synthesis_blocker='A reviewed joint network clock, antenna, code/phase bias, ambiguity and atmosphere estimator plus virtual-observation/readback validation is required. The installed pairwise engine is not a VRS generator.')
 
 
 def warnings(options):
     notes=list(WARNINGS)
+    if options.get('ambiguity_mode','continuous')=='off':
+        notes.append('FLOAT ONLY: integer ambiguity resolution is disabled. For derived network/VRS inputs, shared network ambiguity/model/base uncertainty is excluded from the raw engine covariance; no FIX or independent-baseline claim.')
     if options.get('atmosphere')==STATIC_ATMOSPHERE:
         notes+=['Experimental stationary GPS L1/L2 atmosphere estimation: baseline-scaled ionosphere states and receiver zenith wet-delay states; not independent atmospheric measurements.',
             'Broadcast orbits remain selected. This is not complete 30–100 km field validation, precise-product processing, PPP or VRS generation. Base coordinates/frame/epoch, antenna model and independent checks remain essential.']
@@ -203,6 +303,8 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
         raise ValueError('The initial estimated-atmosphere profile requires stationary Static, GPS L1/L2 and the reviewed upstream EX engine. Other profiles remain unchanged.')
     if options.frame=='EPSG:9988' and (options.mode!='static' or options.frequencies!=2 or tuple(options.systems)!=('G',) or options.engine_variant!='upstream'):
         raise ValueError('The initial ITRF2020 clock-audited profile requires upstream EX, static GPS L1/L2.')
+    if options.ambiguity_mode not in ('continuous','off') or (options.ambiguity_mode=='off' and options.frame!='EPSG:9988'):
+        raise ValueError('Explicit FLOAT-only processing requires the ITRF2020 static GPS L1/L2 clock-audited profile.')
     for value,low,high,label in ((options.elevation,10,45,'Elevation mask'),(options.ratio,3,10,'Ambiguity ratio threshold')):
         n._number(value,label)
         if not low<=value<=high: raise ValueError(label+' is outside this reviewed profile.')
@@ -215,6 +317,16 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
     if (base['role'],rover['role'],nav['role'])!=('BASE','ROVER','NAV') or base['point']==rover['point'] or base['session']!=rover['session']:
         raise ValueError('Select a base/rover pair of different physical points in the same acquisition session, plus navigation.')
     if base['utc_offset_seconds']!=rover['utc_offset_seconds']:raise ValueError('GPS observation sources must use the same documented GPS-minus-UTC offset for this profile.')
+    from . import network_vrs
+    derived=network_vrs.requires_float(base)
+    if derived!=bool(options.reference_network_path):raise ValueError('A generated FLOAT VRS requires its original reviewed network product; do not discard or relabel derivation.')
+    if derived:
+        if options.ambiguity_mode!='off' or options.frame!='EPSG:9988' or options.calibration!='antex' or not options.network_kernel_path:
+            raise ValueError('Derived network VRS requires FLOAT ONLY, ITRF2020, explicit receiver/virtual calibration and the reviewed network kernel.')
+        if preflight:
+            product=network_vrs.load_product(options.reference_network_path,options.network_kernel_path,cancelled=cancelled)
+            if product['report']['virtual_sha256']!=base['source_sha256'] or product['manifest']['navigation']['sha256']!=nav['source_sha256'] or math.dist(options.base_xyz,product['report']['target_xyz'])>.0002:
+                raise ValueError('VRS input, fixed virtual coordinate or navigation differs from its reviewed network product.')
     if azimuth:
         selected_signals(options,base,rover)
         for row,heading in ((base,options.base_azimuth_deg),(rover,options.rover_azimuth_deg)):
@@ -267,7 +379,7 @@ def configuration(options,base,rover):
         'pos1-posmode':options.mode,'pos1-frequency':'l1' if options.frequencies==1 else 'l1+l2',
         'pos1-soltype':'forward','pos1-elmask':options.elevation,'pos1-dynamics':'off','pos1-tidecorr':0,
         'pos1-ionoopt':'off' if synthetic else 'brdc','pos1-tropopt':'off' if synthetic else 'saas',
-        'pos1-sateph':'brdc','pos1-navsys':sum(SYSTEMS[s][1] for s in options.systems),'pos2-armode':'continuous','pos2-gloarmode':'off',
+        'pos1-sateph':'brdc','pos1-navsys':sum(SYSTEMS[s][1] for s in options.systems),'pos2-armode':options.ambiguity_mode,'pos2-gloarmode':'off',
         'pos2-bdsarmode':'off','pos2-arthres':options.ratio,'pos2-arthresmin':options.ratio,'pos2-arthresmax':options.ratio,
         'pos2-arminfix':10,'pos2-arlockcnt':0,'pos2-maxage':1,'misc-timeinterp':'off',
         'out-solformat':'xyz','out-outhead':'on','out-outopt':'on','out-outvel':'off','out-timesys':'gpst',
@@ -309,7 +421,12 @@ def prepare(folder,project,options,executable,cancelled=lambda:False):
         base_xyz=list(options.base_xyz),antenna_note=options.antenna_note,model_note=options.model_note,job_directory=str(folder))
     context.update(systems=list(options.systems),frequencies=options.frequencies,calibration=calibration_review(options,base,rover))
     if context['profile']==STATIC_PROFILE:context['atmosphere_model']=STATIC_ATMOSPHERE
-    if context['profile']==ITRF_PROFILE:context.update(atmosphere_model=options.atmosphere,solution_time_model=CLOCK_MODEL)
+    if context['profile'] in CLOCK_PROFILES:context.update(atmosphere_model=options.atmosphere,solution_time_model=CLOCK_MODEL)
+    if context['profile'] in (ITRF_FLOAT_PROFILE,NETWORK_FLOAT_PROFILE):context['ambiguity_mode']='off'
+    if context['profile']==NETWORK_FLOAT_PROFILE:
+        from . import network_vrs
+        product=network_vrs.snapshot_product(options.reference_network_path,folder/'reference_network',options.network_kernel_path,cancelled)
+        context['reference_network']=dict(folder='reference_network',manifest_sha256=engine.sha256(folder/'reference_network/vrs.json'),kernel_sha256=network_vrs.KERNEL_SHA256,virtual_sha256=product['report']['virtual_sha256'])
     if options.engine_variant=='survey-sa2':context.update(signal_plan=selected_signals(options,base,rover),antenna_azimuth_deg={'base':options.base_azimuth_deg,'rover':options.rover_azimuth_deg},orientation_mode=options.orientation_mode)
     if context['calibration']:
         model=context['calibration']
@@ -363,6 +480,8 @@ def load_manifest(folder):
     validate_context(result['context'])
     if engine.sha256(Path(folder)/'network.sanet.json')!=result['network_sha256']: raise ValueError('Saved job network changed.')
     context=result['context']
+    if context['profile']==NETWORK_FLOAT_PROFILE and engine.sha256(Path(folder)/'reference_network/vrs.json')!=context['reference_network']['manifest_sha256']:
+        raise ValueError('Recorded reference-network product changed.')
     if engine.sha256(Path(folder)/'processing.conf')!=context['configuration_sha256']: raise ValueError('Processing configuration changed.')
     for row in context['inputs']:
         if engine.sha256(Path(folder)/row['name'])!=row['sha256']: raise ValueError('Job input changed: '+row['name'])
@@ -373,7 +492,7 @@ def load_manifest(folder):
         try: options=ProcessingOptions(**result['options'])
         except (TypeError,ValueError):raise ValueError('Invalid recorded processing options.') from None
         if processing_profile(options)!=context['profile']:raise ValueError('Recorded engine profile differs from options.')
-        if context['profile']==ITRF_PROFILE and context['atmosphere_model']!=options.atmosphere:raise ValueError('Recorded ITRF2020 atmosphere model differs from options.')
+        if context['profile'] in CLOCK_PROFILES and context['atmosphere_model']!=options.atmosphere:raise ValueError('Recorded ITRF2020 atmosphere model differs from options.')
         azimuth=context['profile']==AZIMUTH_PROFILE
         project=n.load_project(Path(folder)/'network.sanet.json')
         base,rover,_,_=validate(project,options,preflight=False)
@@ -405,9 +524,11 @@ def validate_context(context):
     modern=context.get('profile') in MODERN_PROFILES
     azimuth=context.get('profile')==AZIMUTH_PROFILE
     estimated=context.get('profile')==STATIC_PROFILE
-    clocked=context.get('profile')==ITRF_PROFILE
-    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set())|({'atmosphere_model'} if estimated or clocked else set())|({'solution_time_model'} if clocked else set()),'Raw processing provenance')
-    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256,STATIC_PROFILE:ENGINE_SHA256,ITRF_PROFILE:ENGINE_SHA256}
+    clocked=context.get('profile') in CLOCK_PROFILES
+    float_only=context.get('profile') in (ITRF_FLOAT_PROFILE,NETWORK_FLOAT_PROFILE)
+    network_float=context.get('profile')==NETWORK_FLOAT_PROFILE
+    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set())|({'atmosphere_model'} if estimated or clocked else set())|({'solution_time_model'} if clocked else set())|({'ambiguity_mode'} if float_only else set())|({'reference_network'} if network_float else set()),'Raw processing provenance')
+    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256,STATIC_PROFILE:ENGINE_SHA256,ITRF_PROFILE:ENGINE_SHA256,ITRF_FLOAT_PROFILE:ENGINE_SHA256,NETWORK_FLOAT_PROFILE:ENGINE_SHA256}
     if context['profile'] not in expected or context['engine_sha256']!=expected[context['profile']] or context['mode'] not in ('static','kinematic'):
         raise ValueError('Unsupported processing profile or engine identity.')
     if modern:
@@ -416,6 +537,11 @@ def validate_context(context):
         if type(context['frequencies']) is not int or context['frequencies'] not in (1,2):raise ValueError('Invalid recorded frequencies.')
         if estimated and (context['atmosphere_model']!=STATIC_ATMOSPHERE or context['mode']!='static' or systems!=['G'] or context['frequencies']!=2):raise ValueError('Unsupported recorded static atmosphere model.')
         if clocked and (context['solution_time_model']!=CLOCK_MODEL or context['atmosphere_model'] not in ('broadcast/saas','ideal-synthetic',STATIC_ATMOSPHERE) or context['frame']!='EPSG:9988' or context['mode']!='static' or systems!=['G'] or context['frequencies']!=2):raise ValueError('Unsupported recorded ITRF2020 clock model.')
+        if float_only and context['ambiguity_mode']!='off':raise ValueError('Recorded FLOAT-only profile must disable integer ambiguity resolution.')
+        if network_float:
+            from . import network_vrs
+            item=context['reference_network'];n._keys(item,{'folder','manifest_sha256','kernel_sha256','virtual_sha256'},'Network VRS provenance')
+            if item['folder']!='reference_network' or item['kernel_sha256']!=network_vrs.KERNEL_SHA256 or not re.fullmatch(r'[a-f0-9]{64}',item['manifest_sha256']) or not re.fullmatch(r'[a-f0-9]{64}',item['virtual_sha256']):raise ValueError('Invalid network VRS snapshot identity.')
         if context['frame']=='EPSG:9988' and not clocked:raise ValueError('ITRF2020 requires its explicit clock-audited processing profile.')
         if 'R' in systems and context['profile'] not in (SYSTEM_PROFILE,AZIMUTH_PROFILE):raise ValueError('GLONASS is not a legacy processing profile.')
         if azimuth:
@@ -478,7 +604,14 @@ def _decode(folder,manifest):
     project=n.load_project(folder/'network.sanet.json'); sources={row['id']:row for row in project['raw_sources']}
     base,rover=[sources[row['source_id']] for row in context['inputs'][:2]]
     low=max(row['metadata']['first_tick'] for row in (base,rover)); high=min(row['metadata']['last_tick'] for row in (base,rover))
-    if context['profile']==ITRF_PROFILE:
+    if context['profile'] in (ITRF_FLOAT_PROFILE,NETWORK_FLOAT_PROFILE) and any(row['quality']=='1' or row['eligible'] for row in source['rows']):
+        raise ValueError('FLOAT-only engine contract cannot contain FIX or baseline-eligible epochs.')
+    if context['profile']==NETWORK_FLOAT_PROFILE:
+        from . import network_vrs
+        product=network_vrs.load_product(folder/'reference_network',manifest['options']['network_kernel_path'])
+        if product['report']['virtual_sha256']!=context['reference_network']['virtual_sha256'] or engine.sha256(folder/'base.rnx')!=product['report']['virtual_sha256'] or math.dist(product['report']['target_xyz'],context['base_xyz'])>.0002:
+            raise ValueError('Static VRS processing differs from its original network derivation.')
+    if context['profile'] in CLOCK_PROFILES:
         stat=folder/'solution.pos.stat'
         if not stat.is_file() or stat.stat().st_size>32*1024*1024:raise ValueError('Missing or oversized engine receiver-clock evidence.')
         source['clock_epoch_audit']=clock_epoch_audit(stat.read_text(encoding='ascii'),source['rows'],rover['metadata']['samples'])
@@ -685,7 +818,7 @@ def inspect_result(folder,exit_code,executable):
         distances=[math.dist(row['values'],manifest['context']['base_xyz']) for row in source['rows']]
         result['computed_baseline_length_m']=dict(min=min(distances),max=max(distances),last=distances[-1])
         result['atmosphere_model']=STATIC_ATMOSPHERE
-    if manifest['context']['profile']==ITRF_PROFILE:
+    if manifest['context']['profile'] in CLOCK_PROFILES:
         audit=source['clock_epoch_audit'];(folder/'clock_epoch_audit.csv').write_bytes(_clock_csv(audit))
         result['clock_epoch_audit']={key:value for key,value in audit.items() if key!='rows'}
     with (folder/'epochs.csv').open('w',encoding='utf-8',newline='') as handle:
@@ -718,11 +851,11 @@ def source_for_import(path):
         raise ValueError('Processing job is incomplete, stopped or its solution has changed.')
     for name,digest in manifest['outputs'].items():
         allowed=('solution.pos','solution.pos.stat','epochs.csv','report.txt')+(('atmosphere_states.csv',) if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE else ())
-        if manifest['context']['profile']==ITRF_PROFILE:allowed+=('clock_epoch_audit.csv',)
+        if manifest['context']['profile'] in CLOCK_PROFILES:allowed+=('clock_epoch_audit.csv',)
         if name not in allowed or engine.sha256(path.parent/name)!=digest:
             raise ValueError('Processing result package changed.')
     source=_decode(path.parent,manifest)
-    if manifest['context']['profile']==ITRF_PROFILE:
+    if manifest['context']['profile'] in CLOCK_PROFILES:
         if not {'solution.pos.stat','clock_epoch_audit.csv'}<=set(manifest['outputs']) or (path.parent/'clock_epoch_audit.csv').read_bytes()!=_clock_csv(source['clock_epoch_audit']):raise ValueError('Receiver-clock table differs from recalculated engine/source evidence.')
     if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE:
         if not {'solution.pos.stat','atmosphere_states.csv'}<=set(manifest['outputs']):raise ValueError('Missing recorded atmosphere-state outputs.')

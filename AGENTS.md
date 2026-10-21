@@ -1,5 +1,17 @@
 # Survey Adjustment
 
+0.18.0 adds EXPERIMENTAL three-physical-reference FLOAT VRS in the SAME GNSS
+dialog/catalogue/background queue. Joint DD GLS preserves shared master/pivot
+covariance and non-integer phase bias: v8 requires AR OFF, no eligible FIX or
+independent baseline. Do not fit rover data/control or substitute references.
+Keep explicit ITRF2020 epochs, negative weights/extrapolation, zero spatial DOF,
+clock bounds, NOAZI/provider limitations and original physical sources. Rebuild
+geometry and virtual RINEX from local job copies on readback with the separate
+pinned kernel. Full integer network/accuracy and precise products remain absent.
+Real measurements/calibration/coordinates/results stay private and ignored.
+User chose Oslo, Trondheim and Stavanger. Initial withheld field comparison
+must remain visible even when worse than physical-reference processing.
+
 0.17.0 adds explicit ITRF2020 static GPS v6, recorded $CLK-to-RINEX epoch audit,
 recalculated clock CSV and a separate selected-epoch known Check-point comparison
 using pinned local national EUREF89/NKG grids plus existing projection/HREF. Never
