@@ -1,6 +1,71 @@
 GNSS SOLUTIONS AS A WORKFLOW REFERENCE; VRS INVESTIGATION
+
+CURRENT STATIC / REFERENCE FOCUS - 0.16.0, 2026-10-21
+The user primarily calculates stationary 30-100 km baselines and uses own bases,
+Onocoy, Emlid Caster and https://igs.bkg.bund.de/. Dynamic tilt/3D development
+has been stopped. Extend the same static processing/reference/quality workflow.
+An experimental static GPS L1/L2 ionosphere/wet-delay profile is implemented;
+see PPK_STATIC.txt for the constructed 60 km test and actual remaining limits.
+
+Own base: use its original OBS/NAV with simultaneous occupation, documented
+coordinates/frame/realisation/epoch, antenna/radome/serial and marker-to-ARP H/E/N.
+Do not replace known controls with header approximate XYZ or average RTK output.
+
+BKG: its data centre provides observation/navigation RINEX, station logs and
+products including SP3, CLK, ERP and SINEX. Existing bounded RINEX import can read
+supported expanded .rnx/.obs/.o and gzip data. BKG often supplies compact Hatanaka
+.crx/.d (also gzip): expand with an appropriate reviewed converter first, keeping
+originals and conversion evidence. The plugin does not currently expand Hatanaka,
+download reference data or process precise SP3/CLK/SINEX/ERP products. A product
+being available at BKG does not establish that this plugin processes it.
+
+Emlid Caster relays NTRIP reference data. A connection/account is not a historical
+RINEX archive or a locally generated network VRS. For postprocessing, preserve raw
+base data at the receiver or a permitted complete RTCM recording, OBS/NAV conversion
+and station/epoch/antenna identity. Emlid Studio documents raw-to-RINEX conversion;
+this plugin does not yet record/convert live caster traffic.
+
+Onocoy documentation describes single-base RTK and a roaming mountpoint with
+handover/fallback. Preserve the actual station ID and frame choice for EACH
+continuous segment; do not assume the caster name identifies one unchanged base.
+Onocoy documents global frame options. Never label those EUREF89 merely because
+the survey is in Norway. Review actual service output frame, realisation and
+coordinate epoch; this plugin supplies no automatic ITRF/IGS/WGS84-to-EUREF shift.
+
+VRS: distinguish supplied virtual-reference raw observations from synthesizing
+a new VRS using a physical reference network. The single-base EX engine is not
+relabeled as a VRS generator. Supplied VRS still needs documented coordinate,
+frame/epoch, observation model, station continuity, antenna treatment and shared
+network dependence. This release adds reference guidance, not a new VRS source
+adapter, online service, multi-station model or independent VRS validation.
+
+FILES FOR A FUTURE REAL TEST
+1. Original stationary rover OBS and simultaneous base/reference OBS, plus NAV;
+   preferably exported RINEX 3 with continuous raw observations and original gzip.
+2. Station log and documented reference coordinates, reference frame/realisation,
+   coordinate epoch/velocities where relevant; receiver/firmware and antenna model,
+   radome, serial, mounting/orientation and measured ARP height for both endpoints.
+3. For caster recordings: original permitted RTCM (if available), actual station
+   IDs/mountpoint names and reconnect/handover times, conversion tool/version and
+   options; never passwords, access tokens or private account details.
+4. Actual UTC occupation start/end and sampling, stationary point IDs, baseline
+   length and a separate trusted comparison/control result with uncertainty.
+5. If available, matching SP3/CLK and associated product/frame documentation for
+   the next precise-product implementation. They are not used by 0.16.0 yet.
+Real files and results stay local and out of GitHub/releases. Manufacturer-specific
+branding must not restrict the general RINEX workflow to Emlid receivers.
+
+PRIMARY SOURCES FOR THE CURRENT SERVICE REVIEW
+https://igs.bkg.bund.de/
+https://igs.bkg.bund.de/holdings
+https://docs.emlid.com/emlid-studio/convert-to-rinex-workflow/
+https://docs.emlid.com/reachrs4/rtk-quickstart/reachrs4-as-base/dji-rtk/
+https://docs.onocoy.com/documentation/service-levels
+https://docs.onocoy.com/documentation/4.-get-gnss-corrections/configure-the-gnss-receiver
+https://docs.onocoy.com/documentation/4.-get-gnss-corrections/setting-of-the-credentials
+
 Workflow reference researched 2026-10-19; reuse-first scope agreed 2026-10-20.
-Existing implementation baseline: Survey Adjustment 0.10.0.
+Existing implementation baseline: Survey Adjustment 0.16.0.
 
 STATUS
 The read-only RINEX catalogue/map/timeline/preflight is implemented in 0.9.0;

@@ -176,3 +176,22 @@ class ProcessingQgisTests(unittest.TestCase):
         with patch.object(p,'prepare',slow),patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):
             self.assertTrue(self.dialog.start());self.assertTrue(self.dialog.preparing);self.dialog.stop();self.wait()
         self.assertIsNone(self.dialog.process);self.assertIsNone(self.dialog.result);self.assertFalse(self.owner.project['observations'])
+
+    def test_long_static_example_existing_queue_map_atmosphere_audit_and_handoff(self):
+        dialog=self.dialog;dialog.atmosphere.setCurrentIndex(dialog.atmosphere.findData(p.STATIC_ATMOSPHERE))
+        self.assertIn('not a physical antenna',dialog.report.toPlainText())
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)),patch.object(self.owner,'maybe_leave',return_value=True):self.assertTrue(dialog.example())
+        self.assertEqual(dialog.atmosphere.currentData(),p.STATIC_ATMOSPHERE);self.assertEqual(len(self.owner.snapshot()['raw_sources']),3)
+        self.assertFalse(dialog.model_review.isChecked())
+        for field in (dialog.base_review,dialog.antenna_review,dialog.model_review,dialog.license_review):field.setChecked(True)
+        self.start();self.assertEqual(dialog.result['atmosphere_audit']['epochs'],121);self.assertEqual(dialog.table.rowCount(),121)
+        self.assertIn('60.637',dialog.report.toPlainText());self.assertIn('wet delay is not total zenith',dialog.report.toPlainText())
+        self.assertTrue((dialog.folder/'atmosphere_states.csv').is_file());self.assertTrue(next(dialog.layers['points'].getFeatures()).geometry().constGet().is3D())
+        dialog.select_record('processing_epoch',str(dialog.source['rows'][-1]['line']))
+        covariance=list(dialog.source['rows'][-1]['covariance'])
+        def execute(review):
+            for check in (review.synthetic,review.relative,review.endpoints,review.covariance,review.occupation):check.setChecked(True)
+            review.occupation_note.setText('SYNTHETIC 60 km / 1 hour stationary occupation, selected final filter state; no average or field validation.')
+            self.assertTrue(review.preview(),review.review.toPlainText());self.assertTrue(review.finish());return QDialog.DialogCode.Accepted
+        with patch.object(BaselineImportDialog,'exec',execute):self.assertTrue(dialog.review_baseline())
+        self.assertEqual(self.owner.project['observations'][0]['covariance'],covariance);self.assertEqual(len(self.owner.project['observations']),1)

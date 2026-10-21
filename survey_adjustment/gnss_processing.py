@@ -8,6 +8,7 @@ have explicit binary/configuration contracts. Third-party notices are retained.
 from copy import deepcopy
 from dataclasses import dataclass,asdict
 from datetime import datetime,timezone,timedelta
+from decimal import Decimal,InvalidOperation
 from pathlib import Path
 from uuid import uuid4
 import csv,gzip,hashlib,io,json,math,os,re,subprocess
@@ -26,6 +27,9 @@ SYSTEM_ENGINE_VERSION='RTKLIB EX 2.5.1-SA1 — experimental Survey PCV extension
 AZIMUTH_PROFILE='rtklib-survey-sa2-relative-v4'
 AZIMUTH_ENGINE_SHA256='81054215ea966854f79b6ca8ecb802f189eff6e99ee934d65961c3ddd9e4e780'
 AZIMUTH_ENGINE_VERSION='RTKLIB EX 2.5.1-SA2 — experimental azimuth and band selection'
+STATIC_ATMOSPHERE='estimate-iono/wet-delay'
+STATIC_PROFILE='rtklib-ex251-static-atmosphere-v5'
+MODERN_PROFILES=(MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE,STATIC_PROFILE)
 SYSTEMS={'G':('GPS',1,('1','2')),'E':('Galileo',8,('1','7')),'C':('BeiDou B1I/B2I',32,('2','7')),'R':('GLONASS G1/G2',4,('1','2'))}
 AZIMUTH_SIGNALS={'G':(('1','CPWLSX'),('2','WPCSLX')),'R':(('1','CP'),('2','CP')),
     'E':(('1','CBX'),('5','QIX')),'C':(('1','PDX'),('6','IQX'))}
@@ -70,8 +74,15 @@ class ProcessingOptions:
     orientation_mode: str=''
 
 
+def processing_profile(options):
+    return STATIC_PROFILE if options.atmosphere==STATIC_ATMOSPHERE else {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)
+
+
 def warnings(options):
     notes=list(WARNINGS)
+    if options.get('atmosphere')==STATIC_ATMOSPHERE:
+        notes+=['Experimental stationary GPS L1/L2 atmosphere estimation: baseline-scaled ionosphere states and receiver zenith wet-delay states; not independent atmospheric measurements.',
+            'Broadcast orbits remain selected. This is not complete 30–100 km field validation, precise-product processing, PPP or VRS generation. Base coordinates/frame/epoch, antenna model and independent checks remain essential.']
     if options.get('engine_variant') in ('survey-sa1','survey-sa2'):
         notes[-1]='Selected GPS/Galileo/BeiDou/GLONASS signals only. GLONASS ambiguity fixing is disabled; FDMA channels come from reviewed navigation. QZSS/SBAS/NavIC excluded.'
         notes+=['Experimental local engine extension, not an official RTKLIB release. Separate per-constellation/frequency receiver arrays; no GPS-pattern fallback.']
@@ -184,8 +195,10 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
         if not options.antex_path:raise ValueError('Choose a local receiver ANTEX file.')
     elif options.antex_path or options.calibration_note:
         raise ValueError('Clear the ANTEX file/evidence or enable calibration; a selected file must not be silently ignored.')
-    if options.atmosphere not in ('broadcast/saas','ideal-synthetic') or (options.atmosphere=='ideal-synthetic' and not project['synthetic']):
+    if options.atmosphere not in ('broadcast/saas','ideal-synthetic',STATIC_ATMOSPHERE) or (options.atmosphere=='ideal-synthetic' and not project['synthetic']):
         raise ValueError('Atmosphere-off is restricted to explicitly constructed synthetic examples.')
+    if options.atmosphere==STATIC_ATMOSPHERE and (options.mode!='static' or options.frequencies!=2 or tuple(options.systems)!=('G',) or options.engine_variant!='upstream'):
+        raise ValueError('The initial estimated-atmosphere profile requires stationary Static, GPS L1/L2 and the reviewed upstream EX engine. Other profiles remain unchanged.')
     for value,low,high,label in ((options.elevation,10,45,'Elevation mask'),(options.ratio,3,10,'Ambiguity ratio threshold')):
         n._number(value,label)
         if not low<=value<=high: raise ValueError(label+' is outside this reviewed profile.')
@@ -214,6 +227,8 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
                     declared=r.real(line[:14])
                     if abs((declared-heading+180)%360-180)>1e-6:raise ValueError('Explicit antenna azimuth differs from the RINEX zero-direction header.')
     for row in (base,rover):
+        if options.atmosphere==STATIC_ATMOSPHERE and any(row['metadata']['events'].get(flag,0) for flag in ('2','3','4')):
+            raise ValueError('Static atmosphere estimation cannot ignore moving/new-site/header-change events. Split and review the physical occupation/reference station first.')
         if row['metadata']['time_system']!='GPS' or row['utc_offset_seconds'] is None:
             raise ValueError('This engine profile accepts explicitly documented GPS observation time only, including mixed-system RINEX.')
         for system in options.systems:
@@ -269,6 +284,11 @@ def configuration(options,base,rover):
         'ant1-anttype':'SA_ROVER        NONE' if options.calibration=='antex' else '',
         'ant2-anttype':'SA_BASE         NONE' if options.calibration=='antex' else '',
         'file-rcvantfile':'receiver.atx' if options.calibration=='antex' else '', 'file-satantfile':''})
+    if options.atmosphere==STATIC_ATMOSPHERE:
+        # Exact pinned-engine state model and explicit stochastic assumptions.
+        # These are model settings, never derived survey accuracy or sigmas.
+        values.update({'pos1-ionoopt':'est-stec','pos1-tropopt':'est-ztd',
+            'stats-stdiono':.03,'stats-stdtrop':.3,'stats-prniono':.001,'stats-prntrop':.0001})
     return ''.join(f'{key}={value}\n' for key,value in values.items())
 
 
@@ -278,12 +298,13 @@ def prepare(folder,project,options,executable,cancelled=lambda:False):
     if engine.sha256(executable)!=expected:raise ValueError('Selected executable differs from the chosen engine profile.')
     if cancelled():raise ValueError('Job preparation cancelled.')
     folder=Path(folder).resolve(); folder.mkdir(parents=True,exist_ok=False)
-    context=dict(profile={'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}[options.engine_variant],job_id=str(uuid4()),project_id=project['project_id'],
+    context=dict(profile=processing_profile(options),job_id=str(uuid4()),project_id=project['project_id'],
         occupation_sha256=b.content_fingerprint([base['fingerprint'],rover['fingerprint']]),
         engine_sha256=expected,configuration_sha256='',inputs=[],base=base['point'],rover=rover['point'],
         session=base['session'],frame=options.frame,epoch=options.epoch,mode=options.mode,
         base_xyz=list(options.base_xyz),antenna_note=options.antenna_note,model_note=options.model_note,job_directory=str(folder))
     context.update(systems=list(options.systems),frequencies=options.frequencies,calibration=calibration_review(options,base,rover))
+    if context['profile']==STATIC_PROFILE:context['atmosphere_model']=STATIC_ATMOSPHERE
     if options.engine_variant=='survey-sa2':context.update(signal_plan=selected_signals(options,base,rover),antenna_azimuth_deg={'base':options.base_azimuth_deg,'rover':options.rover_azimuth_deg},orientation_mode=options.orientation_mode)
     if context['calibration']:
         model=context['calibration']
@@ -343,10 +364,10 @@ def load_manifest(folder):
     if context.get('calibration'):
         for name,key in (('receiver.atx','engine_sha256'),('original.atx','original_sha256')):
             if engine.sha256(Path(folder)/name)!=context['calibration'][key]:raise ValueError('Job antenna calibration changed: '+name)
-    if context['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE):
+    if context['profile'] in MODERN_PROFILES:
         try: options=ProcessingOptions(**result['options'])
         except (TypeError,ValueError):raise ValueError('Invalid recorded processing options.') from None
-        if {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)!=context['profile']:raise ValueError('Recorded engine profile differs from options.')
+        if processing_profile(options)!=context['profile']:raise ValueError('Recorded engine profile differs from options.')
         azimuth=context['profile']==AZIMUTH_PROFILE
         project=n.load_project(Path(folder)/'network.sanet.json')
         base,rover,_,_=validate(project,options,preflight=False)
@@ -375,16 +396,18 @@ def load_manifest(folder):
 
 def validate_context(context):
     if not isinstance(context,dict):raise ValueError('Invalid processing provenance.')
-    modern=context.get('profile') in (MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE)
+    modern=context.get('profile') in MODERN_PROFILES
     azimuth=context.get('profile')==AZIMUTH_PROFILE
-    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set()),'Raw processing provenance')
-    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256}
+    estimated=context.get('profile')==STATIC_PROFILE
+    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set())|({'atmosphere_model'} if estimated else set()),'Raw processing provenance')
+    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256,STATIC_PROFILE:ENGINE_SHA256}
     if context['profile'] not in expected or context['engine_sha256']!=expected[context['profile']] or context['mode'] not in ('static','kinematic'):
         raise ValueError('Unsupported processing profile or engine identity.')
     if modern:
         systems=context['systems']
         if not isinstance(systems,list) or not systems or 'G' not in systems or len(set(systems))!=len(systems) or any(s not in SYSTEMS for s in systems):raise ValueError('Invalid recorded satellite systems.')
         if type(context['frequencies']) is not int or context['frequencies'] not in (1,2):raise ValueError('Invalid recorded frequencies.')
+        if estimated and (context['atmosphere_model']!=STATIC_ATMOSPHERE or context['mode']!='static' or systems!=['G'] or context['frequencies']!=2):raise ValueError('Unsupported recorded static atmosphere model.')
         if 'R' in systems and context['profile'] not in (SYSTEM_PROFILE,AZIMUTH_PROFILE):raise ValueError('GLONASS is not a legacy processing profile.')
         if azimuth:
             if context['orientation_mode']!='fixed-level':raise ValueError('Unsupported recorded antenna orientation model.')
@@ -491,6 +514,56 @@ def verify_azimuth_audit(console,manifest):
                 compare([actual],[correction],'independently calculated applied antenna correction',2e-8)
 
 
+def static_atmosphere_audit(text,source_rows):
+    """Exact-epoch engine-state evidence, not independent atmosphere/accuracy."""
+    if len(text)>32*1024*1024:raise ValueError('Oversized atmosphere-state audit.')
+    expected={r._utc_tick(datetime.fromisoformat(row['time']).replace(tzinfo=timezone.utc)):row['quality'] for row in source_rows}
+    epoch0=r.epoch(['1980','1','6','0','0','0']);iono={};trop={};used={};rows=[];seen=set()
+    for line in text.splitlines():
+        values=line.split(',');kind=values[0]
+        if kind not in ('$ION','$TROP','$SAT'):continue
+        try:
+            week=int(values[1]);tow=Decimal(values[2]);ticks=tow*r.TICK
+            if not 0<=week<=10000 or not tow.is_finite() or not 0<=tow<604800 or ticks!=ticks.to_integral_value():raise ValueError()
+            tick=epoch0+week*604800*r.TICK+int(ticks)
+            if tick not in expected:raise ValueError()
+            if kind=='$SAT':
+                if len(values)<10:raise ValueError()
+                satellite,slot=values[3],int(values[4])
+                if values[9]=='1' and re.fullmatch(r'G(?:0[1-9]|[12][0-9]|3[0-2])',satellite):used.setdefault(tick,{}).setdefault(satellite,set()).add(slot)
+                continue
+            if len(values)!=(9 if kind=='$ION' else 7) or values[3]!=expected[tick]:raise ValueError()
+            identifier=values[4]
+            if (kind=='$ION' and not re.fullmatch(r'G(?:0[1-9]|[12][0-9]|3[0-2])',identifier)) or (kind=='$TROP' and identifier not in ('1','2')):raise ValueError()
+            floating,fixed=map(float,values[-2:])
+            if not all(math.isfinite(v) for v in (floating,fixed)):raise ValueError()
+            key=(kind,tick,identifier)
+            if key in seen:raise ValueError()
+            seen.add(key)
+        except (ValueError,IndexError,InvalidOperation,OverflowError):raise ValueError('Malformed, duplicate or unmatched engine atmosphere-state record.') from None
+        if kind=='$ION':iono.setdefault(tick,set()).add(identifier)
+        else:trop.setdefault(tick,set()).add(identifier)
+        rows.append(dict(time=r.tick_text(tick),kind='GPS ionosphere state' if kind=='$ION' else 'Zenith wet-delay state',
+            identifier=identifier,float_m=floating,fixed_m=fixed,quality=values[3]))
+    matched=[];satellites=set()
+    for tick in expected:
+        common={sat for sat,slots in used.get(tick,{}).items() if {1,2}<=slots}&iono.get(tick,set())
+        if trop.get(tick)!=set(('1','2')) or not common:raise ValueError('Missing engine ionosphere/wet-delay states or matching two-frequency GPS residuals at a solution epoch.')
+        matched.append(tick);satellites.update(common)
+    if not matched:raise ValueError('No solution epochs with checked atmosphere-state evidence.')
+    wet=[row['float_m'] for row in rows if row['kind']=='Zenith wet-delay state']
+    return dict(profile='static-gps-atmosphere-state-audit-v1',epochs=len(matched),ionosphere_records=sum(len(v) for v in iono.values()),
+        wet_delay_records=sum(len(v) for v in trop.values()),gps_satellites=sorted(satellites),float_wet_delay_min_m=min(wet),float_wet_delay_max_m=max(wet),
+        note='Engine conditional states only. Receiver 1 is rover, 2 is base; wet delay is not total zenith delay or survey uncertainty. Original full status/residual file retained.',rows=rows)
+
+
+def _atmosphere_csv(audit):
+    stream=io.StringIO(newline='');writer=csv.writer(stream,lineterminator='\n')
+    writer.writerow(['Time GPST','Engine state (not independent measurement)','Receiver 1=rover 2=base / satellite','Float state m','Fixed state m','Solution Q'])
+    for row in audit['rows']:writer.writerow([row[k] for k in ('time','kind','identifier','float_m','fixed_m','quality')])
+    return stream.getvalue().encode('utf-8')
+
+
 def inspect_result(folder,exit_code,executable):
     folder=Path(folder); manifest=load_manifest(folder)
     if manifest['state']!='PREPARED' or exit_code!=0: raise ValueError('Raw processing failed or this run is no longer pending. Partial results are not accepted.')
@@ -508,9 +581,9 @@ def inspect_result(folder,exit_code,executable):
     counts={quality:sum(row['quality']==quality for row in source['rows']) for quality in sorted({row['quality'] for row in source['rows']})}
     result=dict(mode=manifest['context']['mode'],epochs=len(source['rows']),quality_counts=counts,
         engine_version={SYSTEM_PROFILE:SYSTEM_ENGINE_VERSION,AZIMUTH_PROFILE:AZIMUTH_ENGINE_VERSION}.get(manifest['context']['profile'],ENGINE_VERSION),
-        eligible_fix=sum(row['eligible'] for row in source['rows']),warnings=warnings(manifest['options']) if manifest['context']['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE) else WARNINGS,
+        eligible_fix=sum(row['eligible'] for row in source['rows']),warnings=warnings(manifest['options']) if manifest['context']['profile'] in MODERN_PROFILES else WARNINGS,
         first_time=source['rows'][0]['time'],last_time=source['rows'][-1]['time'],time_system='GPST')
-    if manifest['context']['profile'] in (MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE):
+    if manifest['context']['profile'] in MODERN_PROFILES:
         # Engine residual validity flag proves a constellation contributed; input
         # availability or a navsys mask alone is not evidence of use.
         used={s:set() for s in manifest['context']['systems']}
@@ -547,6 +620,15 @@ def inspect_result(folder,exit_code,executable):
             if azimuth:
                 verify_azimuth_audit(console,manifest)
                 result['receiver_calibration_audit']='Every selected azimuth grid sample, orientation, actual signal and independently recalculated applied correction confirmed; original provider notes and hashes retained.'
+    if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE:
+        stat=folder/'solution.pos.stat'
+        if not stat.is_file() or stat.stat().st_size>32*1024*1024:raise ValueError('Missing or oversized atmosphere-state evidence.')
+        audit=static_atmosphere_audit(stat.read_text(encoding='ascii'),source['rows'])
+        (folder/'atmosphere_states.csv').write_bytes(_atmosphere_csv(audit))
+        result['atmosphere_audit']={key:value for key,value in audit.items() if key!='rows'}
+        distances=[math.dist(row['values'],manifest['context']['base_xyz']) for row in source['rows']]
+        result['computed_baseline_length_m']=dict(min=min(distances),max=max(distances),last=distances[-1])
+        result['atmosphere_model']=STATIC_ATMOSPHERE
     with (folder/'epochs.csv').open('w',encoding='utf-8',newline='') as handle:
         from .coordinate_job import llh
         writer=csv.writer(handle);writer.writerow(['Time GPST','X ECEF m','Y ECEF m','Z ECEF m','Latitude WGS84 ellipsoid deg','Longitude deg','h WGS84 ellipsoid m','Q','Baseline eligible','Reason'])
@@ -554,7 +636,7 @@ def inspect_result(folder,exit_code,executable):
     (folder/'report.txt').write_text(result['engine_version']+' — '+result['mode']+'\n'+json.dumps(result,indent=2)+'\n\n'+
         'Original engine solution and covariance retained in solution.pos. No averaged coordinate or automatic baseline import.\n'+
         'Input originals, copied inputs, configuration and engine SHA256 recorded in processing.json. Hashes establish integrity, not authenticity.\n',encoding='utf-8')
-    manifest['state']='COMPLETED';manifest['outputs']={name:engine.sha256(folder/name) for name in ('solution.pos','solution.pos.stat','epochs.csv','report.txt') if (folder/name).exists()}
+    manifest['state']='COMPLETED';manifest['outputs']={name:engine.sha256(folder/name) for name in ('solution.pos','solution.pos.stat','epochs.csv','report.txt','atmosphere_states.csv') if (folder/name).exists()}
     _write(folder,manifest)
     return result,source
 
@@ -572,9 +654,17 @@ def source_for_import(path):
     if manifest['state']!='COMPLETED' or manifest['outputs'].get('solution.pos')!=engine.sha256(path):
         raise ValueError('Processing job is incomplete, stopped or its solution has changed.')
     for name,digest in manifest['outputs'].items():
-        if name not in ('solution.pos','solution.pos.stat','epochs.csv','report.txt') or engine.sha256(path.parent/name)!=digest:
+        allowed=('solution.pos','solution.pos.stat','epochs.csv','report.txt')+(('atmosphere_states.csv',) if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE else ())
+        if name not in allowed or engine.sha256(path.parent/name)!=digest:
             raise ValueError('Processing result package changed.')
-    return _decode(path.parent,manifest)
+    source=_decode(path.parent,manifest)
+    if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE:
+        if not {'solution.pos.stat','atmosphere_states.csv'}<=set(manifest['outputs']):raise ValueError('Missing recorded atmosphere-state outputs.')
+        stat=path.parent/'solution.pos.stat'
+        if stat.stat().st_size>32*1024*1024:raise ValueError('Oversized atmosphere-state audit.')
+        audit=static_atmosphere_audit(stat.read_text(encoding='ascii'),source['rows'])
+        if (path.parent/'atmosphere_states.csv').read_bytes()!=_atmosphere_csv(audit):raise ValueError('Atmosphere-state table differs from recalculated engine evidence.')
+    return source
 
 
 def validate_handoff(project,source,options):

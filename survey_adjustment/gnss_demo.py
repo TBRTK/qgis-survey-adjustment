@@ -117,6 +117,26 @@ def rover_at(seconds,moving):
     return [BASE[0]+25.+(.02*seconds if moving else 0.),BASE[1]+30.,BASE[2]+12.]
 
 
+def long_static_rover():
+    """Invented same-height endpoint, about 60 km away; not a real control."""
+    return xyz(60.4,6.3,80.,'EPSG:4979')
+
+
+def static_atmosphere(prn,seconds,elevation,latitude,height,base):
+    """Constructed first-order dispersive ionosphere and simple mapped wet/dry delay.
+
+    Own analytic software fixture. Thin shell 350 km; hydrostatic pressure formula
+    and 1/sin(elevation) mapping. Deliberately not RTKLIB's Niell wet/dry mapping.
+    This is NOT an atmospheric truth model or a real 30–100 km accuracy benchmark.
+    """
+    pressure=1013.25*(1-2.2557e-5*height)**5.2568
+    hydrostatic=.0022768*pressure/(1-.00266*math.cos(2*latitude)-.00028*height/1000)
+    wet=(.12 if base else .18)+.005*math.sin(seconds/1800)
+    shell=1/math.sqrt(1-(6371000/(6371000+350000)*math.cos(elevation))**2)
+    iono=((3. if base else 4.5)+.2*math.sin(seconds/1800+prn))*shell
+    return iono,(hydrostatic+wet)/math.sin(elevation)
+
+
 def header(value,label): return f'{value:<60}{label:<20}\n'
 
 
@@ -143,10 +163,10 @@ def multi_model(base,systems,azimuth=False):
     return model
 
 
-def observations(moving,base=False,systems=('G',),calibrated=False,azimuth=False):
+def observations(moving,base=False,systems=('G',),calibrated=False,azimuth=False,long_static=False):
     rng=random.Random(100 if base else 101)
     model_set=multi_model(base,systems,azimuth) if calibrated else None
-    receiver=BASE if base else rover_at(0,moving)
+    receiver=BASE if base else long_static_rover() if long_static else rover_at(0,moving)
     text=header(f'{"3.05":>9}           O                   '+('M' if len(systems)>1 else 'G'),'RINEX VERSION / TYPE')
     text+=header('SYNTHETIC IDEAL ORBITS / CODE / PHASE - NO FIELD DATA','COMMENT')
     text+=header('SIM_BASE' if base else 'SIM_ROVER','MARKER NAME')
@@ -160,14 +180,18 @@ def observations(moving,base=False,systems=('G',),calibrated=False,azimuth=False
         if azimuth:types.update(E='E    4 C1C L1C C5Q L5Q',C='C    4 C1P L1P C6I L6I')
         text+=header(types[system],'SYS / # / OBS TYPES')
     if azimuth:text+=header(f'{(0. if base else 37.):14.4f}','ANTENNA: ZERODIR AZI')
-    text+=header(f'{5.:10.3f}','INTERVAL')
-    for stamp,label in ((START,'TIME OF FIRST OBS'),(START+timedelta(seconds=600),'TIME OF LAST OBS')):
+    duration,interval=(3600,30) if long_static else (600,5)
+    text+=header(f'{interval:10.3f}','INTERVAL')
+    for stamp,label in ((START,'TIME OF FIRST OBS'),(START+timedelta(seconds=duration),'TIME OF LAST OBS')):
         text+=header(f'{stamp.year:6d}{stamp.month:6d}{stamp.day:6d}{stamp.hour:6d}{stamp.minute:6d}{stamp.second:13.7f}     GPS',label)
     text+=header('','END OF HEADER')
     phi,lam=math.radians(60.4),math.radians(5.2)
+    if long_static:
+        from .coordinate_job import llh
+        lat,lon,height=llh(receiver,'EPSG:4979');phi,lam=math.radians(lat),math.radians(lon)
     up=[math.cos(phi)*math.cos(lam),math.cos(phi)*math.sin(lam),math.sin(phi)]
-    for seconds in range(0,601,5):
-        receiver=BASE if base else rover_at(seconds,moving); stamp=START+timedelta(seconds=seconds)
+    for seconds in range(0,duration+1,interval):
+        receiver=BASE if base else long_static_rover() if long_static else rover_at(seconds,moving); stamp=START+timedelta(seconds=seconds)
         sats=[]
         for system in systems:
             for prn in range(19 if azimuth and system=='C' else 6 if system=='C' else 1,43 if azimuth and system=='C' else 30 if system=='C' else 25):
@@ -201,6 +225,12 @@ def observations(moving,base=False,systems=('G',),calibrated=False,azimuth=False
             code1=rho+corrections[0]+rng.gauss(0,.02); code2=rho+corrections[1]+rng.gauss(0,.02)
             phase1=(rho+corrections[0]+rng.gauss(0,.001))/(C/f1)+100000+prn*100+(0 if base else 50)
             phase2=(rho+corrections[1]+rng.gauss(0,.001))/(C/f2)+80000+prn*80+(0 if base else 30)
+            if long_static:
+                sat=position(prn,seconds,system);vector=[v-w for v,w in zip(sat,receiver)];norm=math.sqrt(sum(v*v for v in vector))
+                elevation=math.asin(sum(v*w for v,w in zip(vector,up))/norm)
+                iono,trop=static_atmosphere(prn,seconds,elevation,phi,height,base);second_iono=iono*(f1/f2)**2
+                code1+=trop+iono;code2+=trop+second_iono
+                phase1+=(trop-iono)/(C/f1);phase2+=(trop-second_iono)/(C/f2)
             text+=f'{system}{prn:02d}'+''.join(f'{v:14.3f}07' for v in (code1,phase1,code2,phase2))+'\n'
     return text
 
@@ -231,16 +261,18 @@ def navigation(systems=('G',),azimuth=False):
     return text
 
 
-def create(folder,moving=False,systems=('G',),calibrated=False,azimuth=False):
+def create(folder,moving=False,systems=('G',),calibrated=False,azimuth=False,long_static=False):
     """Create a new explicit synthetic project; never append to a user's network."""
     if not systems or 'G' not in systems or any(s not in ('G','E','C','R') for s in systems) or (azimuth and not calibrated):raise ValueError('Unsupported synthetic profile.')
+    if long_static and (moving or tuple(systems)!=('G',) or calibrated or azimuth):raise ValueError('The constructed long-static atmosphere example uses stationary GPS and explicit zero antenna patterns only.')
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=False)
     project=n.new_project(); project.update(name='SYNTHETIC '+('moving PPK' if moving else 'static')+' '+''.join(systems)+(' ANTEX' if calibrated else '')+' integration example',
         synthetic=True,crs='EPSG:25832',height_datum='ELLIP',epoch='2026-10-18',
         notes='Constructed circular '+''.join(systems)+' orbits; no atmosphere. '+('Invented ANTEX PCO/PCV and H/E/N offsets.' if calibrated else 'Zero antenna patterns and offsets.')+' Software test only; coordinates are not national controls.')
     project['points']=[dict(n.point(),id='SIM_BASE'),dict(n.point(),id='SIM_ROVER')]
-    project['sessions']=[dict(n.session(),id='SIM01',start='2026-10-18T08:00:00Z',end='2026-10-18T08:10:00Z',instrument='SYNTHETIC GNSS',corrections='Constructed GPS-UTC = 18 s, BDT = GPST - 14 s; no atmosphere.')]
-    for name,text,role,point in (('base',observations(moving,True,systems,calibrated,azimuth),'BASE','SIM_BASE'),('rover',observations(moving,False,systems,calibrated,azimuth),'ROVER','SIM_ROVER'),('navigation',navigation(systems,azimuth),'NAV','')):
+    if long_static:project.update(name='SYNTHETIC ~60 km / 1 hour static atmosphere example',notes='Invented circular GPS orbits; constructed dispersive ionosphere and simple mapped dry/wet delay. Software integration only, not field validation.')
+    project['sessions']=[dict(n.session(),id='SIM01',start='2026-10-18T08:00:00Z',end='2026-10-18T09:00:00Z' if long_static else '2026-10-18T08:10:00Z',instrument='SYNTHETIC GNSS',corrections='Constructed GPS-UTC = 18 s; analytic atmosphere, not real weather/ionosphere.' if long_static else 'Constructed GPS-UTC = 18 s, BDT = GPST - 14 s; no atmosphere.')]
+    for name,text,role,point in (('base',observations(moving,True,systems,calibrated,azimuth,long_static),'BASE','SIM_BASE'),('rover',observations(moving,False,systems,calibrated,azimuth,long_static),'ROVER','SIM_ROVER'),('navigation',navigation(systems,azimuth),'NAV','')):
         path=folder/(name+'.rnx'); path.write_text(text,encoding='ascii',newline='\n')
         project=r.plan_import(project,r.read_source(path),r.ImportReview(role=role,point=point,session='SIM01' if point else '',
             utc_offset_seconds=18 if point else None,time_evidence='Constructed GPS minus UTC = 18 seconds.',
@@ -251,6 +283,6 @@ def create(folder,moving=False,systems=('G',),calibrated=False,azimuth=False):
         payload=antenna.subset([('SIM_BASEANT     NONE',multi_model(True,systems,azimuth)),('SIM_ROVERANT    NONE',multi_model(False,systems,azimuth))])
         (folder/'synthetic.atx').write_bytes(payload.replace(header('','END OF HEADER').encode('ascii'),(header('SYNTHETIC INVENTED MODELS - NOT REAL ANTENNA CALIBRATION','COMMENT')+header('','END OF HEADER')).encode('ascii'),1))
     (folder/'truth.json').write_text(json.dumps(dict(synthetic=True,moving=moving,base_xyz=BASE,
-        rover_start_xyz=rover_at(0,moving),rover_end_xyz=rover_at(600,moving),systems=list(systems),calibrated=calibrated,azimuth=azimuth,
+        rover_start_xyz=long_static_rover() if long_static else rover_at(0,moving),rover_end_xyz=long_static_rover() if long_static else rover_at(600,moving),systems=list(systems),calibrated=calibrated,azimuth=azimuth,
         caution='Ideal synthetic integration fixture; cannot establish field accuracy.'),indent=2)+'\n',encoding='utf-8')
     return project

@@ -46,7 +46,7 @@ class ProcessingDialog(QDialog):
         self.frame=combo({'':'Select documented ECEF frame','EPSG:4978':'WGS84 ECEF — no realisation/epoch transform','EPSG:4936':'ETRS89 ECEF — requires independent evidence'})
         form.addWidget(QLabel('Declared frame'),6,0);form.addWidget(self.frame,6,1,1,4)
         self.frequency=combo({1:'First frequency slot',2:'Two frequency slots'},2)
-        self.atmosphere=combo({'broadcast/saas':'Broadcast ionosphere / Saastamoinen','ideal-synthetic':'SYNTHETIC ONLY — no atmosphere'})
+        self.atmosphere=combo({'broadcast/saas':'Broadcast ionosphere / Saastamoinen',p.STATIC_ATMOSPHERE:'EXPERIMENTAL Static GPS L1/L2 — estimate ionosphere / wet delay','ideal-synthetic':'SYNTHETIC ONLY — no atmosphere'})
         form.addWidget(self.frequency,7,0,1,2);form.addWidget(self.atmosphere,7,2,1,3)
         self.elevation=QDoubleSpinBox();self.elevation.setRange(10,45);self.elevation.setValue(15)
         self.ratio=QDoubleSpinBox();self.ratio.setRange(3,10);self.ratio.setValue(3)
@@ -130,7 +130,7 @@ class ProcessingDialog(QDialog):
         self.populate()
 
     def populate(self):
-        self.reference_help.setText('Network coordinate epoch: '+(self.project['epoch'] or 'MISSING')+'. Fixed base uncertainty is excluded. Header H/E/N is applied separately from ANTEX. Tides and satellite calibration are excluded. Frame selection is a declaration, never a transformation. Keep originals and this local result folder together.')
+        self.reference_help.setText('Network coordinate epoch: '+(self.project['epoch'] or 'MISSING')+'. Fixed base uncertainty is excluded. Header H/E/N is separate from ANTEX; no frame/epoch transformation. Use simultaneous base/rover OBS and NAV. Own bases/BKG RINEX fit the existing import. Caster data need recorded raw observations converted to RINEX, station/coordinate continuity and documented frame/epoch. Onocoy roaming can change the reference station; a caster is not a VRS generator. Compact Hatanaka data must first be expanded. No credentials, live streams, downloads or precise SP3/CLK products are processed by this dialog.')
         for combo_,role in ((self.base,'BASE'),(self.rover,'ROVER'),(self.navigation,'NAV')):
             combo_.clear();combo_.addItem('Select existing '+role+' source','')
             for source in self.project.get('raw_sources',[]):
@@ -162,6 +162,8 @@ class ProcessingDialog(QDialog):
         self.result=self.source=None;self.layers={};self.canvas.setLayers([]);self.canvas.hide();self.canvas.refresh()
         self.report.clear();self.table.setRowCount(0);self.handoff.setEnabled(False);self.open_button.setEnabled(False)
         self.status.setText('Settings changed. A new checked processing job is required.')
+        if self.atmosphere.currentData()==p.STATIC_ATMOSPHERE:
+            self.report.setHtml('<h3>Experimental stationary atmosphere estimation</h3><p>Initial profile: upstream EX, Static, GPS L1/L2. It estimates baseline-scaled ionosphere and receiver zenith wet-delay states. Every solution epoch must have matching engine states and two-frequency GPS residuals.</p><p>The example button creates an invented ~60 km / 1 hour data set with analytic atmosphere. This is a software test, not field accuracy. Broadcast orbits remain selected; precise products, PPP and network VRS generation are not implemented.</p><p>Reference data: reuse the existing raw import for base OBS, rover OBS and NAV. Document the actual station, frame/realisation, coordinate epoch, antenna/ARP and station continuity. A supplied virtual station is not a physical antenna; do not invent its antenna correction.</p><p><a href="https://igs.bkg.bund.de/holdings">BKG data/products</a> · <a href="https://docs.onocoy.com/documentation/service-levels">Onocoy source/roaming guidance</a> · <a href="https://docs.emlid.com/emlid-studio/convert-to-rinex-workflow/">Emlid raw-to-RINEX conversion</a></p>')
 
     def choose_engine(self):
         path,_=QFileDialog.getOpenFileName(self,'Choose reviewed executable for the selected engine profile','','RTKLIB (rnx2rtkp.exe)')
@@ -209,16 +211,19 @@ class ProcessingDialog(QDialog):
         if not self.owner.maybe_leave():return False
         systems=tuple(s for s,field in self.systems.items() if field.isChecked());calibrated=self.calibration.currentData()=='antex'
         azimuth=self.engine_variant.currentData()=='survey-sa2'
+        long_static=self.atmosphere.currentData()==p.STATIC_ATMOSPHERE
+        if long_static and (self.mode.currentData()!='static' or systems!=('G',) or calibrated or self.frequency.currentData()!=2 or self.engine_variant.currentData()!='upstream'):
+            self.status.setText('This constructed long-static example requires upstream EX, Static, GPS only, two frequency slots and explicit uncalibrated input. Real GPS ANTEX jobs can be reviewed separately.');return False
         if (calibrated and systems!=('G',) or 'R' in systems) and self.engine_variant.currentData() not in ('survey-sa1','survey-sa2'):
             self.status.setText('Select Survey SA1 for GLONASS or mixed-system ANTEX examples. Upstream EX retains its GPS-only calibration contract.');return False
         parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW constructed GNSS example')
         if not parent:return False
         try:
             folder=Path(parent)/('Synthetic_GNSS_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
-            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic',systems=systems,calibrated=calibrated,azimuth=azimuth)
+            self.project=demo.create(folder,moving=self.mode.currentData()=='kinematic',systems=systems,calibrated=calibrated,azimuth=azimuth,long_static=long_static)
             self.owner.replace_project(self.project,folder/'example.sanet.json');self.populate()
             self.base_xyz.setText(' '.join(f'{v:.8f}' for v in demo.BASE));self.frame.setCurrentIndex(self.frame.findData('EPSG:4978'))
-            self.atmosphere.setCurrentIndex(self.atmosphere.findData('ideal-synthetic'))
+            self.atmosphere.setCurrentIndex(self.atmosphere.findData(p.STATIC_ATMOSPHERE if long_static else 'ideal-synthetic'))
             self.antenna_note.setText('SYNTHETIC marker endpoints; base/rover H=1/2 m; invented PCO and NOAZI PCV.' if calibrated else 'SYNTHETIC electrical endpoints; zero H/E/N and antenna patterns.')
             self.antex.setText(str(folder/'synthetic.atx') if calibrated else '')
             self.calibration_note.setText('Own invented ANTEX models, no real receiver calibration. Constructed north-oriented antenna offsets for this integration test.' if calibrated else '')
@@ -227,7 +232,7 @@ class ProcessingDialog(QDialog):
                 self.base_heading.setText('0');self.rover_heading.setText('37');self.orientation_review.setChecked(False)
                 self.antenna_note.setText('SYNTHETIC level antennas: base NRP 0°, rover NRP 37° clockwise from true north; marker-to-ARP H=1/2 m.')
                 self.calibration_note.setText('Own invented DAZI=5 grids and exact per-system bands. No actual RS4 Pro calibration or field validation.')
-            self.model_note.setText('SYNTHETIC circular '+''.join(systems)+' orbits, ideal signals, no atmosphere; WGS84 ellipsoid test coordinates only. Not field accuracy.')
+            self.model_note.setText('SYNTHETIC ~60 km / 1 hour stationary GPS, constructed dispersive ionosphere and simple mapped dry/wet delay. Broadcast ideal circular orbits; not real 30–100 km accuracy validation.' if long_static else 'SYNTHETIC circular '+''.join(systems)+' orbits, ideal signals, no atmosphere; WGS84 ellipsoid test coordinates only. Not field accuracy.')
             for field in (self.base_review,self.antenna_review,self.model_review,self.license_review):field.setChecked(False)
             self.status.setText('Constructed example created in the existing network. Review fields and confirmations before running. Original user project was not overwritten.')
             return True
@@ -312,6 +317,9 @@ class ProcessingDialog(QDialog):
                 audit+=self.calibration_html(calibration)
             if self.result.get('signal_plan'):
                 audit+='<p>Actual signals: '+esc(json.dumps(self.result['signal_plan']))+'; antenna NRP azimuths: '+esc(json.dumps(self.result['antenna_azimuth_deg']))+'°.</p>'
+            if self.result.get('atmosphere_audit'):
+                state=self.result['atmosphere_audit'];length=self.result['computed_baseline_length_m']['last']/1000
+                audit+='<h3>Experimental static atmosphere audit</h3><p>Computed baseline: '+f'{length:.3f}'+' km. '+str(state['epochs'])+' solution epochs with matching state/residual evidence; '+str(state['ionosphere_records'])+' ionosphere and '+str(state['wet_delay_records'])+' wet-delay records. See atmosphere_states.csv and the unchanged engine status file.</p><p>'+esc(state['note'])+'</p>'
             self.report.setHtml('<h3>'+esc(self.result['engine_version'])+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
             self.open_button.setEnabled(True);self.handoff.setEnabled(self.result['eligible_fix']>0)
             self.status.setText('Engine completed: '+str(self.result['epochs'])+' epochs; '+str(self.result['eligible_fix'])+' eligible FIX. Input/output integrity checked; review limitations. No baseline added.')

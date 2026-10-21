@@ -1,4 +1,57 @@
-PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.15.0
+PPK / STATIC GNSS — SURVEY ADJUSTMENT 0.16.0
+
+EXPERIMENTAL STATIC ATMOSPHERE PROFILE - NEW IN 0.16.0
+The user's main target is stationary 30-100 km baselines with own bases, Onocoy,
+Emlid Caster and BKG data. Tilt/3D development has stopped; existing supplements
+remain readable. No unpublished dynamic-antenna draft is part of this release.
+
+In the EXISTING processing dialog choose:
+- Engine: upstream EX 2.5.1 (same reviewed executable/hash, BSD-2-Clause).
+- Mode: Static relative, GPS only, two frequency slots (L1/L2).
+- Atmosphere: EXPERIMENTAL Static GPS L1/L2 - estimate ionosphere / wet delay.
+Use existing base/rover OBS and NAV links and review every existing confirmation.
+GPS receiver ANTEX still follows the unchanged exact DAZI=0 selection contract;
+azimuth grids must not be silently reduced. No invented receiver pattern.
+
+Configuration explicitly selects est-stec and est-ztd. In the pinned relative
+engine, $TROP records contain receiver zenith WET-delay states; the label est-ztd
+does not make those values independent total-zenith-delay measurements. The dry
+delay and Niell mapping are supplied by the engine. Ionosphere is represented
+by baseline-scaled L1 states. Explicit stochastic parameters are stdiono=0.03,
+stdtrop=0.3, prniono=0.001, prntrop=0.0001 in the pinned engine's conventions;
+ionosphere prior/process noise scale with baseline/10 km and process noise with
+elapsed time (and elevation for ionosphere). These assumptions are NOT accuracy
+estimates, externally measured atmosphere or universal settings for all surveys.
+
+Every accepted solution epoch must have matching $ION and $TROP state records,
+both receiver wet-delay records (1 rover, 2 base), and used GPS residuals in BOTH
+frequency slots for a satellite with an ionosphere state. Bad/duplicate/nonfinite
+or unmatched state epochs fail. This is engine application evidence, not an
+independent numerical validation of all model derivatives or atmosphere truth.
+The full original status/residual file is retained. atmosphere_states.csv exposes
+floating/fixed state values and Q without treating them as observation covariance.
+CSV is recalculated on readback, including after a rehashed CSV is altered.
+The v5 provenance explicitly records this atmosphere model; older v1-v4 jobs
+remain readable. Existing uncertainty and duplicate-occupation safeguards remain.
+
+RINEX events declaring moving/new site or header changes block this profile.
+That does not detect station changes lost by a converter: review original RTCM,
+station IDs, mountpoints, conversions and coordinate continuity yourself. Do not
+merge observations from changing references into one stationary physical base.
+
+The example button reuses the SAME generator/import to create a NEW stationary
+GPS network: 60.637 km, 1 hour, 30 s sampling, 121 epochs, zero antenna patterns,
+invented circular orbits and first-order dispersive ionosphere. Dry/wet delay uses
+an independently written simple 1/sin(elevation) mapping, not the engine's Niell
+mapping. It is a constructed software experiment with known coordinates, not a
+field benchmark, real space-weather test or full long-baseline error budget.
+
+Remaining limits: broadcast orbits/clocks; no precise SP3/CLK, satellite ANTEX,
+tides/ocean loading, PPP, frame/coordinate-epoch transformation, network VRS
+synthesis, automatic reference downloads or live caster recording. Real 30-100 km
+results require independent checks, appropriate observation duration, receiver/
+antenna/reference metadata and validation beyond this constructed example.
+See GNSS_SOLUTIONS_AND_VRS.txt for current reference-service distinctions.
 
 0.15.0 optionally checks recorded RINEX/ETC epoch coverage using the existing
 rover link and source audit; no guessed time shift or dynamic-raw approval.
@@ -75,7 +128,7 @@ broadcast ephemerides, elevation mask 10-45 deg and fixed AR ratio 3-10.
 No fix-and-hold, moving-base, single-point/PPP modes or automatic base averaging.
 Observation sources must declare GPS time and the same documented GPS-minus-UTC
 offset; source times are not rewritten. Broadcast/Saastamoinen atmosphere for
-real sources. Atmosphere-off is allowed only for explicit synthetic projects.
+legacy real-data profiles; the separate v5 static atmosphere choice is above. Atmosphere-off is allowed only for explicit synthetic projects.
 Header H/E/N offsets applied. Optional GPS receiver PCO/PCV as described below.
 No satellite antenna calibration, tide correction, precise products, frame/epoch
 shift or network RTK/VRS. BeiDou ambiguity fixing is off; float contribution is
@@ -195,3 +248,8 @@ The software is provided "AS IS", without warranty. Disclaimers and limitations
 of liability apply only to the extent permitted by GPLv3 sections 15-17 and
 applicable law. This does not exclude statutory liability that cannot lawfully
 be excluded. See LICENSE. No fitness, field accuracy or delivery approval.
+
+STATIC PROFILE PRIMARY REFERENCES (checked 2026-10-21)
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/options.c
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/rtkpos.c
+https://www.rtklib.com/prog/manual_2.4.2.pdf

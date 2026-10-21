@@ -22,6 +22,67 @@ def handoff(project):
         stationary_confirmed=True,occupation_note='Constructed stationary ten minute occupation; final fixed filter state, not an averaged result.')
 
 
+class StaticAtmosphereTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)
+        self.project=d.create(self.root/'example',long_static=True);self.opts=options(self.project,atmosphere=p.STATIC_ATMOSPHERE)
+    def tearDown(self):self.tmp.cleanup()
+    def stat_example(self):
+        return '\n'.join(('$ION,2441,28818.000,1,G02,90,45,1.2,1.3',
+            '$TROP,2441,28818.000,1,1,0.14,0.15','$TROP,2441,28818.000,1,2,0.11,0.12',
+            '$SAT,2441,28818.000,G02,1,90,45,0.01,0.02,1',
+            '$SAT,2441,28818.000,G02,2,90,45,0.01,0.02,1'))+'\n'
+    def test_static_dual_gps_profile_rejects_unsupported_modes_and_models(self):
+        for change in (dict(mode='kinematic'),dict(frequencies=1),dict(systems=('G','E')),dict(engine_variant='survey-sa1')):
+            with self.subTest(change=change),self.assertRaisesRegex(ValueError,'initial estimated-atmosphere'):p.validate(self.project,replace(self.opts,**change))
+        conf=p.configuration(self.opts,*self.project['raw_sources'][:2]);self.assertIn('pos1-ionoopt=est-stec\n',conf);self.assertIn('pos1-tropopt=est-ztd\n',conf)
+        self.assertIn('stats-prniono=0.001\n',conf);self.assertIn('pos1-sateph=brdc\n',conf)
+        with self.assertRaisesRegex(ValueError,'stationary GPS'):d.create(self.root/'unsupported',long_static=True,moving=True)
+    def test_static_station_or_header_changes_are_not_silently_merged(self):
+        for role in ('BASE','ROVER'):
+            for flag in ('2','3','4'):
+                project=deepcopy(self.project);source=next(s for s in project['raw_sources'] if s['role']==role);source['metadata']['events'][flag]=1
+                with self.subTest(role=role,flag=flag),self.assertRaisesRegex(ValueError,'Split and review'):p.validate(project,self.opts,preflight=False)
+    def test_exact_epoch_state_audit_retains_float_fixed_and_wet_semantics(self):
+        result=p.static_atmosphere_audit(self.stat_example(),[dict(time='2026-10-18T08:00:18',quality='1')])
+        self.assertEqual(result['epochs'],1);self.assertEqual(result['wet_delay_records'],2);self.assertEqual(result['ionosphere_records'],1)
+        self.assertEqual(result['rows'][0]['float_m'],1.2);self.assertEqual(result['rows'][0]['fixed_m'],1.3)
+        self.assertIn('not total zenith',result['note']);self.assertIn('not independent',p._atmosphere_csv(result).decode())
+    def test_missing_duplicate_nan_wrong_time_quality_or_frequency_state_is_rejected(self):
+        text=self.stat_example();lines=text.splitlines()
+        cases=[text.replace(lines[0]+'\n',''),text.replace(lines[2]+'\n',''),text.replace(lines[-1]+'\n',''),text+lines[0]+'\n',
+            text.replace('1.2,1.3','NaN,1.3'),text.replace('28818.000','28818.001',1),text.replace('28818.000,1,G02','28818.000,2,G02'),text.replace('G02,2,','G02,3,')]
+        for index,changed in enumerate(cases):
+            with self.subTest(index=index),self.assertRaises(ValueError):p.static_atmosphere_audit(changed,[dict(time='2026-10-18T08:00:18',quality='1')])
+    @unittest.skipUnless(ENGINE.is_file(),'Reviewed external engine intentionally not bundled')
+    def test_actual_60km_static_atmosphere_states_height_baseline_and_reprocessing_gate(self):
+        original=deepcopy(self.project);result,source=p.run(self.root/'estimated',self.project,self.opts,ENGINE)
+        final=source['rows'][-1];self.assertTrue(final['eligible']);self.assertGreater(result['eligible_fix'],0)
+        self.assertLess(math.dist(final['values'],d.long_static_rover()),.05)
+        self.assertGreater(result['computed_baseline_length_m']['last'],60000)
+        self.assertEqual(result['atmosphere_audit']['epochs'],121);self.assertEqual(result['atmosphere_audit']['wet_delay_records'],242)
+        self.assertEqual(len(b.read_source(self.root/'estimated/solution.pos')['rows']),121)
+        with (self.root/'estimated/epochs.csv').open() as handle:rows=list(csv.DictReader(handle))
+        from survey_adjustment.coordinate_job import llh
+        self.assertEqual(float(rows[-1]['h WGS84 ellipsoid m']),llh(final['values'],'EPSG:4979')[2])
+        selected=replace(handoff(self.project),occupation_note='SYNTHETIC one-hour stationary point; final conditional filter state only.')
+        imported=b.plan_import(self.project,source,final['line'],selected)
+        self.assertEqual(imported['observations'][0]['covariance'],final['covariance'])
+        self.assertEqual(imported['imports'][0]['processing']['profile'],p.STATIC_PROFILE)
+        self.assertEqual(imported['imports'][0]['processing']['atmosphere_model'],p.STATIC_ATMOSPHERE)
+        self.assertEqual(n.loads_project(n.dumps_project(imported)),imported)
+        broadcast,other=p.run(self.root/'broadcast',self.project,replace(self.opts,atmosphere='broadcast/saas'),ENGINE)
+        self.assertGreater(math.dist(other['rows'][-1]['values'],d.long_static_rover()),.2)
+        with self.assertRaisesRegex(ValueError,'already imported'):p.validate_handoff(imported,other,selected)
+        self.assertEqual(original,self.project)
+    @unittest.skipUnless(ENGINE.is_file(),'Reviewed external engine intentionally not bundled')
+    def test_rehashed_atmosphere_table_cannot_override_original_engine_states(self):
+        folder=self.root/'estimated';p.run(folder,self.project,self.opts,ENGINE)
+        path=folder/'atmosphere_states.csv';path.write_bytes(path.read_bytes().replace(b'0.1496',b'9.1496',1))
+        manifest=p.load_manifest(folder);manifest['outputs'][path.name]=p.engine.sha256(path);p._write(folder,manifest)
+        with self.assertRaisesRegex(ValueError,'recalculated engine'):b.read_source(folder/'solution.pos')
+
+
 class ProcessingTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)

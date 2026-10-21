@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.15.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.16.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-21
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,23 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.15.0
+WHAT CHANGED IN 0.16.0
+The existing PPK/static dialog adds an EXPERIMENTAL stationary GPS L1/L2 profile
+with estimated ionosphere and receiver zenith wet-delay states. It reuses the
+separate pinned EX 2.5.1 engine, raw import, queue, PointZ report and baseline gate.
+An exact-epoch audit requires engine atmosphere states and two-frequency GPS
+residuals at every solution epoch. The new atmosphere_states.csv is retained
+locally and recalculated on readback. Original covariance/height are preserved.
+A constructed ~60.6 km / 1 hour example has invented dispersive ionosphere and
+simple dry/wet delay. This tests software; it is not real 30-100 km validation.
+Broadcast orbits remain selected. Precise SP3/CLK products, PPP, caster recording,
+automatic Hatanaka conversion and network VRS synthesis are not implemented.
+Reference guidance covers own bases, BKG, Emlid Caster and Onocoy. Station changes,
+actual reference frame/realisation/epoch and antenna endpoints require review.
+Tilt/3D development was stopped at the user's request; no new tilt code is included.
+See PPK_STATIC.txt and GNSS_SOLUTIONS_AND_VRS.txt (docs/ in source).
+
+FEATURES FROM 0.15.0
 ETC review can optionally reuse an EXISTING rover RINEX link for exact recorded
 epoch coverage. The shared RINEX source audit rechecks bytes/metadata/session and
 the documented source-minus-UTC offset. A table/report exposes missing ETC, bad

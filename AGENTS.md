@@ -1,5 +1,15 @@
 # Survey Adjustment
 
+User direction 2026-10-21: STOP tilt/3D development. Main scope is stationary
+30-100 km GNSS, reference data from own bases/Onocoy/Emlid Caster/BKG, and VRS
+research. Do not resume the saved private dynamic-antenna draft without an explicit
+request. 0.16.0 adds an experimental upstream GPS L1/L2 static atmosphere v5
+profile, reusing the same engine/import/queue. Preserve explicit model provenance,
+every epoch's matched ION/TROP/two-frequency residual evidence and recalculated
+atmosphere CSV. Wet delay is not total delay or accuracy. Do not claim precise
+products, Hatanaka conversion, downloads, caster recording or VRS synthesis.
+Only declared station-change events can be detected; conversions may lose them.
+
 Keep this plugin independent of SOSI Survey. Package name: survey_adjustment.
 Use QGIS 4 / Qt6 APIs. The SALSA engine runs as a separate program.
 
