@@ -13,7 +13,7 @@ from qgis.PyQt.QtWidgets import (QDialog,QWidget,QVBoxLayout,QHBoxLayout,QFormLa
     QTableWidget,QTableWidgetItem,QAbstractItemView,QHeaderView,QFileDialog,QDialogButtonBox,QScrollArea)
 from qgis.core import QgsCoordinateReferenceSystem,QgsGeometry,QgsPoint,QgsMarkerSymbol
 from qgis.gui import QgsMapCanvas
-from . import gnss_processing as p,gnss_demo as demo,network as n,engine
+from . import gnss_processing as p,gnss_demo as demo,network as n,engine,delivery
 from .network_ui import combo
 from .coordinate_job import llh
 from .layers import make_layer
@@ -43,7 +43,7 @@ class ProcessingDialog(QDialog):
             form.addWidget(QLabel(label),row,0);form.addWidget(field,row,1,1,4)
         self.base_xyz=QLineEdit();self.base_xyz.setPlaceholderText('Documented fixed base X Y Z, metres. Never taken automatically from approximate header XYZ.')
         form.addWidget(QLabel('Fixed base ECEF XYZ'),5,0);form.addWidget(self.base_xyz,5,1,1,4)
-        self.frame=combo({'':'Select documented ECEF frame','EPSG:4978':'WGS84 ECEF — no realisation/epoch transform','EPSG:4936':'ETRS89 ECEF — requires independent evidence'})
+        self.frame=combo({'':'Select documented ECEF frame','EPSG:4978':'WGS84 ECEF — no realisation/epoch transform','EPSG:4936':'ETRS89 ECEF — requires independent evidence','EPSG:9988':'ITRF2020 ECEF — document realisation and coordinate epoch'})
         form.addWidget(QLabel('Declared frame'),6,0);form.addWidget(self.frame,6,1,1,4)
         self.frequency=combo({1:'First frequency slot',2:'Two frequency slots'},2)
         self.atmosphere=combo({'broadcast/saas':'Broadcast ionosphere / Saastamoinen',p.STATIC_ATMOSPHERE:'EXPERIMENTAL Static GPS L1/L2 — estimate ionosphere / wet delay','ideal-synthetic':'SYNTHETIC ONLY — no atmosphere'})
@@ -110,13 +110,15 @@ class ProcessingDialog(QDialog):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.views.addTab(self.table,'Solution epochs')
         map_page=QWidget();map_box=QVBoxLayout(map_page)
-        hint=QLabel('Engine positions on WGS84 ellipsoid for display. PointZ preserves ellipsoidal height; ECEF Z is separate. No national reference/height approval. Click a marker to select its original epoch.')
+        hint=QLabel('Engine positions on their declared output frame/ellipsoid for display. PointZ preserves ellipsoidal height; ECEF Z is separate. No national reference/height approval. Click a marker to select its original epoch.')
         hint.setWordWrap(True);map_box.addWidget(hint)
         self.canvas=QgsMapCanvas();self.canvas.setDestinationCrs(QgsCoordinateReferenceSystem('EPSG:4979'));self.canvas.setCanvasColor(QColor('#f4f6f8'));map_box.addWidget(self.canvas)
         self.inspect=InspectTool(self.canvas,self,keys=['points'],kinds={'points':'processing_epoch'});self.inspect.picked.connect(self.select_record);self.canvas.setMapTool(self.inspect)
         self.views.addTab(map_page,'Computed positions')
         self.message=self.status
         self.handoff=QPushButton('Review solution through existing baseline import …');self.handoff.setEnabled(False);self.handoff.clicked.connect(self.review_baseline);layout.addWidget(self.handoff)
+        self.compare_button=QPushButton('Compare selected ITRF2020 epoch with known EUREF89 point …');self.compare_button.setEnabled(False)
+        self.compare_button.clicked.connect(self.compare_reference);layout.addWidget(self.compare_button)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.stop)
         for field in (self.executable,self.base_xyz,self.antenna_note,self.model_note,self.antex,self.calibration_note,self.base_heading,self.rover_heading):field.textChanged.connect(self.invalidate)
@@ -161,6 +163,7 @@ class ProcessingDialog(QDialog):
         if self.preparing or (self.process and self.process.state()!=QProcess.ProcessState.NotRunning):self.stop()
         self.result=self.source=None;self.layers={};self.canvas.setLayers([]);self.canvas.hide();self.canvas.refresh()
         self.report.clear();self.table.setRowCount(0);self.handoff.setEnabled(False);self.open_button.setEnabled(False)
+        self.compare_button.setEnabled(False)
         self.status.setText('Settings changed. A new checked processing job is required.')
         if self.atmosphere.currentData()==p.STATIC_ATMOSPHERE:
             self.report.setHtml('<h3>Experimental stationary atmosphere estimation</h3><p>Initial profile: upstream EX, Static, GPS L1/L2. It estimates baseline-scaled ionosphere and receiver zenith wet-delay states. Every solution epoch must have matching engine states and two-frequency GPS residuals.</p><p>The example button creates an invented ~60 km / 1 hour data set with analytic atmosphere. This is a software test, not field accuracy. Broadcast orbits remain selected; precise products, PPP and network VRS generation are not implemented.</p><p>Reference data: reuse the existing raw import for base OBS, rover OBS and NAV. Document the actual station, frame/realisation, coordinate epoch, antenna/ARP and station continuity. A supplied virtual station is not a physical antenna; do not invent its antenna correction.</p><p><a href="https://igs.bkg.bund.de/holdings">BKG data/products</a> · <a href="https://docs.onocoy.com/documentation/service-levels">Onocoy source/roaming guidance</a> · <a href="https://docs.emlid.com/emlid-studio/convert-to-rinex-workflow/">Emlid raw-to-RINEX conversion</a></p>')
@@ -302,13 +305,14 @@ class ProcessingDialog(QDialog):
             for index,row in enumerate(self.source['rows']):
                 values=[row['line'],row['time'],*row['values'],row['quality'],'FIX eligible' if row['eligible'] else row['reason']]
                 for column,value in enumerate(values):self.table.setItem(index,column,QTableWidgetItem(str(value)))
-                lat,lon,height=llh(row['values'],'EPSG:4979')
+                geographic='EPSG:9989' if self.submitted['frame']=='EPSG:9988' else 'EPSG:4979'
+                lat,lon,height=llh(row['values'],geographic)
                 rows.append(([str(row['line']),row['time'],row['quality'],*row['values']],QgsGeometry(QgsPoint(lon,lat,height))))
-            layer=make_layer('PointZ','Computed '+self.result['mode']+' GNSS positions','EPSG:4979',
+            layer=make_layer('PointZ','Computed '+self.result['mode']+' GNSS positions',geographic,
                 [('record_id',QMetaType.Type.QString),('time_gpst',QMetaType.Type.QString),('quality',QMetaType.Type.QString),
                  ('ecef_x',QMetaType.Type.Double),('ecef_y',QMetaType.Type.Double),('ecef_z',QMetaType.Type.Double)],rows)
             layer.renderer().setSymbol(QgsMarkerSymbol.createSimple({'name':'circle','color':'#177e89','size':'2'}))
-            self.layers={'points':layer};self.canvas.setLayers([layer]);self.canvas.setExtent(layer.extent().buffered(.0001));self.canvas.show();self.canvas.refresh()
+            self.layers={'points':layer};self.canvas.setDestinationCrs(QgsCoordinateReferenceSystem(geographic));self.canvas.setLayers([layer]);self.canvas.setExtent(layer.extent().buffered(.0001));self.canvas.show();self.canvas.refresh()
             esc=lambda value:html.escape(str(value))
             used=self.result.get('used_satellites',{});calibration=self.result.get('calibration')
             audit='<p>Valid engine residuals: '+esc('; '.join(s+': '+', '.join(ids) for s,ids in used.items()))+'</p>'
@@ -322,6 +326,7 @@ class ProcessingDialog(QDialog):
                 audit+='<h3>Experimental static atmosphere audit</h3><p>Computed baseline: '+f'{length:.3f}'+' km. '+str(state['epochs'])+' solution epochs with matching state/residual evidence; '+str(state['ionosphere_records'])+' ionosphere and '+str(state['wet_delay_records'])+' wet-delay records. See atmosphere_states.csv and the unchanged engine status file.</p><p>'+esc(state['note'])+'</p>'
             self.report.setHtml('<h3>'+esc(self.result['engine_version'])+' — '+esc(self.result['mode'])+'</h3><p>'+str(self.result['epochs'])+' solution epochs; '+str(self.result['eligible_fix'])+' eligible FIX rows. All quality states retained.</p><p>'+esc(self.folder)+'</p>'+audit+'<ul>'+''.join('<li>'+esc(s)+'</li>' for s in self.result['warnings'])+'</ul><p>Use Solution epochs to inspect results. Review one documented stationary occupation through the existing baseline dialog; the full trajectory is never inserted as independent point measurements.</p>')
             self.open_button.setEnabled(True);self.handoff.setEnabled(self.result['eligible_fix']>0)
+            self.compare_button.setEnabled(self.submitted['frame']=='EPSG:9988')
             self.status.setText('Engine completed: '+str(self.result['epochs'])+' epochs; '+str(self.result['eligible_fix'])+' eligible FIX. Input/output integrity checked; review limitations. No baseline added.')
         except (ValueError,OSError) as error:
             self.result=self.source=None;self.handoff.setEnabled(False)
@@ -349,11 +354,64 @@ class ProcessingDialog(QDialog):
             self.status.setText('One reviewed baseline added through the existing import/audit. Save the network explicitly. Other epochs remain in the local processing result.')
         return success
 
+    def compare_reference(self):
+        try:
+            if not self.result or self.table.currentRow()<0:raise ValueError('Select one completed solution epoch first; float and fixed remain explicitly labelled.')
+            if self.project!=self.owner.snapshot():raise ValueError('Network changed; reopen/recalculate the checked snapshot.')
+            source=p.source_for_import(self.folder/'solution.pos')
+            if source['processing']['frame']!='EPSG:9988':raise ValueError('This comparison requires explicitly documented ITRF2020 processing.')
+            row=source['rows'][self.table.currentRow()]
+            point=next(point for point in self.project['points'] if point['id']==source['processing']['rover'])
+            if point['role']!='CHECK' or point['coordinates'] is None:raise ValueError('The existing rover point must contain a known coordinate and be Check only; it stays outside the fit.')
+            dialog=QDialog(self);dialog.setWindowTitle('Review national reference comparison');dialog.resize(780,420)
+            box=QVBoxLayout(dialog);form=QFormLayout();box.addLayout(form)
+            form.addRow('Known point',QLabel(point['id']+' / '+str(point['coordinates'])+' / '+self.project['crs']))
+            form.addRow('Selected solution',QLabel(row['time']+' GPST; Q='+row['quality']+' (1 FIX, 2 float)'))
+            dialog.epoch=QLineEdit();dialog.epoch.setPlaceholderText('Actual coordinate epoch of fixed global base, decimal year. Not the EUREF89 reference epoch.')
+            form.addRow('Global coordinate epoch',dialog.epoch)
+            dialog.height=combo({'':'Select documented known-point height','ELLIP':'EUREF89 ellipsoidal height','NN2000:2018':'NN2000 with HREF2018B','NN2000:2025':'NN2000 with HREF2025A'})
+            form.addRow('Known-point height reference',dialog.height)
+            from pyproj import datadir
+            model_root=Path(datadir.get_data_dir())
+            dialog.href=QLineEdit();dialog.href.setPlaceholderText('Reviewed local HREF GeoTIFF if the known point uses NN2000')
+            choose=QPushButton('Choose HREF GeoTIFF …')
+            def select_model():
+                path,_=QFileDialog.getOpenFileName(dialog,'Choose reviewed HREF model','','GeoTIFF (*.tif)')
+                if path:dialog.href.setText(path)
+            choose.clicked.connect(select_model);form.addRow(dialog.href,choose)
+            text=QLabel('Transforms ITRF2020 to national EUREF89 using pinned local NKG grids, then the existing projection/HREF operation. Document IGc20 alignment, antenna approximations, base uncertainty and control provenance in the processing notes. Original engine coordinates/covariance stay unchanged. This is a held-out difference, not survey approval.')
+            text.setWordWrap(True);box.addWidget(text)
+            dialog.reviewed=QCheckBox('I verified national EUREF89, actual coordinate epoch, height version and the processing/control assumptions')
+            box.addWidget(dialog.reviewed)
+            buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
+            buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);box.addWidget(buttons)
+            if dialog.exec()!=QDialog.DialogCode.Accepted:return False
+            if not dialog.reviewed.isChecked():raise ValueError('Review the national reference, epoch and uncertainty assumptions explicitly.')
+            height=dialog.height.currentData();paths={height:dialog.href.text().strip()} if height in delivery.MODELS else {}
+            if (self.project['height_datum']=='NN2000' and height not in delivery.MODELS) or (self.project['height_datum']=='ELLIP' and height!='ELLIP') or self.project['height_datum'] not in ('NN2000','ELLIP'):
+                raise ValueError('Comparison height reference must agree with the known-point network height declaration.')
+            result=delivery.compare_itrf2020_point(row['values'],point['coordinates'],self.project['crs'],height,float(dialog.epoch.text()),
+                {name:model_root/name for name in delivery.GlobalReferenceOperation.GRIDS},paths)
+            result.update(source_job_id=source['processing']['job_id'],source_pos_sha256=engine.sha256(self.folder/'solution.pos'),source_line=row['line'],
+                time_gpst=row['time'],quality=row['quality'],eligible_fix=row['eligible'],known_point_id=point['id'],control_notes=point['notes'],
+                raw_processing_model_note=source['processing']['model_note'],raw_antenna_note=source['processing']['antenna_note'],known_point_used_to_fit=False)
+            output=self.folder/'reference_comparisons';output.mkdir(exist_ok=True)
+            path=output/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'_line'+str(row['line'])+'.json')
+            with path.open('x',encoding='utf-8') as handle:json.dump(result,handle,indent=2,ensure_ascii=False,allow_nan=False)
+            self.last_comparison=result;self.last_comparison_path=path
+            cells=''.join('<tr><td>'+label+'</td><td>'+f'{known:.6f}'+'</td><td>'+f'{computed:.6f}'+'</td><td>'+f'{delta:+.6f}'+'</td></tr>' for label,known,computed,delta in zip(('Easting','Northing','Height'),result['known'],result['computed'],result['delta']))
+            self.report.append('<h3>Known-point comparison — '+html.escape(point['id'])+'</h3><p>'+html.escape(row['time'])+' GPST; Q='+row['quality']+'; '+html.escape(height)+'. National EUREF89 after explicit ITRF2020 transformation.</p><table border="1" cellpadding="4"><tr><th>Metres</th><th>Known</th><th>Computed</th><th>Computed − known</th></tr>'+cells+'</table><p>Control held out. '+html.escape(result['uncertainty'])+'</p><p>'+html.escape(str(path))+'</p>')
+            self.views.setCurrentWidget(self.report);self.report.moveCursor(self.report.textCursor().MoveOperation.End)
+            self.status.setText('Selected epoch compared with the held-out known point. Q='+row['quality']+'. Original GNSS solution unchanged; separate comparison saved.')
+            return True
+        except (ValueError,OSError,KeyError,StopIteration) as error:
+            self.status.setText('Cannot compare reference: '+str(error));return False
+
     def open_folder(self):
         if self.result and self.folder:QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.folder)))
 
     def stop(self):
-        self.aborted=True;self.result=self.source=None;self.handoff.setEnabled(False);self.open_button.setEnabled(False)
+        self.aborted=True;self.result=self.source=None;self.handoff.setEnabled(False);self.open_button.setEnabled(False);self.compare_button.setEnabled(False)
         if self.preparing:self.owner.raw_panel.cancel()
         if self.process and self.process.state()!=QProcess.ProcessState.NotRunning:self.process.kill();self.process.waitForFinished(1500)
         if self.folder:

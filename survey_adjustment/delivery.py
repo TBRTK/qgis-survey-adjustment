@@ -235,6 +235,76 @@ class CoordinateOperation:
                     height_steps=self.steps,epoch_operation='NONE - coordinate epoch retained',fallback='NONE')
 
 
+class GlobalReferenceOperation:
+    """Explicit ITRF2020 ECEF -> national EUREF89, separate from projection/HREF.
+
+    EPSG operation ITRF2020 to ETRS89-NOR [EUREF89] (1), reviewed in PROJ 9.8.
+    IGc20 requires external evidence of its published zero alignment to ITRF2020.
+    Caller supplies an actual decimal coordinate epoch, not the output datum's
+    reference epoch. No network, operation selection or missing-grid fallback.
+    Original GNSS covariance is not transformed or promoted to output accuracy.
+    """
+    GRIDS = {
+        'eur_nkg_nkgrf17vel.tif': '515f68aeb59f659a3f3c340626cd060f58de6f93b4546df67732b906949e0d66',
+        'no_kv_NKGETRF14_EPSG7922_2000.tif': '4f198074a4940171e130edbd7ec59cb1a3ba024c39f18a94404a13f285ef35c6',
+    }
+
+    def __init__(self, paths):
+        from pyproj import Transformer, __version__, proj_version_str
+        self.models=[];resolved={}
+        for name,expected in self.GRIDS.items():
+            if not paths.get(name):raise ValueError('Select the reviewed local reference-frame grid: '+name)
+            path=Path(paths[name]).resolve()
+            if path.is_symlink() or digest(_read(path,4000000))!=expected:
+                raise ValueError('Reference-frame grid differs from the reviewed official model: '+name)
+            value=path.as_posix()
+            if any(char in value for char in ('"','\n','\r')):raise ValueError('Unsupported reference grid path.')
+            resolved[name]=value
+            self.models.append(dict(name=name,sha256=expected,source='https://cdn.proj.org/'+name))
+        velocity=resolved['eur_nkg_nkgrf17vel.tif'];translation=resolved['no_kv_NKGETRF14_EPSG7922_2000.tif']
+        self.pipeline=('proj=pipeline step proj=helmert x=-0.0014 y=-0.0009 z=0.0014 rx=0.00221 ry=0.013806 rz=-0.02002 s=-0.00042 '
+            'dx=0 dy=-0.0001 dz=0.0002 drx=8.5e-05 dry=0.000531 drz=-0.00077 ds=0 t_epoch=2015 convention=position_vector '
+            f'step inv proj=deformation t_epoch=2000 grids="{velocity}" ellps=GRS80 '
+            f'step proj=xyzgridshift grids="{translation}" '
+            f'step proj=deformation dt=-5 grids="{velocity}" ellps=GRS80')
+        self.operation=Transformer.from_pipeline(self.pipeline)
+        self.runtime=dict(pyproj=__version__,proj=proj_version_str)
+
+    def transform(self, values, decimal_year):
+        from .baselines import ecef
+        from .coordinate_job import llh
+        ecef(list(values));n._number(decimal_year,'ITRF2020 coordinate epoch')
+        if not 2000<=decimal_year<=2050:raise ValueError('Document the actual ITRF2020 coordinate epoch (2000-2050).')
+        latitude,longitude,_=llh(values,'EPSG:9989')
+        if not (4<=longitude<=32 and 57<=latitude<=72):raise ValueError('Reference operation is restricted to mainland Norway in this profile.')
+        result=self.operation.transform(*values,decimal_year,errcheck=True)
+        if not all(math.isfinite(value) for value in result) or result[3]!=decimal_year:raise ValueError('Invalid reference-frame operation result.')
+        return list(result[:3])
+
+    def metadata(self):
+        return dict(source='EPSG:9988 / ITRF2020 ECEF; realised-frame alignment must be documented',target='EPSG:10873 / ETRS89-NOR [EUREF89] ECEF',
+            operation='ITRF2020 to ETRS89-NOR [EUREF89] (1)',models=self.models,pipeline=self.pipeline,runtime=self.runtime,
+            covariance='NOT_PROPAGATED; do not report raw GNSS covariance as transformed accuracy',fallback='NONE',
+            source_reference='https://kartverket.github.io/transformasjoner/_pages/epsg_codes')
+
+
+def compare_itrf2020_point(values, known, point_crs, height, decimal_year, grid_paths, href_paths):
+    """Separate held-out coordinate comparison; never modify a GNSS observation."""
+    from .coordinate_job import llh
+    n._numbers(list(known),3,'Known national reference point')
+    if height not in ('ELLIP',*MODELS):raise ValueError('Select the explicit known-point height version.')
+    reference=GlobalReferenceOperation(grid_paths)
+    national=reference.transform(values,decimal_year)
+    latitude,longitude,ellipsoidal=llh(national,'EPSG:4937')
+    operation=CoordinateOperation(point_crs,point_crs,'ELLIP',height,href_paths)
+    east,north=operation.from_geographic.transform(longitude,latitude,errcheck=True)
+    computed,separations=operation.transform([east,north,ellipsoidal]);delta=[a-b for a,b in zip(computed,known)]
+    return dict(source_ecef_itrf2020=list(values),source_coordinate_epoch_decimal_year=decimal_year,national_ecef_euref89=national,
+        computed=computed,known=list(known),delta=delta,horizontal_grid_difference_m=math.hypot(*delta[:2]),point_crs=point_crs,height=height,
+        reference_operation=reference.metadata(),height_operation=operation.metadata(),height_separations_m=separations,
+        uncertainty='NOT_PROPAGATED; coordinate differences only, not a significance test or accuracy approval')
+
+
 def preview(run, review, paths):
     sessions=validate_review(run,review)
     operation=CoordinateOperation(run['project']['crs'],review.target_crs,review.source_height,review.target_height,paths)

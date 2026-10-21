@@ -23,7 +23,7 @@ MAX_SOURCE_BYTES = 20 * 1024 * 1024
 MAX_ROWS = 10000
 CSV_FIELDS = ('baseline_id', 'from_point', 'to_point', 'session', 'dx_m', 'dy_m', 'dz_m',
               'cxx_m2', 'cxy_m2', 'cxz_m2', 'cyy_m2', 'cyz_m2', 'czz_m2', 'status', 'time_utc')
-FRAMES = {'EPSG:4936': 'EPSG:4937', 'EPSG:4978': 'EPSG:4979'}
+FRAMES = {'EPSG:4936': 'EPSG:4937', 'EPSG:4978': 'EPSG:4979', 'EPSG:9988': 'EPSG:9989'}
 LOCKED_FIELDS = ('id', 'kind', 'session', 'from_point', 'to_point', 'values', 'covariance',
                  'frame', 'instrument_height', 'target_height')
 WARNINGS = ('Import only; no network adjustment or quality approval has been performed.',

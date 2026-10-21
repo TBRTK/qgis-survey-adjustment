@@ -197,8 +197,8 @@ def validate_project(project):
         if o['kind'] == 'GNSS_VECTOR':
             _numbers(o['values'], 3, label+' ECEF vector (m)')
             validate_covariance(o['covariance'])
-            if o['frame'] not in ('EPSG:4936', 'EPSG:4978'):
-                raise ValueError(label+': select the documented ECEF vector frame (EPSG:4936 or EPSG:4978).')
+            if o['frame'] not in ('EPSG:4936', 'EPSG:4978', 'EPSG:9988'):
+                raise ValueError(label+': select the documented ECEF vector frame (EPSG:4936, EPSG:4978 or EPSG:9988).')
         else:
             _numbers(o['values'], 1, label+' value (m)', positive=o['kind']=='DISTANCE')
             _numbers(o['covariance'], 1, label+' variance (m²)', positive=True)

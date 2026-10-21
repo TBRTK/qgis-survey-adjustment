@@ -12,6 +12,35 @@ MODEL_ROOT=ROOT/'upstream/reference_models_080'
 PATHS={h:MODEL_ROOT/v[0] for h,v in d.MODELS.items()}
 
 
+class GlobalReferenceTests(unittest.TestCase):
+    def test_missing_or_modified_models_cannot_fall_back(self):
+        with self.assertRaisesRegex(ValueError,'reviewed local'):d.GlobalReferenceOperation({})
+        with tempfile.TemporaryDirectory(dir=ROOT/'test_output') as temporary:
+            path=Path(temporary)/'wrong.tif';path.write_bytes(b'SYNTHETIC invalid grid')
+            with self.assertRaisesRegex(ValueError,'differs'):d.GlobalReferenceOperation({name:path for name in d.GlobalReferenceOperation.GRIDS})
+
+    def test_actual_official_operation_epoch_and_national_realisation(self):
+        from pyproj import datadir
+        from pyproj.transformer import TransformerGroup,AreaOfInterest
+        from survey_adjustment.coordinate_job import xyz
+        import math
+        paths={name:Path(datadir.get_data_dir())/name for name in d.GlobalReferenceOperation.GRIDS}
+        if not all(path.is_file() for path in paths.values()):self.skipTest('Reviewed official reference grids intentionally not bundled')
+        operation=d.GlobalReferenceOperation(paths)
+        # Constructed point only; no actual station/customer coordinate fixture.
+        point=xyz(60.4,5.2,80.,'EPSG:9989')
+        group=TransformerGroup('EPSG:9988','EPSG:10873',always_xy=True,area_of_interest=AreaOfInterest(4,58,6,61),allow_ballpark=False)
+        official=next(item for item in group.transformers if item.description=='ITRF2020 to ETRS89-NOR [EUREF89] (1)')
+        result=operation.transform(point,2026.5)
+        self.assertLess(math.dist(result,official.transform(*point,2026.5,errcheck=True)[:3]),1e-8)
+        self.assertGreater(math.dist(result,point),.2)
+        self.assertGreater(math.dist(result,operation.transform(point,2020.5)),.05)
+        self.assertEqual(operation.metadata()['fallback'],'NONE')
+        self.assertIn('NOT_PROPAGATED',operation.metadata()['covariance'])
+        for epoch in (None,float('nan'),1900.,9999.):
+            with self.subTest(epoch=epoch),self.assertRaises(ValueError):operation.transform(point,epoch)
+
+
 def review(**changes):
     return replace(d.ReferenceReview(source_height='ELLIP',target_height='ELLIP',target_crs='EPSG:25832',
         reviewer='Synthetic test reviewer',recipient='Constructed local test specification',purpose='Synthetic software validation only',

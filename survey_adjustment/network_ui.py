@@ -152,7 +152,7 @@ class RecordEditor(QDialog):
         self.sigmas = self.numeric_row('Observation 1σ (m)', sigmas, ['σ value / σX', 'σY (vector)', 'σZ (vector)'])
         correlations = [None]*3 if self.is_new else [cov[1]/sigmas[0]/sigmas[1], cov[2]/sigmas[0]/sigmas[2], cov[4]/sigmas[1]/sigmas[2]] if vector else [0,0,0]
         self.correlations = self.numeric_row('Vector correlations', correlations, ['ρXY', 'ρXZ', 'ρYZ'])
-        self.frame = combo({'':'Select documented ECEF frame', 'EPSG:4936':'ETRS89 ECEF XYZ (EPSG:4936)', 'EPSG:4978':'WGS84 ECEF XYZ (EPSG:4978)'}, self.original['frame'])
+        self.frame = combo({'':'Select documented ECEF frame', 'EPSG:4936':'ETRS89 ECEF XYZ (EPSG:4936)', 'EPSG:4978':'WGS84 ECEF XYZ (EPSG:4978)', 'EPSG:9988':'ITRF2020 ECEF XYZ (epoch required)'}, self.original['frame'])
         self.form.addRow('Vector reference frame', self.frame)
         self.heights = self.numeric_row('Instrument / target (m)', [self.original['instrument_height'], self.original['target_height']], ['Instrument height (or blank)', 'Target height (or blank)'])
         self.kind.currentIndexChanged.connect(self.observation_controls)

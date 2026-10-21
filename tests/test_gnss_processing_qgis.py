@@ -67,6 +67,26 @@ class ProcessingQgisTests(unittest.TestCase):
         self.dialog.model_note.setText('Changed review');self.assertIsNone(self.dialog.result)
         self.assertFalse(self.dialog.layers);self.assertTrue(self.dialog.canvas.isHidden());self.assertFalse(self.dialog.handoff.isEnabled())
 
+    def test_itrf2020_uses_explicit_frame_in_existing_map_and_import_review(self):
+        point=self.owner.project['points'][1];point.update(role='CHECK',coordinates=[280000.,6700000.,80.],notes='Constructed held-out reference only.')
+        self.dialog.project=self.owner.snapshot()
+        self.dialog.frame.setCurrentIndex(self.dialog.frame.findData('EPSG:9988'));self.start()
+        self.assertEqual(self.dialog.layers['points'].crs().authid(),'EPSG:9989')
+        self.assertEqual(self.dialog.canvas.mapSettings().destinationCrs().authid(),'EPSG:9989')
+        review=BaselineImportDialog(self.dialog,self.owner.snapshot())
+        self.assertGreaterEqual(review.frame.findData('EPSG:9988'),0);review.deleteLater()
+        self.dialog.table.selectRow(self.dialog.table.rowCount()-1)
+        from pyproj import datadir
+        from survey_adjustment import delivery
+        if not all((Path(datadir.get_data_dir())/name).is_file() for name in delivery.GlobalReferenceOperation.GRIDS):return
+        def accept(dialog):
+            dialog.epoch.setText('2026.8');dialog.height.setCurrentIndex(dialog.height.findData('ELLIP'));dialog.reviewed.setChecked(True)
+            return QDialog.DialogCode.Accepted
+        with patch.object(QDialog,'exec',accept):self.assertTrue(self.dialog.compare_reference(),self.dialog.status.text())
+        self.assertFalse(self.dialog.last_comparison['known_point_used_to_fit'])
+        self.assertTrue(self.dialog.last_comparison_path.is_file())
+        self.assertFalse(self.owner.project['observations'])
+
     def test_multisystem_example_reuses_existing_project_and_qprocess_with_used_satellites(self):
         dialog=self.dialog
         for s in ('E','C'):dialog.systems[s].setChecked(True)

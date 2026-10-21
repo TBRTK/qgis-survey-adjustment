@@ -48,6 +48,17 @@ class StaticAtmosphereTests(unittest.TestCase):
         self.assertEqual(result['epochs'],1);self.assertEqual(result['wet_delay_records'],2);self.assertEqual(result['ionosphere_records'],1)
         self.assertEqual(result['rows'][0]['float_m'],1.2);self.assertEqual(result['rows'][0]['fixed_m'],1.3)
         self.assertIn('not total zenith',result['note']);self.assertIn('not independent',p._atmosphere_csv(result).decode())
+
+    def test_clock_model_reconstructs_recorded_epoch_without_changing_original_time(self):
+        raw=r.epoch(['2026','10','18','8','0','18'])
+        text='$CLK,2441,28818.018,2,1,-18000000.000,0.000,0.000,0.000,0.000,0.000\n'
+        rows=[dict(time='2026-10-18T08:00:18.018',quality='2')]
+        audit=p.clock_epoch_audit(text,rows,[[raw,'G01','G01/1C']])
+        self.assertEqual(audit['rows'][0]['raw_tick'],raw)
+        self.assertEqual(audit['rows'][0]['time_gpst'],'2026-10-18T08:00:18.0180000')
+        self.assertEqual(audit['max_abs_clock_bias_s'],.018)
+        for changed in ('',text+text,text.replace('-18000000.000','NaN'),text.replace('-18000000.000','-19000000.000'),text.replace('28818.018,2,','28818.018,1,'),text.replace('-18000000.000','-180000000.000')):
+            with self.subTest(text=changed),self.assertRaises(ValueError):p.clock_epoch_audit(changed,rows,[[raw,'','']])
     def test_missing_duplicate_nan_wrong_time_quality_or_frequency_state_is_rejected(self):
         text=self.stat_example();lines=text.splitlines()
         cases=[text.replace(lines[0]+'\n',''),text.replace(lines[2]+'\n',''),text.replace(lines[-1]+'\n',''),text+lines[0]+'\n',
@@ -88,6 +99,18 @@ class ProcessingTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)
         self.project=d.create(self.root/'example');self.options=options(self.project)
     def tearDown(self):self.tmp.cleanup()
+
+    @unittest.skipUnless(ENGINE.is_file(),'Reviewed external engine intentionally not bundled')
+    def test_explicit_itrf2020_frame_height_export_and_baseline_roundtrip(self):
+        result,source=p.run(self.root/'itrf2020',self.project,replace(self.options,frame='EPSG:9988'),ENGINE)
+        with (self.root/'itrf2020/epochs.csv').open(newline='') as handle:rows=list(csv.DictReader(handle))
+        from survey_adjustment.coordinate_job import llh
+        self.assertEqual(float(rows[-1]['h ITRF2020 / GRS80 m']),llh(source['rows'][-1]['values'],'EPSG:9989')[2])
+        self.assertNotIn('h WGS84 ellipsoid m',rows[-1])
+        self.assertEqual(source['processing']['frame'],'EPSG:9988')
+        imported=b.plan_import(self.project,source,source['rows'][-1]['line'],replace(handoff(self.project),frame='EPSG:9988'))
+        self.assertEqual(imported['observations'][0]['frame'],'EPSG:9988')
+        self.assertEqual(n.loads_project(n.dumps_project(imported)),imported)
 
     def test_constructed_observations_are_separate_from_parser_fixtures(self):
         self.assertEqual(r.inspect_catalogue(self.project)['status'],'RAW_CATALOGUE_CHECKED')

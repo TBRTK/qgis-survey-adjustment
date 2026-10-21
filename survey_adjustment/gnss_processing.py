@@ -29,7 +29,9 @@ AZIMUTH_ENGINE_SHA256='81054215ea966854f79b6ca8ecb802f189eff6e99ee934d65961c3ddd
 AZIMUTH_ENGINE_VERSION='RTKLIB EX 2.5.1-SA2 — experimental azimuth and band selection'
 STATIC_ATMOSPHERE='estimate-iono/wet-delay'
 STATIC_PROFILE='rtklib-ex251-static-atmosphere-v5'
-MODERN_PROFILES=(MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE,STATIC_PROFILE)
+ITRF_PROFILE='rtklib-ex251-itrf2020-static-clock-v6'
+CLOCK_MODEL='pntpos-gps-clock-ms-output-v1'
+MODERN_PROFILES=(MULTI_PROFILE,SYSTEM_PROFILE,AZIMUTH_PROFILE,STATIC_PROFILE,ITRF_PROFILE)
 SYSTEMS={'G':('GPS',1,('1','2')),'E':('Galileo',8,('1','7')),'C':('BeiDou B1I/B2I',32,('2','7')),'R':('GLONASS G1/G2',4,('1','2'))}
 AZIMUTH_SIGNALS={'G':(('1','CPWLSX'),('2','WPCSLX')),'R':(('1','CP'),('2','CP')),
     'E':(('1','CBX'),('5','QIX')),'C':(('1','PDX'),('6','IQX'))}
@@ -75,7 +77,7 @@ class ProcessingOptions:
 
 
 def processing_profile(options):
-    return STATIC_PROFILE if options.atmosphere==STATIC_ATMOSPHERE else {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)
+    return ITRF_PROFILE if options.frame=='EPSG:9988' else STATIC_PROFILE if options.atmosphere==STATIC_ATMOSPHERE else {'upstream':MULTI_PROFILE,'survey-sa1':SYSTEM_PROFILE,'survey-sa2':AZIMUTH_PROFILE}.get(options.engine_variant)
 
 
 def warnings(options):
@@ -199,6 +201,8 @@ def validate(project,options,cancelled=lambda:False,preflight=True):
         raise ValueError('Atmosphere-off is restricted to explicitly constructed synthetic examples.')
     if options.atmosphere==STATIC_ATMOSPHERE and (options.mode!='static' or options.frequencies!=2 or tuple(options.systems)!=('G',) or options.engine_variant!='upstream'):
         raise ValueError('The initial estimated-atmosphere profile requires stationary Static, GPS L1/L2 and the reviewed upstream EX engine. Other profiles remain unchanged.')
+    if options.frame=='EPSG:9988' and (options.mode!='static' or options.frequencies!=2 or tuple(options.systems)!=('G',) or options.engine_variant!='upstream'):
+        raise ValueError('The initial ITRF2020 clock-audited profile requires upstream EX, static GPS L1/L2.')
     for value,low,high,label in ((options.elevation,10,45,'Elevation mask'),(options.ratio,3,10,'Ambiguity ratio threshold')):
         n._number(value,label)
         if not low<=value<=high: raise ValueError(label+' is outside this reviewed profile.')
@@ -305,6 +309,7 @@ def prepare(folder,project,options,executable,cancelled=lambda:False):
         base_xyz=list(options.base_xyz),antenna_note=options.antenna_note,model_note=options.model_note,job_directory=str(folder))
     context.update(systems=list(options.systems),frequencies=options.frequencies,calibration=calibration_review(options,base,rover))
     if context['profile']==STATIC_PROFILE:context['atmosphere_model']=STATIC_ATMOSPHERE
+    if context['profile']==ITRF_PROFILE:context.update(atmosphere_model=options.atmosphere,solution_time_model=CLOCK_MODEL)
     if options.engine_variant=='survey-sa2':context.update(signal_plan=selected_signals(options,base,rover),antenna_azimuth_deg={'base':options.base_azimuth_deg,'rover':options.rover_azimuth_deg},orientation_mode=options.orientation_mode)
     if context['calibration']:
         model=context['calibration']
@@ -368,6 +373,7 @@ def load_manifest(folder):
         try: options=ProcessingOptions(**result['options'])
         except (TypeError,ValueError):raise ValueError('Invalid recorded processing options.') from None
         if processing_profile(options)!=context['profile']:raise ValueError('Recorded engine profile differs from options.')
+        if context['profile']==ITRF_PROFILE and context['atmosphere_model']!=options.atmosphere:raise ValueError('Recorded ITRF2020 atmosphere model differs from options.')
         azimuth=context['profile']==AZIMUTH_PROFILE
         project=n.load_project(Path(folder)/'network.sanet.json')
         base,rover,_,_=validate(project,options,preflight=False)
@@ -399,8 +405,9 @@ def validate_context(context):
     modern=context.get('profile') in MODERN_PROFILES
     azimuth=context.get('profile')==AZIMUTH_PROFILE
     estimated=context.get('profile')==STATIC_PROFILE
-    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set())|({'atmosphere_model'} if estimated else set()),'Raw processing provenance')
-    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256,STATIC_PROFILE:ENGINE_SHA256}
+    clocked=context.get('profile')==ITRF_PROFILE
+    n._keys(context,CONTEXT_KEYS|({'systems','frequencies','calibration'} if modern else set())|({'signal_plan','antenna_azimuth_deg','orientation_mode'} if azimuth else set())|({'atmosphere_model'} if estimated or clocked else set())|({'solution_time_model'} if clocked else set()),'Raw processing provenance')
+    expected={PROFILE:ENGINE_SHA256,MULTI_PROFILE:ENGINE_SHA256,SYSTEM_PROFILE:SYSTEM_ENGINE_SHA256,AZIMUTH_PROFILE:AZIMUTH_ENGINE_SHA256,STATIC_PROFILE:ENGINE_SHA256,ITRF_PROFILE:ENGINE_SHA256}
     if context['profile'] not in expected or context['engine_sha256']!=expected[context['profile']] or context['mode'] not in ('static','kinematic'):
         raise ValueError('Unsupported processing profile or engine identity.')
     if modern:
@@ -408,6 +415,8 @@ def validate_context(context):
         if not isinstance(systems,list) or not systems or 'G' not in systems or len(set(systems))!=len(systems) or any(s not in SYSTEMS for s in systems):raise ValueError('Invalid recorded satellite systems.')
         if type(context['frequencies']) is not int or context['frequencies'] not in (1,2):raise ValueError('Invalid recorded frequencies.')
         if estimated and (context['atmosphere_model']!=STATIC_ATMOSPHERE or context['mode']!='static' or systems!=['G'] or context['frequencies']!=2):raise ValueError('Unsupported recorded static atmosphere model.')
+        if clocked and (context['solution_time_model']!=CLOCK_MODEL or context['atmosphere_model'] not in ('broadcast/saas','ideal-synthetic',STATIC_ATMOSPHERE) or context['frame']!='EPSG:9988' or context['mode']!='static' or systems!=['G'] or context['frequencies']!=2):raise ValueError('Unsupported recorded ITRF2020 clock model.')
+        if context['frame']=='EPSG:9988' and not clocked:raise ValueError('ITRF2020 requires its explicit clock-audited processing profile.')
         if 'R' in systems and context['profile'] not in (SYSTEM_PROFILE,AZIMUTH_PROFILE):raise ValueError('GLONASS is not a legacy processing profile.')
         if azimuth:
             if context['orientation_mode']!='fixed-level':raise ValueError('Unsupported recorded antenna orientation model.')
@@ -469,9 +478,15 @@ def _decode(folder,manifest):
     project=n.load_project(folder/'network.sanet.json'); sources={row['id']:row for row in project['raw_sources']}
     base,rover=[sources[row['source_id']] for row in context['inputs'][:2]]
     low=max(row['metadata']['first_tick'] for row in (base,rover)); high=min(row['metadata']['last_tick'] for row in (base,rover))
-    for row in source['rows']:
-        stamp=datetime.fromisoformat(row['time']); tick=r.epoch([str(stamp.year),str(stamp.month),str(stamp.day),str(stamp.hour),str(stamp.minute),f'{stamp.second+stamp.microsecond/1e6:.6f}'])
-        if not low<=tick<=high: raise ValueError('Solution epoch falls outside the selected raw overlap.')
+    if context['profile']==ITRF_PROFILE:
+        stat=folder/'solution.pos.stat'
+        if not stat.is_file() or stat.stat().st_size>32*1024*1024:raise ValueError('Missing or oversized engine receiver-clock evidence.')
+        source['clock_epoch_audit']=clock_epoch_audit(stat.read_text(encoding='ascii'),source['rows'],rover['metadata']['samples'])
+        if any(not low<=entry['raw_tick']<=high for entry in source['clock_epoch_audit']['rows']):raise ValueError('Clock-reconstructed source epoch falls outside the raw overlap.')
+    else:
+        for row in source['rows']:
+            stamp=datetime.fromisoformat(row['time']); tick=r.epoch([str(stamp.year),str(stamp.month),str(stamp.day),str(stamp.hour),str(stamp.minute),f'{stamp.second+stamp.microsecond/1e6:.6f}'])
+            if not low<=tick<=high: raise ValueError('Solution epoch falls outside the selected raw overlap.')
     source['processing']=deepcopy(context)
     source['marked_synthetic']=project['synthetic']
     return source
@@ -557,6 +572,47 @@ def static_atmosphere_audit(text,source_rows):
         note='Engine conditional states only. Receiver 1 is rover, 2 is base; wet delay is not total zenith delay or survey uncertainty. Original full status/residual file retained.',rows=rows)
 
 
+def clock_epoch_audit(text,source_rows,raw_samples):
+    """Pinned pntpos.c: t_solution=t_observation-dtr[0]; $CLK gives dtr in ns.
+
+    Match one original recorded epoch using that explicit correction and only
+    the documented 0.001 s POS/stat output rounding (+0.0005 ns CLK rounding).
+    This is not an arbitrary nearest-epoch tolerance or a correction of RINEX.
+    """
+    if len(text)>32*1024*1024:raise ValueError('Oversized receiver-clock audit.')
+    tick=lambda value:r.epoch(datetime.fromisoformat(value).strftime('%Y %m %d %H %M %S.%f').split())
+    expected={tick(row['time']):row['quality'] for row in source_rows};clocks={};origin=r.epoch(['1980','1','6','0','0','0'])
+    for line in text.splitlines():
+        if not line.startswith('$CLK,'):continue
+        values=line.split(',')
+        try:
+            week=int(values[1]);tow=Decimal(values[2]);bias=Decimal(values[5])
+            if len(values)!=11 or not 0<=week<=10000 or not tow.is_finite() or not 0<=tow<604800 or not bias.is_finite() or abs(bias)>100000000 or values[4]!='1':raise ValueError()
+            instant=origin+week*604800*r.TICK+tow*r.TICK
+            if instant!=instant.to_integral_value() or instant not in expected or values[3]!=expected[instant] or instant in clocks:raise ValueError()
+            clocks[int(instant)]=bias
+        except (ValueError,IndexError,InvalidOperation,OverflowError):raise ValueError('Malformed, duplicate or unmatched GPS receiver-clock record.') from None
+    if set(clocks)!=set(expected):raise ValueError('Missing GPS receiver-clock record at a solution epoch.')
+    raw=sorted(sample[0] for sample in raw_samples);used=set();rows=[];tolerance=Decimal('5000.00001')
+    for instant,bias in clocks.items():
+        reconstructed=Decimal(instant)+bias*r.TICK/Decimal(1000000000)
+        index=bisect_left(raw,reconstructed-tolerance)
+        if index>=len(raw) or abs(Decimal(raw[index])-reconstructed)>tolerance or (index+1<len(raw) and abs(Decimal(raw[index+1])-reconstructed)<=tolerance) or raw[index] in used:
+            raise ValueError('Receiver-clock model does not uniquely reproduce a recorded source epoch within output quantization.')
+        used.add(raw[index]);rows.append(dict(time_gpst=r.tick_text(instant),raw_time_gpst=r.tick_text(raw[index]),raw_tick=raw[index],gps_clock_bias_ns=str(bias),
+            rounding_residual_s=float((Decimal(raw[index])-reconstructed)/r.TICK),quality=expected[instant]))
+    if not rows:raise ValueError('No clock-audited solution epochs.')
+    return dict(model=CLOCK_MODEL,epochs=len(rows),max_abs_clock_bias_s=float(max(abs(value) for value in clocks.values())/1000000000),
+        note='Original RINEX epochs retained. Engine SPP receiver clock explains solution timestamps; millisecond output quantization only. Not independent physical time synchronization.',rows=rows)
+
+
+def _clock_csv(audit):
+    stream=io.StringIO(newline='');writer=csv.writer(stream,lineterminator='\n')
+    writer.writerow(['Solution GPST','Recorded observation GPST','Engine GPS clock bias ns','Output rounding residual s','Q'])
+    for row in audit['rows']:writer.writerow([row[key] for key in ('time_gpst','raw_time_gpst','gps_clock_bias_ns','rounding_residual_s','quality')])
+    return stream.getvalue().encode('utf-8')
+
+
 def _atmosphere_csv(audit):
     stream=io.StringIO(newline='');writer=csv.writer(stream,lineterminator='\n')
     writer.writerow(['Time GPST','Engine state (not independent measurement)','Receiver 1=rover 2=base / satellite','Float state m','Fixed state m','Solution Q'])
@@ -629,14 +685,21 @@ def inspect_result(folder,exit_code,executable):
         distances=[math.dist(row['values'],manifest['context']['base_xyz']) for row in source['rows']]
         result['computed_baseline_length_m']=dict(min=min(distances),max=max(distances),last=distances[-1])
         result['atmosphere_model']=STATIC_ATMOSPHERE
+    if manifest['context']['profile']==ITRF_PROFILE:
+        audit=source['clock_epoch_audit'];(folder/'clock_epoch_audit.csv').write_bytes(_clock_csv(audit))
+        result['clock_epoch_audit']={key:value for key,value in audit.items() if key!='rows'}
     with (folder/'epochs.csv').open('w',encoding='utf-8',newline='') as handle:
         from .coordinate_job import llh
-        writer=csv.writer(handle);writer.writerow(['Time GPST','X ECEF m','Y ECEF m','Z ECEF m','Latitude WGS84 ellipsoid deg','Longitude deg','h WGS84 ellipsoid m','Q','Baseline eligible','Reason'])
-        for row in source['rows']: writer.writerow([row['time'],*row['values'],*llh(row['values'],'EPSG:4979'),row['quality'],row['eligible'],row['reason']])
+        geographic=b.FRAMES[manifest['context']['frame']]
+        latitude,height=('Latitude ITRF2020 / GRS80 deg','h ITRF2020 / GRS80 m') if geographic=='EPSG:9989' else ('Latitude WGS84 ellipsoid deg','h WGS84 ellipsoid m')
+        # Preserve historical export columns/models for legacy frames.
+        export_frame=geographic if geographic=='EPSG:9989' else 'EPSG:4979'
+        writer=csv.writer(handle);writer.writerow(['Time GPST','X ECEF m','Y ECEF m','Z ECEF m',latitude,'Longitude deg',height,'Q','Baseline eligible','Reason'])
+        for row in source['rows']: writer.writerow([row['time'],*row['values'],*llh(row['values'],export_frame),row['quality'],row['eligible'],row['reason']])
     (folder/'report.txt').write_text(result['engine_version']+' — '+result['mode']+'\n'+json.dumps(result,indent=2)+'\n\n'+
         'Original engine solution and covariance retained in solution.pos. No averaged coordinate or automatic baseline import.\n'+
         'Input originals, copied inputs, configuration and engine SHA256 recorded in processing.json. Hashes establish integrity, not authenticity.\n',encoding='utf-8')
-    manifest['state']='COMPLETED';manifest['outputs']={name:engine.sha256(folder/name) for name in ('solution.pos','solution.pos.stat','epochs.csv','report.txt','atmosphere_states.csv') if (folder/name).exists()}
+    manifest['state']='COMPLETED';manifest['outputs']={name:engine.sha256(folder/name) for name in ('solution.pos','solution.pos.stat','epochs.csv','report.txt','atmosphere_states.csv','clock_epoch_audit.csv') if (folder/name).exists()}
     _write(folder,manifest)
     return result,source
 
@@ -655,9 +718,12 @@ def source_for_import(path):
         raise ValueError('Processing job is incomplete, stopped or its solution has changed.')
     for name,digest in manifest['outputs'].items():
         allowed=('solution.pos','solution.pos.stat','epochs.csv','report.txt')+(('atmosphere_states.csv',) if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE else ())
+        if manifest['context']['profile']==ITRF_PROFILE:allowed+=('clock_epoch_audit.csv',)
         if name not in allowed or engine.sha256(path.parent/name)!=digest:
             raise ValueError('Processing result package changed.')
     source=_decode(path.parent,manifest)
+    if manifest['context']['profile']==ITRF_PROFILE:
+        if not {'solution.pos.stat','clock_epoch_audit.csv'}<=set(manifest['outputs']) or (path.parent/'clock_epoch_audit.csv').read_bytes()!=_clock_csv(source['clock_epoch_audit']):raise ValueError('Receiver-clock table differs from recalculated engine/source evidence.')
     if manifest['options'].get('atmosphere')==STATIC_ATMOSPHERE:
         if not {'solution.pos.stat','atmosphere_states.csv'}<=set(manifest['outputs']):raise ValueError('Missing recorded atmosphere-state outputs.')
         stat=path.parent/'solution.pos.stat'

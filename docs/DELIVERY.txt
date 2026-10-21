@@ -1,4 +1,58 @@
 NORWEGIAN REFERENCE REVIEW AND TRACEABLE LOCAL DELIVERY
+
+NEW IN 0.17.0 - EXPLICIT GLOBAL STATIC / NATIONAL CHECK
+The existing static GNSS dialog now accepts explicitly documented ITRF2020
+ECEF coordinates with a separate v6 GPS L1/L2 engine-clock audit. Pinned RTKLIB
+pntpos.c corrects solution time by the receiver clock; each solution is linked
+to exactly one original RINEX epoch using the recorded $CLK correction and only
+the documented millisecond output quantization. Original times are preserved.
+clock_epoch_audit.csv is recalculated on readback; legacy v1-v5 remain unchanged.
+
+The SAME dialog can compare one selected fixed OR float epoch with its existing
+known Check point. An explicit actual coordinate epoch and national EUREF89/height
+review are required. A pinned local ITRF2020-to-ETRS89-NOR operation uses reviewed
+NKG grids; existing projection/HREF code supplies the final height reference.
+Differences and model/source hashes are saved in a separate local comparison;
+raw POS, covariance, point coordinates and inventory remain unchanged. Global
+vectors remain global and cannot enter the ETRS89-only network adjustment.
+
+IGc20 use requires external evidence of its zero alignment to ITRF2020. This is
+not an arbitrary IGS/WGS84 adapter. Output covariance is NOT propagated, and a
+coordinate difference or FIX flag is not accuracy or delivery approval. Exact
+antenna/radome selection and documented H/E/N remain required. A user-approved
+NOAZI approximation must be explicit, with original provider grids/comments and
+omitted terms retained locally; unknown heading is never invented. No general
+NOAZI conversion, precise SP3/CLK, VRS generation or dynamic tilt is added.
+
+For comparison, keep the rover as a known Check point in the existing network.
+Process in ITRF2020 ECEF at the documented base-coordinate epoch, select ONE
+solution epoch, then Compare selected ITRF2020 epoch with known EUREF89 point.
+Review the actual global coordinate epoch as decimal year, national control
+reference and explicit height version. Supply the reviewed local HREF GeoTIFF
+for NN2000. The two reference grids must already exist in the local PROJ data
+directory and match the pinned SHA256 in delivery.GlobalReferenceOperation.
+There is no automatic download, ballpark or missing-grid fallback. Use the
+existing result report to compare E/N/height and retain both FIX and float state.
+The local reference_comparisons folder is separate from original engine output.
+The reported difference is computed minus known, in the declared projected axes.
+Known control uncertainty and transformed solution uncertainty are not inferred.
+
+The v6 initial profile is upstream EX, static GPS L1/L2 only. GPS clock bias must
+be finite and within 100 ms. The POS and $CLK status epoch/quality must match.
+t_solution = t_recorded - GPS_clock_bias; $CLK units are nanoseconds. Only the
+0.001 s written POS/stat rounding and 0.001 ns written clock rounding are allowed
+when reconstructing the unique original epoch. Missing, duplicated, inconsistent
+or ambiguous evidence blocks acceptance. Original RINEX timestamps never change.
+The CSV is recalculated from the original source epochs/status on each readback.
+Legacy v1-v5 jobs retain their original checks and do not silently opt into v6.
+
+Primary references:
+https://kartverket.github.io/transformasjoner/_pages/epsg_codes
+https://lists.igs.org/pipermail/igsmail/2025/008630.html
+https://cdn.proj.org/files.geojson
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/pntpos.c
+https://github.com/rtklibexplorer/RTKLIB/blob/62d4677ed8425a4e2748c6d390b500d1afb493fc/src/rtkpos.c
+
 Survey Adjustment 0.8.0 / QGIS 4
 
 Open Network project -> Norwegian reference review / delivery package.

@@ -1,5 +1,15 @@
 # Survey Adjustment
 
+0.17.0 adds explicit ITRF2020 static GPS v6, recorded $CLK-to-RINEX epoch audit,
+recalculated clock CSV and a separate selected-epoch known Check-point comparison
+using pinned local national EUREF89/NKG grids plus existing projection/HREF. Never
+relabel global vectors ETRS89 or infer IGc20 alignment/coordinate epoch. Require
+explicit national control and height-version review; no covariance propagation or
+accuracy guarantee. Real measurements/calibration/comparisons stay ignored/local.
+User expanded reference selection through Oslo/Trondheim distances and explicitly
+allowed ignoring azimuth PCV for the current local experiment. Preserve original
+provider model warnings/grids and vertical PCO; no invented unknown heading.
+
 User direction 2026-10-21: STOP tilt/3D development. Main scope is stationary
 30-100 km GNSS, reference data from own bases/Onocoy/Emlid Caster/BKG, and VRS
 research. Do not resume the saved private dynamic-antenna draft without an explicit

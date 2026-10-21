@@ -30,6 +30,7 @@ FIELDS = {
     'su': ('1σ up (m)', ['Sigma U','Sigma Up','sdu','StdDev U m','StdDev U']),
 }
 FRAMES = {'EPSG:4937': ('ETRS89 / GRS80',298.257222101),
+          'EPSG:9989': ('ITRF2020 / GRS80 (coordinate epoch required)',298.257222101),
           'EPSG:4979': ('WGS84 / WGS84 ellipsoid',298.257223563)}
 
 

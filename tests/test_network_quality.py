@@ -32,6 +32,12 @@ def small_network(repeat=True):
 
 
 class NetworkQualityTests(unittest.TestCase):
+    def test_stored_itrf2020_vector_is_not_silently_accepted_as_etrs89(self):
+        project=q.synthetic_quality_project()
+        for row in project['observations']:row['frame']='EPSG:9988'
+        n.validate_project(project)
+        with self.assertRaisesRegex(ValueError,'ETRS89 ECEF'):q.analyse(project,options())
+
     def test_clean_full_covariance_network_and_source_immutability(self):
         p=q.synthetic_quality_project(); before=deepcopy(p); r=q.analyse(p,options())
         self.assertEqual(p,before); self.assertEqual(r['global_test']['degrees_of_freedom'],15)

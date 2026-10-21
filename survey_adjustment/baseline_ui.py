@@ -53,7 +53,7 @@ class BaselineImportDialog(QDialog):
         self.target = combo({'':'Select rover point', **{p['id']:p['id'] for p in project['points']}})
         self.session = combo({'':'Select acquisition session', **{s['id']:s['id'] for s in project['sessions']}})
         self.use = combo(n.USES)
-        self.frame = combo({'':'Select documented ECEF frame', 'EPSG:4936':'ETRS89 / GRS80 ECEF', 'EPSG:4978':'WGS84 ECEF'})
+        self.frame = combo({'':'Select documented ECEF frame', 'EPSG:4936':'ETRS89 / GRS80 ECEF', 'EPSG:4978':'WGS84 ECEF', 'EPSG:9988':'ITRF2020 ECEF (epoch required)'})
         self.identifier = QLineEdit(); self.epoch = QLineEdit(project['epoch'])
         self.epoch.setPlaceholderText('YYYY-MM-DD; coordinate reference epoch, not inferred')
         self.antenna_note = QLineEdit(); self.antenna_note.setPlaceholderText('Which physical points? Antenna/ARP/tilt corrections already applied by processor?')

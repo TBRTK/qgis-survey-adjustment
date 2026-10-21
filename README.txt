@@ -1,4 +1,4 @@
-SURVEY ADJUSTMENT 0.16.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.17.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
 Date: 2026-10-21
 Project: https://github.com/TBRTK/qgis-survey-adjustment
@@ -7,7 +7,31 @@ The software is provided “AS IS”, without warranty. Disclaimers and limitati
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.16.0
+WHAT CHANGED IN 0.17.0
+The existing static GNSS dialog now accepts explicitly documented ITRF2020
+ECEF coordinates with a separate v6 GPS L1/L2 engine-clock audit. Pinned RTKLIB
+pntpos.c corrects solution time by the receiver clock; each solution is linked
+to exactly one original RINEX epoch using the recorded $CLK correction and only
+the documented millisecond output quantization. Original times are preserved.
+clock_epoch_audit.csv is recalculated on readback; legacy v1-v5 remain unchanged.
+
+The SAME dialog can compare one selected fixed OR float epoch with its existing
+known Check point. An explicit actual coordinate epoch and national EUREF89/height
+review are required. A pinned local ITRF2020-to-ETRS89-NOR operation uses reviewed
+NKG grids; existing projection/HREF code supplies the final height reference.
+Differences and model/source hashes are saved in a separate local comparison;
+raw POS, covariance, point coordinates and inventory remain unchanged. Global
+vectors remain global and cannot enter the ETRS89-only network adjustment.
+
+IGc20 use requires external evidence of its zero alignment to ITRF2020. This is
+not an arbitrary IGS/WGS84 adapter. Output covariance is NOT propagated, and a
+coordinate difference or FIX flag is not accuracy or delivery approval. Exact
+antenna/radome selection and documented H/E/N remain required. A user-approved
+NOAZI approximation must be explicit, with original provider grids/comments and
+omitted terms retained locally; unknown heading is never invented. No general
+NOAZI conversion, precise SP3/CLK, VRS generation or dynamic tilt is added.
+
+FEATURES FROM 0.16.0
 The existing PPK/static dialog adds an EXPERIMENTAL stationary GPS L1/L2 profile
 with estimated ionosphere and receiver zenith wet-delay states. It reuses the
 separate pinned EX 2.5.1 engine, raw import, queue, PointZ report and baseline gate.
