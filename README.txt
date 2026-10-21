@@ -1,13 +1,27 @@
-SURVEY ADJUSTMENT 0.14.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
+SURVEY ADJUSTMENT 0.15.0 – INDEPENDENT PROTOTYPE FOR QGIS 4
 Author: Tore Berthelsen – https://www.3dmapper.no
-Date: 2026-10-20
+Date: 2026-10-21
 Project: https://github.com/TBRTK/qgis-survey-adjustment
 
 The software is provided “AS IS”, without warranty. Disclaimers and limitations
 of liability apply to the extent permitted by GPLv3 sections 15–17 and applicable
 law. See LICENSE. This is not an unconditional exclusion of statutory liability.
 
-WHAT CHANGED IN 0.14.0
+WHAT CHANGED IN 0.15.0
+ETC review can optionally reuse an EXISTING rover RINEX link for exact recorded
+epoch coverage. The shared RINEX source audit rechecks bytes/metadata/session and
+the documented source-minus-UTC offset. A table/report exposes missing ETC, bad
+status and nearest-time deltas as diagnostics only: no guessed shift, rounding,
+interpolation, second import or automatic network observations. Receiver-clock
+offset epochs require a separate time model and are blocked in this profile.
+Linked local packages preserve the original rover bytes, network snapshot and
+time table; readback recalculates without requiring the external source paths.
+A new optional synthetic paired example exercises this flow. Coordinate acceptance
+remains separate from raw time coverage. Matching recorded times does not establish
+physical synchronization, latency, full attitude or dynamic carrier corrections.
+See ORIENTATION.txt (docs/ in source). Existing 0.14.0 packages remain readable.
+
+FEATURES FROM 0.14.0
 The existing Raw GNSS > PPK/static dialog gains an orientation/pole-tip review
 button. Local Emlid ETC + GGA + ZDA/RMC logs show changing heading/tilt and UTC
 status. Explicit coordinate-only antenna-to-pole-tip correction reuses the existing

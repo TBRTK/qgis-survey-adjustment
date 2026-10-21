@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Coordinate supplement inside the existing Raw GNSS processing workflow."""
 from datetime import datetime,timezone
+from copy import deepcopy
 from pathlib import Path
 import html
 from qgis.PyQt import sip
@@ -10,7 +11,7 @@ from qgis.PyQt.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLa
     QCheckBox,QTextBrowser,QTableWidget,QTableWidgetItem,QAbstractItemView,QHeaderView,QFileDialog,QTabWidget,QWidget,QDialogButtonBox)
 from qgis.core import QgsCoordinateReferenceSystem,QgsGeometry,QgsPoint,QgsMarkerSymbol
 from qgis.gui import QgsMapCanvas
-from . import orientation as o,gnss_demo as demo
+from . import orientation as o,gnss_demo as demo,rinex as r
 from .network_ui import combo
 from .layers import make_layer
 
@@ -27,6 +28,7 @@ GUIDE=('For Reach RS4 Pro / firmware 34.8: preserve RINEX separately. Record a t
 class OrientationDialog(QDialog):
     def __init__(self,parent):
         super().__init__(parent);self.owner=parent.owner;self.catalogue=None;self.result=None;self.layer=None;self.busy=False
+        self.processing_parent=parent;self.raw_project=deepcopy(parent.project)
         self.setWindowTitle('GNSS orientation / pole-tip review — NMEA ETC');self.resize(1080,850)
         layout=QVBoxLayout(self);note=QLabel('Review changing heading/tilt from a local ETC log. Explicit coordinate-only pole-tip correction; no raw IMU/PPK/ANTEX calculation or automatic observations.')
         note.setWordWrap(True);layout.addWidget(note)
@@ -39,6 +41,9 @@ class OrientationDialog(QDialog):
         self.height=QLineEdit();self.height.setPlaceholderText('Total pole-tip → input antenna-position endpoint distance, metres along pole. Clear for already-ground.')
         self.evidence=QLineEdit();self.evidence.setPlaceholderText('Output compensation setting, actual endpoint/height convention, frame, pole/installation and UTC synchronization evidence')
         for label,field in (('Input endpoint',self.endpoint),('Height convention',self.height_mode),('Declared frame',self.frame),('Pole-axis endpoint distance m',self.height),('Evidence / source settings',self.evidence)):form.addRow(label,field)
+        self.rover=combo({'':'Coordinate review only — no linked RINEX timing claim',**{s['id']:s['source_name']+' / '+s['point']+' / '+s['session'] for s in self.raw_project.get('raw_sources',[]) if s['role']=='ROVER'}})
+        form.addRow('Optional RINEX time coverage',self.rover)
+        self.paired_example=QCheckBox('Include a NEW synthetic RINEX network when creating the example (recorded-time coverage only)');form.addRow(self.paired_example)
         self.endpoint_review=QCheckBox('I verified whether the source is already tilt/height compensated; the same correction must never be applied twice')
         self.height_review=QCheckBox('I verified the coordinate reference point, frame and ellipsoidal-height convention; no automatic ARP/PCO/geoid addition')
         self.time_review=QCheckBox('I reviewed UTC dates/synchronization, ETC state/notifications and exact GGA/ETC timestamps')
@@ -52,18 +57,21 @@ class OrientationDialog(QDialog):
         self.views=QTabWidget();layout.addWidget(self.views,1);self.report=QTextBrowser();self.views.addTab(self.report,'Review / logging help')
         self.table=QTableWidget(0,8);self.table.setHorizontalHeaderLabels(['UTC','Heading °','Tilt direction °','Tilt °','State / notification','Accepted','Ground h m','Reason'])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents);self.views.addTab(self.table,'Orientation timeline')
+        self.coverage_table=QTableWidget(0,6);self.coverage_table.setHorizontalHeaderLabels(['Recorded RINEX time','UTC from reviewed offset','Exact ETC','Usable status match','Nearest ETC Δ ms (diagnostic only)','Reason'])
+        self.coverage_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.coverage_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents);self.views.addTab(self.coverage_table,'RINEX time coverage')
         self.canvas=QgsMapCanvas();self.canvas.setCanvasColor(QColor('#f4f6f8'));self.views.addTab(self.canvas,'Derived ground PointZ')
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         for field in (self.path,self.height,self.evidence):field.textChanged.connect(self.invalidate)
-        for field in (self.endpoint,self.height_mode,self.frame):field.currentIndexChanged.connect(self.invalidate)
+        for field in (self.endpoint,self.height_mode,self.frame,self.rover):field.currentIndexChanged.connect(self.invalidate)
         for field in (self.endpoint_review,self.height_review,self.time_review):field.toggled.connect(self.invalidate)
         self.show_help()
 
     def show_help(self):
-        self.report.setHtml('<h3>Orientation / pole-tip supplement</h3><p>'+html.escape(GUIDE)+'</p><p><a href="'+o.SPEC+'">Emlid ETC developer specification</a></p><ul>'+''.join('<li>'+html.escape(s)+'</li>' for s in o.LIMITATIONS)+'</ul>')
+        self.report.setHtml('<h3>Orientation / pole-tip supplement</h3><p>'+html.escape(GUIDE)+'</p><p>Optionally select an EXISTING rover RINEX link to check exact recorded UTC epoch coverage using its reviewed source-minus-UTC offset. No duplicate import. Nearest-time deltas are diagnostic only: no interpolation, guessed shift or physical synchronization approval. Coordinate acceptance remains a separate check.</p><p><a href="'+o.SPEC+'">Emlid ETC developer specification</a></p><ul>'+''.join('<li>'+html.escape(s)+'</li>' for s in o.LIMITATIONS)+'</ul>')
 
     def invalidate(self,*_):
         self.catalogue=self.result=None;self.layer=None;self.canvas.setLayers([]);self.canvas.refresh();self.table.setRowCount(0)
+        self.coverage_table.setRowCount(0)
         self.export_button.setEnabled(False);self.show_help();self.status.setText('Settings changed. Check the log again before export.')
 
     def options(self):
@@ -77,15 +85,25 @@ class OrientationDialog(QDialog):
         if path:self.path.setText(path)
 
     def example(self):
+        if self.paired_example.isChecked() and not self.owner.maybe_leave():return False
         parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW synthetic orientation example')
         if not parent:return False
         try:
-            path=demo.orientation_example(Path(parent)/('Synthetic_ETC_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')))
+            folder=Path(parent)/('Synthetic_ETC_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+            paired=self.paired_example.isChecked()
+            if paired:
+                project=demo.create(folder/'raw',moving=True);source=next(s for s in project['raw_sources'] if s['role']=='ROVER')
+                path=demo.orientation_example(folder/'orientation',source)
+                self.owner.replace_project(project,folder/'raw/example.sanet.json')
+                self.processing_parent.project=deepcopy(project);self.processing_parent.populate();self.raw_project=deepcopy(project)
+                self.rover.clear();self.rover.addItem('Coordinate review only — no linked RINEX timing claim','');self.rover.addItem(source['source_name']+' / '+source['point']+' / '+source['session'],source['id']);self.rover.setCurrentIndex(1)
+            else:
+                path=demo.orientation_example(folder);self.rover.setCurrentIndex(0)
             self.path.setText(str(path));self.endpoint.setCurrentIndex(self.endpoint.findData('uncompensated-antenna'))
             self.height_mode.setCurrentIndex(self.height_mode.findData('ellipsoid-altitude'));self.frame.setCurrentIndex(self.frame.findData('EPSG:4979'));self.height.setText('2')
             self.evidence.setText('SYNTHETIC: invented uncompensated antenna positions, 2 m endpoint distance, WGS84 ellipsoid, exact UTC GGA/ETC with ZDA; no real receiver accuracy claim.')
             for field in (self.endpoint_review,self.height_review,self.time_review):field.setChecked(False)
-            self.status.setText('Synthetic turning/tilting log created, including UTC midnight and excluded epochs. Review settings and confirmations. Network unchanged.')
+            self.status.setText(('NEW synthetic network and time-paired ETC log created. Recorded-time coverage only; no dynamic antenna/carrier simulation. ' if paired else 'Synthetic turning/tilting log created, including UTC midnight and excluded epochs. Network unchanged. ')+'Review settings and confirmations.')
             return True
         except (ValueError,OSError) as error:self.status.setText('Cannot create example: '+str(error));return False
 
@@ -95,18 +113,20 @@ class OrientationDialog(QDialog):
     def start(self):
         if self.busy:return False
         try:
-            options=self.options();path=self.path.text().strip()
+            options=self.options();path=self.path.text().strip();rover_id=self.rover.currentData();project=deepcopy(self.raw_project) if rover_id else None
+            if rover_id and self.owner.snapshot()!=project:raise ValueError('Network changed. Reopen orientation review from the current GNSS project.')
             self.invalidate();self.busy=True;self.controls.setEnabled(False);self.example_button.setEnabled(False);self.review_button.setEnabled(False)
             self.status.setText('Checking local NMEA checksums, dates and exact UTC matches in the existing background queue …')
             def operation(cancelled):
-                catalogue=o.read(path,cancelled);return catalogue,o.review(catalogue,options)
+                catalogue=o.read(path,cancelled);return catalogue,o.review(catalogue,options,project,rover_id,cancelled)
             def failed(error):
                 if sip.isdeleted(self):return
                 self.idle();self.status.setText('No accepted review: '+str(error))
             def done(data):
                 if sip.isdeleted(self):return
                 self.idle()
-                if self.options()!=options or self.path.text().strip()!=path:raise ValueError('Settings changed during review.')
+                if self.options()!=options or self.path.text().strip()!=path or self.rover.currentData()!=rover_id:raise ValueError('Settings changed during review.')
+                if rover_id and self.owner.snapshot()!=project:raise ValueError('Network changed during orientation review.')
                 self.catalogue,self.result=data;self.display()
             if not self.owner.raw_panel.work('ETC orientation review',operation,done,failed):self.idle();return False
             return True
@@ -126,7 +146,15 @@ class OrientationDialog(QDialog):
         if points:self.canvas.setExtent(self.layer.extent().buffered(.00003))
         self.canvas.refresh();self.show_help()
         self.report.setHtml('<h3>'+str(result['accepted'])+' accepted / '+str(len(result['rows']))+' epochs</h3><p>Mode: '+html.escape(result['options']['endpoint'])+'; frame '+frame+'; height '+html.escape(result['options']['height_mode'])+'.</p><p>Source SHA256 '+result['source_sha256']+'</p><p>'+html.escape(result['options']['evidence'])+'</p>'+self.report.toHtml())
-        self.export_button.setEnabled(result['accepted']>0);self.status.setText(str(result['accepted'])+' accepted of '+str(len(result['rows']))+' epochs. All exclusions visible; no baseline/network observations added. Full dynamic raw processing remains unsupported.')
+        coverage=result.get('rinex_coverage');time_text=''
+        if coverage:
+            self.coverage_table.setRowCount(len(coverage['rows']))
+            for index,row in enumerate(coverage['rows']):
+                delta=row['nearest_etc_delta_ticks'];values=[row['raw_time'],row['utc'],row['exact_etc'],row['usable'],delta/(r.TICK/1000) if delta is not None else '',row['reason']]
+                for column,value in enumerate(values):self.coverage_table.setItem(index,column,QTableWidgetItem(str(value)))
+            time_text=str(coverage['usable_epochs'])+'/'+str(coverage['raw_epochs'])+' RINEX epochs have usable exact status matches. '
+            self.report.setHtml('<h3>Recorded RINEX time coverage: '+html.escape(coverage['status'])+'</h3><p>'+time_text+str(coverage['missing_etc_epochs'])+' missing ETC; '+str(coverage['unusable_etc_epochs'])+' matched ETC with excluded status. '+html.escape(coverage['time_system'])+' minus UTC = '+str(coverage['source_minus_utc_seconds'])+' s.</p><ul>'+''.join('<li>'+html.escape(w)+'</li>' for w in coverage['warnings'])+'</ul>'+self.report.toHtml())
+        self.export_button.setEnabled(result['accepted']>0);self.status.setText(str(result['accepted'])+' accepted of '+str(len(result['rows']))+' coordinate epochs. '+time_text+'All exclusions visible; no baseline/network observations added. Full dynamic raw processing remains unsupported.')
         self.views.setCurrentIndex(0)
 
     def export(self):
@@ -134,7 +162,9 @@ class OrientationDialog(QDialog):
         parent=QFileDialog.getExistingDirectory(self,'Local folder for a NEW checked orientation coordinate package')
         if not parent:return False
         try:
-            folder=o.export_snapshot(Path(parent)/('ETC_coordinates_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')),self.catalogue,self.options())
+            rover_id=self.rover.currentData()
+            if rover_id and self.owner.snapshot()!=self.raw_project:raise ValueError('Network changed since review. Reopen orientation review.')
+            folder=o.export_snapshot(Path(parent)/('ETC_coordinates_'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')),self.catalogue,self.options(),self.raw_project if rover_id else None,rover_id)
             self.status.setText('Export verified by recalculation and checksums: '+str(folder)+'. CSV retains ellipsoidal heights; no covariance or independent observations invented.')
             return True
         except (ValueError,OSError) as error:

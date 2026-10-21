@@ -379,43 +379,54 @@ def _utc_tick(time):
     return (t.days*86400+t.seconds)*TICK+t.microseconds*10
 
 
+def inspect_source(project,saved,cancelled=lambda:False,path=None):
+    """Shared exact-byte/metadata and review checks on a validated catalogue row.
+
+    A private snapshot may supply its copied path; the original identity and
+    every metadata value still have to agree. This never changes the saved link.
+    """
+    if cancelled(): raise ValueError('RINEX preflight cancelled.')
+    try:
+        fresh=read_source(saved['path'] if path is None else path,cancelled)
+        if any(fresh[key]!=saved[key] for key in ('source_sha256','fingerprint','size_bytes','expanded_bytes','metadata')):
+            raise ValueError('Source changed since import; retain the original or remove/review a replacement explicitly.')
+        meta=saved['metadata']; obs=meta['file_type']=='OBS';issues=[];notes=[]
+        if obs:
+            if not meta['time_system']: issues.append('Source time system is undocumented; no UTC/GPS default inferred.')
+            if saved['utc_offset_seconds'] is None: issues.append('Source-minus-UTC offset is undocumented.')
+            if not meta['antenna'] or meta['antenna_hen'] is None: issues.append('Antenna type or H/E/N offset header is missing.')
+            if not meta['marker']: issues.append('Marker name is missing.')
+            if not project['crs'] or not project['height_datum'] or not project['epoch']: issues.append('Network reference/height/coordinate epoch is incomplete.')
+            if meta['declared_first'] is not None and meta['first_tick']!=meta['declared_first']: issues.append('First epoch differs from TIME OF FIRST OBS.')
+            if meta['declared_last'] is not None and meta['last_tick']!=meta['declared_last']: issues.append('Last epoch differs from TIME OF LAST OBS.')
+            if meta['approximate_xyz'] is None: notes.append('No header approximate location; source remains listed but is not mapped.')
+            elif not 5_000_000<math.sqrt(sum(v*v for v in meta['approximate_xyz']))<8_000_000 or math.hypot(*meta['approximate_xyz'][:2])<1:
+                notes.append('Header approximate XYZ is unsuitable for the display profile; source remains listed but is not mapped.')
+            if meta['gaps']: notes.append(str(len(meta['gaps']))+' sampling gaps; timeline does not bridge them as continuous coverage.')
+            if meta['lli_loss_of_lock'] or meta['lli_half_cycle']: notes.append('Phase LLI loss/half-cycle flags present; counts are header/data indicators, not independent cycle-slip detection.')
+            if meta['power_failure_epochs'] or meta['events']: notes.append('Power/event flags require review; no corrections applied.')
+            if meta['receiver_clock_offset_epochs']: notes.append('Receiver clock offsets are reported; times are displayed as recorded. Clock corrections are not reproduced by this catalogue.')
+            if saved['utc_offset_seconds'] is not None:
+                session=next(s for s in project['sessions'] if s['id']==saved['session'])
+                start=n._time(session['start'],'Session start'); end=n._time(session['end'],'Session end')
+                offset=saved['utc_offset_seconds']*TICK
+                if not start or not end: issues.append('Linked acquisition session needs documented UTC start and end.')
+                elif meta['first_tick']-offset<_utc_tick(start) or meta['last_tick']-offset>_utc_tick(end): issues.append('Source observations fall outside the declared UTC acquisition session.')
+        else: notes.append(meta['navigation_scope'])
+        return dict(id=saved['id'],status='BLOCKED' if issues else 'CHECKED',issues=issues,warnings=notes),True
+    except (ValueError,OSError,OverflowError) as error:
+        return dict(id=saved['id'],status='SOURCE_UNAVAILABLE_OR_CHANGED',issues=[str(error)],warnings=[]),False
+
+
 def inspect_catalogue(project,cancelled=lambda:False):
     """Re-read every source; compare exact catalogue metadata before map/timeline use."""
     n.validate_project(project); entries=[]; blocked=[]; warnings=[]; verified=[]
     for saved in project.get('raw_sources',[]):
-        if cancelled(): raise ValueError('RINEX preflight cancelled.')
-        try:
-            fresh=read_source(saved['path'],cancelled)
-            if any(fresh[key]!=saved[key] for key in ('source_sha256','fingerprint','size_bytes','expanded_bytes','metadata')):
-                raise ValueError('Source changed since import; retain the original or remove/review a replacement explicitly.')
-            verified.append(saved['id']); meta=saved['metadata']; obs=meta['file_type']=='OBS'
-            issues=[]; notes=[]
-            if obs:
-                if not meta['time_system']: issues.append('Source time system is undocumented; no UTC/GPS default inferred.')
-                if saved['utc_offset_seconds'] is None: issues.append('Source-minus-UTC offset is undocumented.')
-                if not meta['antenna'] or meta['antenna_hen'] is None: issues.append('Antenna type or H/E/N offset header is missing.')
-                if not meta['marker']: issues.append('Marker name is missing.')
-                if not project['crs'] or not project['height_datum'] or not project['epoch']: issues.append('Network reference/height/coordinate epoch is incomplete.')
-                if meta['declared_first'] is not None and meta['first_tick']!=meta['declared_first']: issues.append('First epoch differs from TIME OF FIRST OBS.')
-                if meta['declared_last'] is not None and meta['last_tick']!=meta['declared_last']: issues.append('Last epoch differs from TIME OF LAST OBS.')
-                if meta['approximate_xyz'] is None: notes.append('No header approximate location; source remains listed but is not mapped.')
-                elif not 5_000_000<math.sqrt(sum(v*v for v in meta['approximate_xyz']))<8_000_000 or math.hypot(*meta['approximate_xyz'][:2])<1:
-                    notes.append('Header approximate XYZ is unsuitable for the display profile; source remains listed but is not mapped.')
-                if meta['gaps']: notes.append(str(len(meta['gaps']))+' sampling gaps; timeline does not bridge them as continuous coverage.')
-                if meta['lli_loss_of_lock'] or meta['lli_half_cycle']: notes.append('Phase LLI loss/half-cycle flags present; counts are header/data indicators, not independent cycle-slip detection.')
-                if meta['power_failure_epochs'] or meta['events']: notes.append('Power/event flags require review; no corrections applied.')
-                if meta['receiver_clock_offset_epochs']: notes.append('Receiver clock offsets are reported; times are displayed as recorded. Clock corrections are not reproduced by this catalogue.')
-                if saved['utc_offset_seconds'] is not None:
-                    session=next(s for s in project['sessions'] if s['id']==saved['session'])
-                    start=n._time(session['start'],'Session start'); end=n._time(session['end'],'Session end')
-                    offset=saved['utc_offset_seconds']*TICK
-                    if not start or not end: issues.append('Linked acquisition session needs documented UTC start and end.')
-                    elif meta['first_tick']-offset<_utc_tick(start) or meta['last_tick']-offset>_utc_tick(end): issues.append('Source observations fall outside the declared UTC acquisition session.')
-            else: notes.append(meta['navigation_scope'])
-            entries.append(dict(id=saved['id'],status='BLOCKED' if issues else 'CHECKED',issues=issues,warnings=notes))
-            blocked.extend(saved['source_name']+': '+s for s in issues); warnings.extend(saved['source_name']+': '+s for s in notes)
-        except (ValueError,OSError,OverflowError) as error:
-            blocked.append(saved['source_name']+': '+str(error)); entries.append(dict(id=saved['id'],status='SOURCE_UNAVAILABLE_OR_CHANGED',issues=[str(error)],warnings=[]))
+        entry,unchanged=inspect_source(project,saved,cancelled)
+        if unchanged:verified.append(saved['id'])
+        entries.append(entry)
+        blocked.extend(saved['source_name']+': '+s for s in entry['issues'])
+        warnings.extend(saved['source_name']+': '+s for s in entry['warnings'])
     pairs=[]
     sources=[r for r in project.get('raw_sources',[]) if r['id'] in verified and r['metadata']['file_type']=='OBS' and r['utc_offset_seconds'] is not None and r['metadata']['time_system']]
     for base in (r for r in sources if r['role']=='BASE'):

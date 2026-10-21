@@ -1,3 +1,22 @@
+Survey Adjustment 0.15.0 - recorded RINEX / ETC time coverage
+
+WHAT CHANGED IN 0.15.0
+ETC review can optionally reuse an EXISTING rover RINEX link for exact recorded
+epoch coverage. The shared RINEX source audit rechecks bytes/metadata/session and
+the documented source-minus-UTC offset. A table/report exposes missing ETC, bad
+status and nearest-time deltas as diagnostics only: no guessed shift, rounding,
+interpolation, second import or automatic network observations. Receiver-clock
+offset epochs require a separate time model and are blocked in this profile.
+Linked local packages preserve the original rover bytes, network snapshot and
+time table; readback recalculates without requiring the external source paths.
+A new optional synthetic paired example exercises this flow. Coordinate acceptance
+remains separate from raw time coverage. Matching recorded times does not establish
+physical synchronization, latency, full attitude or dynamic carrier corrections.
+See ORIENTATION.txt (docs/ in source). Existing 0.14.0 packages remain readable.
+
+The software is provided "AS IS", without warranty. Disclaimers and limitations of liability apply only to the extent permitted by GPLv3 sections 15-17 and applicable law. See LICENSE. Support/License footer retained.
+
+Previous release:
 Survey Adjustment 0.14.0 - ETC orientation review and explicit pole-tip coordinates
 
 WHAT CHANGED IN 0.14.0

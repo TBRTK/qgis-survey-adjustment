@@ -50,3 +50,23 @@ class OrientationQgisTests(unittest.TestCase):
         path=Path(dialog.path.text());path.write_bytes(path.read_bytes()+b'\n')
         with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertFalse(dialog.export())
         self.assertIsNone(dialog.result);self.assertIn('changed since review',dialog.status.text())
+    def test_paired_example_reuses_existing_links_queue_coverage_and_snapshot(self):
+        self.dialog.paired_example.setChecked(True);self.example();before=self.host.network_panel.snapshot();self.start();dialog=self.dialog
+        self.assertEqual(len(before['raw_sources']),3);self.assertEqual(len(before['observations']),0)
+        self.assertEqual(dialog.rover.count(),2);self.assertEqual(dialog.coverage_table.rowCount(),121)
+        self.assertEqual(dialog.result['rinex_coverage']['usable_epochs'],117)
+        self.assertIn('INCOMPLETE_EPOCH_COVERAGE',dialog.report.toPlainText())
+        self.assertIn('minus UTC = 18',dialog.report.toPlainText())
+        self.assertEqual(dialog.coverage_table.item(20,2).text(),'False')
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertTrue(dialog.export(),dialog.status.text())
+        folder=next(self.root.glob('ETC_coordinates_*'));result=o.verify_snapshot(folder)
+        self.assertEqual(result['rinex_coverage']['raw_epochs'],121)
+        self.assertEqual(before,self.host.network_panel.snapshot())
+        dialog.rover.setCurrentIndex(0);self.assertIsNone(dialog.result);self.assertEqual(dialog.coverage_table.rowCount(),0)
+        self.start();self.assertNotIn('rinex_coverage',dialog.result)
+    def test_changed_linked_network_blocks_review_and_export(self):
+        self.dialog.paired_example.setChecked(True);self.example();self.start()
+        self.host.network_panel.notes.setText(self.host.network_panel.notes.text()+' altered')
+        with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.root)):self.assertFalse(self.dialog.export())
+        self.assertIsNone(self.dialog.result);self.assertIn('Network changed',self.dialog.status.text())
+        self.assertFalse(self.dialog.start());self.assertIn('Network changed',self.dialog.status.text())

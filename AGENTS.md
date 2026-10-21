@@ -49,6 +49,13 @@ coefficients without fabricating full attitude/covariance/independent observatio
 No full dynamic raw ANTEX/carrier correction is inferred from ETC heading.
 Real orientation logs and local exported packages remain private; generate only
 invented examples in gnss_demo.py. See docs/ORIENTATION.txt for precise limits.
+0.15.0 adds optional exact recorded RINEX/ETC coverage in that same dialog.
+Reuse inspect_source and existing reviewed source-minus-UTC metadata. Keep 100 ns
+raw ticks exact; nearest deltas are diagnostic, never matching or clock inference.
+Clock-offset epochs require a separately reviewed model. Local linked snapshots
+copy only the selected rover and must recalculate without external source access.
+Coordinate acceptance and raw coverage remain separate. No physical timing,
+attitude or dynamic-carrier approval is inferred. Preserve v1 snapshot readback.
 Preserve original engine POS/covariance, raw occupation identity, base coordinates,
 antenna offsets and processing audit. Static/PPK epochs are correlated; no
 automatic averaging, coordinate updates or independent baseline insertion.

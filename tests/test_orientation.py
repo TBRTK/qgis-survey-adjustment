@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime,timedelta
+from copy import deepcopy
 from pathlib import Path
 import csv,hashlib,io,json,math,tempfile,unittest
-from survey_adjustment import orientation as o,gnss_demo as d,coordinate_job as c
+from survey_adjustment import orientation as o,gnss_demo as d,coordinate_job as c,rinex as r,network as n
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -127,3 +128,83 @@ class OrientationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'cancelled'):o.read(self.path,lambda:True)
         path=self.root/'points.csv';path.write_text('Latitude,Longitude,Height\n60,5,100\n')
         with self.assertRaises(ValueError):o.read(path)
+
+
+class OrientationCoverageTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'test_output');self.root=Path(self.tmp.name)
+        self.project=d.create(self.root/'raw',moving=True);self.rover=next(s for s in self.project['raw_sources'] if s['role']=='ROVER')
+        self.path=d.orientation_example(self.root/'orientation',self.rover,bad_epochs=False);self.source=o.read(self.path)
+    def tearDown(self):self.tmp.cleanup()
+    def coverage(self,**kw):return o.rinex_coverage(self.source,self.project,self.rover['id'],**kw)
+    def rehash(self,folder,name):
+        path=folder/'checksums.json';hashes=json.loads(path.read_text());hashes[name]=hashlib.sha256((folder/name).read_bytes()).hexdigest();path.write_text(json.dumps(hashes))
+    def test_exact_epochs_use_reviewed_offset_and_do_not_change_network(self):
+        before=deepcopy(self.project);result=self.coverage()
+        self.assertEqual(result['status'],'EXACT_USABLE_EPOCH_COVERAGE');self.assertEqual(result['raw_epochs'],121)
+        self.assertEqual(result['usable_epochs'],121);self.assertEqual(result['exact_etc_epochs'],121)
+        self.assertEqual(result['source_minus_utc_seconds'],18);self.assertEqual(result['time_system'],'GPS')
+        self.assertEqual(result['rows'][0]['utc'],'2026-10-18T08:00:00.0000000Z')
+        self.assertTrue(all(row['nearest_etc_delta_ticks']==0 for row in result['rows']))
+        self.assertEqual(self.project,before);self.assertIn('does not compare positions',' '.join(result['warnings']))
+    def test_missing_etc_float_setup_and_notification_remain_visible(self):
+        self.source=o.read(d.orientation_example(self.root/'bad',self.rover))
+        result=self.coverage();self.assertEqual(result['status'],'INCOMPLETE_EPOCH_COVERAGE')
+        self.assertEqual((result['exact_etc_epochs'],result['usable_epochs'],result['missing_etc_epochs'],result['unusable_etc_epochs']),(120,117,1,3))
+        reviewed=o.review(self.source,options(),self.project,self.rover['id'])
+        self.assertEqual(reviewed['accepted'],117);self.assertEqual(reviewed['rinex_coverage'],result)
+    def test_shifted_stream_is_diagnostic_only_and_does_not_shift_raw_time(self):
+        lines=[]
+        for line in self.path.read_text().splitlines():
+            fields=line[1:-3].split(',');tick=datetime.strptime(fields[1],'%H%M%S.%f')+timedelta(microseconds=200000)
+            fields[1]=tick.strftime('%H%M%S.%f');lines.append(o.sentence(','.join(fields)))
+        self.path.write_text('\n'.join(lines)+'\n');self.source=o.read(self.path);result=self.coverage()
+        self.assertEqual(result['exact_etc_epochs'],0);self.assertEqual(result['usable_epochs'],0)
+        self.assertEqual(result['rows'][0]['nearest_etc_delta_ticks'],2000000)
+        self.assertEqual(o.review(self.source,options(),self.project,self.rover['id'])['accepted'],121)
+    def test_no_invented_rover_role_offset_or_clock_model(self):
+        for source in self.project['raw_sources']:
+            if source['role']!='ROVER':
+                with self.assertRaisesRegex(ValueError,'existing reviewed rover'):o.rinex_coverage(self.source,self.project,source['id'])
+        with self.assertRaisesRegex(ValueError,'existing reviewed rover'):o.rinex_coverage(self.source,self.project,'missing')
+        self.rover['utc_offset_seconds']=None
+        with self.assertRaisesRegex(ValueError,'offset is undocumented'):self.coverage()
+        self.rover['utc_offset_seconds']=18
+        raw=Path(self.rover['path']);text=raw.read_text()
+        # Parse an actual optional epoch clock field; rebuild only this test fixture.
+        lines=text.splitlines();idx=next(i for i,line in enumerate(lines) if line.startswith('>'))
+        lines[idx]=lines[idx].ljust(41)+' 0.000001000000'
+        raw.write_text('\n'.join(lines)+'\n',encoding='ascii')
+        fresh=r.read_source(raw);self.assertGreater(fresh['metadata']['receiver_clock_offset_epochs'],0)
+        self.rover.update({key:deepcopy(fresh[key]) for key in ('source_sha256','fingerprint','size_bytes','expanded_bytes','metadata')})
+        with self.assertRaisesRegex(ValueError,'receiver-clock-offset'):self.coverage()
+    def test_submicrosecond_raw_epoch_is_not_rounded_to_nmea(self):
+        raw=Path(self.rover['path']);lines=raw.read_text().splitlines();indices=[i for i,line in enumerate(lines) if line.startswith('>')]
+        i=indices[1];self.assertIn('23.0000000',lines[i]);lines[i]=lines[i].replace('23.0000000','23.0000001')
+        raw.write_text('\n'.join(lines)+'\n',encoding='ascii');fresh=r.read_source(raw)
+        self.rover.update({key:deepcopy(fresh[key]) for key in ('source_sha256','fingerprint','size_bytes','expanded_bytes','metadata')})
+        result=self.coverage();self.assertEqual(result['usable_epochs'],120)
+        self.assertEqual(result['rows'][1]['nearest_etc_delta_ticks'],-1);self.assertFalse(result['rows'][1]['exact_etc'])
+        with self.assertRaisesRegex(ValueError,'sub-microsecond'):d.orientation_example(self.root/'cannotround',self.rover)
+    def test_changed_source_and_cancellation_are_blocked(self):
+        with self.assertRaisesRegex(ValueError,'cancelled'):self.coverage(cancelled=lambda:True)
+        raw=Path(self.rover['path']);raw.write_bytes(raw.read_bytes()+b'\n')
+        with self.assertRaisesRegex(ValueError,'changed since import'):self.coverage()
+    def test_linked_snapshot_is_self_contained_and_heights_are_unchanged(self):
+        before=deepcopy(self.project);raw=Path(self.rover['path']).read_bytes()
+        folder=o.export_snapshot(self.root/'package',self.source,options(),self.project,self.rover['id'])
+        self.assertEqual((folder/'raw_rover.rnx').read_bytes(),raw)
+        self.path.unlink();Path(self.rover['path']).unlink()
+        result=o.verify_snapshot(folder);self.assertEqual(result['rinex_coverage']['usable_epochs'],121)
+        self.assertEqual(result['accepted'],121);self.assertEqual(self.project,before)
+        with (folder/'ground_coordinates.csv').open() as handle:rows=list(csv.DictReader(handle))
+        self.assertEqual(float(rows[0]['Ellipsoidal height']),result['rows'][0]['ground_llh'][2])
+        with (folder/'rinex_coverage.csv').open() as handle:self.assertEqual(len(list(csv.DictReader(handle))),121)
+    def test_rehashed_time_table_or_raw_copy_cannot_override_recalculation(self):
+        for name in ('rinex_coverage.csv','raw_rover.rnx','network.sanet.json'):
+            folder=o.export_snapshot(self.root/name.replace('.','_'),self.source,options(),self.project,self.rover['id'])
+            if name=='network.sanet.json':
+                project=n.load_project(folder/name);project['raw_sources'][1]['time_evidence']+=' altered';(folder/name).write_text(n.dumps_project(project))
+            else:(folder/name).write_bytes((folder/name).read_bytes()+b'\n')
+            self.rehash(folder,name)
+            with self.subTest(name=name),self.assertRaises(ValueError):o.verify_snapshot(folder)

@@ -1,4 +1,9 @@
-EMLID REACH RS4 PRO - SUPPORT STATUS, SURVEY ADJUSTMENT 0.14.0
+EMLID REACH RS4 PRO - SUPPORT STATUS, SURVEY ADJUSTMENT 0.15.0
+
+0.15.0 optionally checks recorded RINEX/ETC epoch coverage using the existing
+rover link and source audit; no guessed time shift or dynamic-raw approval.
+Linked local packages preserve original rover bytes and recalculate time coverage.
+See ORIENTATION.txt.
 
 0.14.0 adds ETC orientation/pole-tip coordinate review inside the existing dialog.
 This is a coordinate supplement; full dynamic raw ANTEX/carrier processing remains

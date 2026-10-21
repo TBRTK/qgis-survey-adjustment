@@ -1,10 +1,41 @@
-ORIENTATION / POLE-TIP REVIEW - SURVEY ADJUSTMENT 0.14.0
+ORIENTATION / POLE-TIP REVIEW - SURVEY ADJUSTMENT 0.15.0
 
 Scope: a local coordinate supplement in Raw GNSS > PPK/static > Review
 orientation / pole-tip coordinates from NMEA ETC. It uses the existing background
 queue, coordinate/ellipsoid maths, read-only PointZ layer helper and coordinate
 CSV conventions. It does not create a second project store, raw importer, network
 observations or baselines. Existing raw engine/POS/covariance contracts are unchanged.
+
+OPTIONAL RECORDED RINEX TIME COVERAGE - NEW IN 0.15.0
+Select a rover already linked to the current network, or leave coordinate-only
+review selected. Reuse the existing source hash/metadata/session audit and the
+explicit source-minus-UTC offset. No second raw import or source reclassification.
+Every normal RINEX epoch is checked at its original 100 ns precision against ETC
+and GGA UTC. NMEA microseconds are not rounded to match. Missing time-system/offset
+evidence, changed source bytes/metadata and receiver-clock-offset epochs block
+the linked check. Nearest ETC signed delta (ETC minus raw UTC) is diagnostic only.
+No tolerance, interpolation or inferred clock shift supplies a missing epoch.
+
+The RINEX time coverage table exposes every raw epoch, exact ETC presence and
+GGA FIX / ETC state 30 / notification 0 status. INCOMPLETE_EPOCH_COVERAGE remains
+visible even when the coordinate supplement has accepted coordinates. These
+checks do not compare positions, certify antenna axes/physical synchronization,
+replace base/navigation preflight or approve dynamic raw GNSS processing.
+
+When linked, the PRIVATE local export also contains raw_rover.rnx (original bytes,
+including original gzip bytes if applicable), network.sanet.json and
+rinex_coverage.csv. Only the selected rover is copied; other links in the snapshot
+are provenance, not a complete raw-processing archive. Readback audits the copied
+rover and recalculates both tables without accessing original external paths.
+Original 0.14.0 coordinate-only packages remain readable. Checksums cannot prove
+authenticity. These packages contain local source paths: never publish them.
+
+For a paired software test, tick "Include a NEW synthetic RINEX network" before
+creating the example. Existing unsaved-network handling applies. The generator
+reuses the raw GNSS example; ETC and RINEX recorded times agree by construction.
+Their positions/carrier measurements are not a dynamic tilted-antenna simulation.
+Four deliberately excluded statuses/missing records remain visible. Leaving the
+box clear retains the original standalone midnight example and network unchanged.
 
 REACH RS4 PRO, FIRMWARE 34.8 - RESEARCH CHECKED 2026-10-20
 Emlid documents ETC revision 1 in NMEA: UTC time, state, notification, heading,
@@ -84,6 +115,7 @@ Do not feed already-compensated points back as raw observations or claim that a
 post-coordinate pole shift corrects carrier measurements taken by a tilted antenna.
 
 PRIMARY REFERENCES
+https://gssc.esa.int/navipedia/index.php/Carrier_Phase_Wind-up_Effect
 https://docs.emlid.com/reachrs4/specifications/nmea-format/
 https://files.emlid.com/docs/ETC_rev.3_RS4.pdf
 https://docs.emlid.com/reachrs4/changelogs/
